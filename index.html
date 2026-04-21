@@ -19,8 +19,6 @@ button:hover:not(:disabled){background:#f3f4f6;}
 button:disabled{opacity:0.5;cursor:not-allowed;}
 .bp{background:#1d4ed8;color:#fff;border-color:#1d4ed8;font-weight:500;}
 .bp:hover:not(:disabled){background:#1e40af;}
-.bn{background:#111;color:#fff;border-color:#111;font-weight:500;}
-.bn:hover:not(:disabled){background:#333;}
 label{display:block;font-size:12.5px;color:#555;margin-bottom:4px;font-weight:500;}
 .fg{margin-bottom:16px;}
 .fg2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
@@ -29,7 +27,7 @@ label{display:block;font-size:12.5px;color:#555;margin-bottom:4px;font-weight:50
 table{width:100%;border-collapse:collapse;font-size:12.5px;}
 th{background:#f9fafb;color:#555;font-size:10.5px;font-weight:600;letter-spacing:0.4px;text-transform:uppercase;padding:9px 10px;text-align:left;border-bottom:1px solid #e5e7eb;cursor:pointer;user-select:none;white-space:nowrap;}
 th:hover{background:#f3f4f6;}
-td{padding:9px 10px;border-bottom:1px solid #f3f4f6;color:#333;vertical-align:middle;}
+td{padding:9px 10px;border-bottom:1px solid #f3f4f6;vertical-align:middle;}
 tr:last-child td{border-bottom:none;}
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,0.35);display:flex;justify-content:flex-end;z-index:100;}
 .panel{background:#fff;width:520px;height:100vh;overflow-y:auto;box-shadow:-4px 0 24px rgba(0,0,0,0.12);display:flex;flex-direction:column;}
@@ -37,12 +35,12 @@ tr:last-child td{border-bottom:none;}
 .cr{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f3f4f6;}
 .cr:last-child{border-bottom:none;}
 .toggle{position:relative;display:inline-block;width:40px;height:22px;flex-shrink:0;}
-.toggle input{opacity:0;width:0;height:0;}
+.toggle input{opacity:0;width:0;height:0;position:absolute;}
 .slider{position:absolute;cursor:pointer;inset:0;background:#e5e7eb;border-radius:22px;transition:.2s;}
 .slider:before{position:absolute;content:"";height:16px;width:16px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.2s;}
-input:checked+.slider{background:#22c55e;}
-input:checked+.slider:before{transform:translateX(18px);}
-input:disabled+.slider{opacity:.5;cursor:not-allowed;}
+.toggle input:checked+.slider{background:#22c55e;}
+.toggle input:checked+.slider:before{transform:translateX(18px);}
+.toggle input:disabled+.slider{opacity:.5;cursor:not-allowed;}
 .chat-wrap{display:flex;flex-direction:column;gap:10px;padding:4px 0;}
 .msg{max-width:82%;padding:10px 13px;font-size:13px;line-height:1.5;}
 .msg-left{align-self:flex-start;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:4px 12px 12px 12px;}
@@ -51,13 +49,13 @@ input:disabled+.slider{opacity:.5;cursor:not-allowed;}
 .msg-left .msg-meta{color:#16a34a;}
 .msg-right .msg-meta{color:#1d4ed8;}
 .msg-time{font-size:10px;color:#999;margin-top:3px;}
-@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.4;}}
-.env-pulse{animation:pulse 1.5s ease-in-out infinite;display:inline-flex;align-items:center;gap:3px;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.3;}}
+.env-anim{animation:pulse 1.4s ease-in-out infinite;}
 ::-webkit-scrollbar{width:5px;}
 ::-webkit-scrollbar-thumb{background:#e5e7eb;border-radius:3px;}
-.tooltip-wrap{position:relative;display:inline-block;}
-.tooltip-wrap .tooltip{visibility:hidden;background:#1f2937;color:#fff;font-size:12px;border-radius:6px;padding:6px 10px;position:absolute;z-index:10;bottom:125%;left:50%;transform:translateX(-50%);white-space:nowrap;max-width:280px;white-space:normal;text-align:center;line-height:1.4;}
-.tooltip-wrap:hover .tooltip{visibility:visible;}
+.tip-wrap{position:relative;display:inline-flex;align-items:center;}
+.tip-wrap .tip{visibility:hidden;background:#1f2937;color:#fff;font-size:11.5px;border-radius:6px;padding:6px 10px;position:absolute;z-index:20;bottom:130%;left:50%;transform:translateX(-50%);white-space:normal;max-width:240px;text-align:center;line-height:1.4;pointer-events:none;}
+.tip-wrap:hover .tip{visibility:visible;}
 </style>
 </head>
 <body>
@@ -68,17 +66,17 @@ const SB_URL='https://hmuhuokfbfpcnovmllti.supabase.co';
 const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhtdWh1b2tmYmZwY25vdm1sbHRpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2ODYyNzgsImV4cCI6MjA5MjI2MjI3OH0.aP_M2NwFa8Uk6yGFYAI6os0gNOzuulQJm2sDWIitjRQ';
 
 const FAMILIES=[
-  {name:'IARD Particulier',color:'#3b82f6',bg:'#dbeafe',types:['Auto/Moto','MRH','PJ','Caravane/Camping-car/Remorque','EDPM','Plaisance','Scolaire','Voyage']},
+  {name:'IARD Particulier',color:'#1d4ed8',bg:'#dbeafe',types:['Auto/Moto','MRH','PJ','Caravane/Camping-car/Remorque','EDPM','Plaisance','Scolaire','Voyage']},
   {name:'Courtage',color:'#7c3aed',bg:'#ede9fe',types:['Courtage Auto/Moto','Courtage IARD Part','Courtage Prévoyance','Courtage Santé','Courtage IARD Pro']},
   {name:'Prévoyance',color:'#0891b2',bg:'#cffafe',types:['Ma PA','Prévoyance Pro.','CAP Prévoyance Part.','CAP AVIZEN','ARC','ENTOURAGE','ESSENCIEL']},
   {name:'Santé',color:'#059669',bg:'#d1fae5',types:['Ma Santé TNS & Retraités','Ma Santé HORS TNS & Retraités','Santé AGIPI']},
-  {name:'VTC',color:'#f59e0b',bg:'#fef3c7',types:['VTC']},
+  {name:'VTC',color:'#b45309',bg:'#fef3c7',types:['VTC']},
   {name:'Collectives',color:'#6366f1',bg:'#e0e7ff',types:['Collectives']},
   {name:'IARD Pro & Entreprise',color:'#dc2626',bg:'#fee2e2',types:['MRP','MRI','MRE','RC Pro.','Décennale','Bris Machine','Garages','Flotte']},
   {name:'Crédits AXA',color:'#ea580c',bg:'#ffedd5',types:['Crédit Conso. Hors Ass AXA','Crédit Conso. Avec Ass AXA']},
   {name:'AXA Banque',color:'#0284c7',bg:'#e0f2fe',types:['AXA Banque CB Visa','AXA Banque CB Premier','AXA Banque CB Infinite','Ogoon','Mobilité bancaire','Epargne (réserve, livret A, PEA, etc.)']},
-  {name:'Épargne & Retraite',color:'#b45309',bg:'#fef9c3',types:['FAR Retraite (apport affaire)','Assurance Vie (apport affaire)','Ass Vie & Retraite PUVL sup 5000€','Ass Vie & Retraite PUVL sup 100000€','FAR Retraite VLP sup 1000€/an']},
-  {name:'Autres',color:'#64748b',bg:'#f1f5f9',types:['Autres contrats AXA']},
+  {name:'Épargne & Retraite',color:'#92400e',bg:'#fef9c3',types:['FAR Retraite (apport affaire)','Assurance Vie (apport affaire)','Ass Vie & Retraite PUVL sup 5000€','Ass Vie & Retraite PUVL sup 100000€','FAR Retraite VLP sup 1000€/an']},
+  {name:'Autres',color:'#475569',bg:'#f1f5f9',types:['Autres contrats AXA']},
 ];
 const ALL_TYPES=FAMILIES.flatMap(f=>f.types);
 const getFamily=t=>FAMILIES.find(f=>f.types.includes(t));
@@ -106,7 +104,7 @@ function docStatus(dt){
 }
 function payOpt(dt){return PAY_OPTS.find(p=>p.value===(dt?.payment_status||'non_paye'))||PAY_OPTS[0];}
 
-/* ═══ APP ═══ */
+/* ══════════════════════════════════════ APP */
 function App(){
   const [profile,setProfile]=useState(null);
   const [sb,setSb]=useState(null);
@@ -115,6 +113,7 @@ function App(){
   const [active,setActive]=useState(null);
   const [selected,setSelected]=useState(null);
   const [reads,setReads]=useState({});
+  const [lastMsgMap,setLastMsgMap]=useState({});
   const [lf,setLf]=useState({email:'',password:''});
   const [le,setLe]=useState('');
   const [ll,setLl]=useState(false);
@@ -122,15 +121,23 @@ function App(){
   const load=useCallback(async(cl,p)=>{
     const {data:ps}=await cl.from('profiles').select('*').order('full_name');
     setProfiles(ps||[]);
+
     let q=cl.from('contracts').select('*,document_tracking(*),conseiller:conseiller_id(id,full_name,role)');
     if(p.role==='conseiller') q=q.eq('conseiller_id',p.id);
     const {data:cs}=await q.order('created_at',{ascending:false});
     setContracts(cs||[]);
-    // Charger les dates de lecture
+
+    // Derniers messages par contrat
+    const {data:msgs}=await cl.from('contract_messages').select('contract_id,created_at').order('created_at',{ascending:false});
+    const lmm={};
+    (msgs||[]).forEach(m=>{if(!lmm[m.contract_id]) lmm[m.contract_id]=m.created_at;});
+    setLastMsgMap(lmm);
+
+    // Lectures
     const {data:rs}=await cl.from('message_reads').select('contract_id,read_at').eq('user_id',p.id);
-    const readMap={};
-    (rs||[]).forEach(r=>{readMap[r.contract_id]=r.read_at;});
-    setReads(readMap);
+    const rm={};
+    (rs||[]).forEach(r=>{rm[r.contract_id]=r.read_at;});
+    setReads(rm);
   },[]);
 
   const login=async()=>{
@@ -147,7 +154,7 @@ function App(){
     setLl(false);
   };
 
-  const logout=async()=>{if(sb)await sb.auth.signOut();setProfile(null);setSb(null);setContracts([]);setActive(null);setReads({});setLf({email:'',password:''});};
+  const logout=async()=>{if(sb)await sb.auth.signOut();setProfile(null);setSb(null);setContracts([]);setActive(null);setReads({});setLastMsgMap({});setLf({email:'',password:''});};
   const refresh=useCallback(()=>{if(sb&&profile)load(sb,profile);},[sb,profile,load]);
 
   const markRead=useCallback(async(contractId)=>{
@@ -206,7 +213,7 @@ function App(){
 
       <div style={{flex:1,overflow:'auto',background:'#f9fafb'}}>
         {active==='saisir-contrat'&&<FormContrat sb={sb} profile={profile} profiles={profiles} onSaved={()=>{refresh();setActive(profile.role==='conseiller'?'mes-dossiers':'suivi-dossiers');}}/>}
-        {(active==='suivi-dossiers'||active==='mes-dossiers')&&<SuiviDossiers contracts={contracts} profile={profile} profiles={profiles} reads={reads} onSelect={c=>{setSelected(c);markRead(c.id);}} onNew={()=>setActive('saisir-contrat')}/>}
+        {(active==='suivi-dossiers'||active==='mes-dossiers')&&<SuiviDossiers contracts={contracts} profile={profile} profiles={profiles} reads={reads} lastMsgMap={lastMsgMap} onSelect={c=>{setSelected(c);markRead(c.id);}} onNew={()=>setActive('saisir-contrat')}/>}
         {!['saisir-contrat','suivi-dossiers','mes-dossiers'].includes(active)&&<Placeholder nav={nav} active={active}/>}
       </div>
 
@@ -215,7 +222,7 @@ function App(){
   );
 }
 
-/* ═══ FORMULAIRE ═══ */
+/* ══════════════════════════════════════ FORMULAIRE */
 function FormContrat({sb,profile,profiles,onSaved}){
   const mk=()=>({client_name:'',contract_number:'',emission_date:today(),effect_date:'',contract_type:ALL_TYPES[0],provenance:PROVS[0],annual_premium:'',comments:'',conseiller_id:profile.id});
   const [f,setF]=useState(mk());
@@ -247,9 +254,9 @@ function FormContrat({sb,profile,profiles,onSaved}){
           <div className="fg">
             <label style={{display:'flex',alignItems:'center',gap:'6px'}}>
               N° contrat *
-              <div className="tooltip-wrap">
-                <span style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:'16px',height:'16px',borderRadius:'50%',background:'#e5e7eb',color:'#555',fontSize:'10px',fontWeight:700,cursor:'help'}}>?</span>
-                <span className="tooltip">Sans n° de contrat, indiquez la nature : "Courtage", "Banque", etc.</span>
+              <div className="tip-wrap">
+                <span style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:'15px',height:'15px',borderRadius:'50%',background:'#e5e7eb',color:'#555',fontSize:'10px',fontWeight:700,cursor:'help',flexShrink:0}}>?</span>
+                <span className="tip">Sans n° de contrat, indiquez la nature : "Courtage", "Banque", etc.</span>
               </div>
             </label>
             <input value={f.contract_number} onChange={e=>u('contract_number',e.target.value)} placeholder="N° ou ex: Courtage, Banque…"/>
@@ -281,8 +288,8 @@ function FormContrat({sb,profile,profiles,onSaved}){
   );
 }
 
-/* ═══ TABLEAU ═══ */
-function SuiviDossiers({contracts,profile,profiles,reads,onSelect,onNew}){
+/* ══════════════════════════════════════ TABLEAU */
+function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,onSelect,onNew}){
   const [fCons,setFCons]=useState('');
   const [fType,setFType]=useState('');
   const [fStat,setFStat]=useState('');
@@ -290,14 +297,6 @@ function SuiviDossiers({contracts,profile,profiles,reads,onSelect,onNew}){
   const [fPay,setFPay]=useState('');
   const [search,setSearch]=useState('');
   const [sort,setSort]=useState({col:'created_at',asc:false});
-  const isDir=['direction','manager'].includes(profile.role);
-
-  // Calcul messages non lus par contrat
-  const unreadCount=useCallback((c)=>{
-    const lastRead=reads[c.id];
-    if(!lastRead) return c._msgCount||0;
-    return c._unreadCount||0;
-  },[reads]);
 
   const sortBy=col=>setSort(s=>s.col===col?{col,asc:!s.asc}:{col,asc:true});
 
@@ -320,8 +319,8 @@ function SuiviDossiers({contracts,profile,profiles,reads,onSelect,onNew}){
   });
 
   const SH=({col,children})=>{
-    const isActive=sort.col===col;
-    return <th onClick={()=>sortBy(col)} style={{background:isActive?'#eff6ff':''}}>{children}{isActive?(sort.asc?' ↑':' ↓'):' ↕'}</th>;
+    const on=sort.col===col;
+    return <th onClick={()=>sortBy(col)} style={{background:on?'#eff6ff':''}}>{children}{on?(sort.asc?' ↑':' ↓'):' ↕'}</th>;
   };
 
   return(
@@ -335,13 +334,14 @@ function SuiviDossiers({contracts,profile,profiles,reads,onSelect,onNew}){
       </div>
       <div style={{display:'flex',gap:'8px',marginBottom:'14px',flexWrap:'wrap'}}>
         <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Client ou n° contrat…" style={{maxWidth:'200px'}}/>
-        <select value={fCons} onChange={e=>setFCons(e.target.value)} style={{maxWidth:'160px'}}><option value="">Tous conseillers</option>{profiles.filter(p=>p.role!=='direction').map(p=><option key={p.id} value={p.id}>{p.full_name}</option>)}</select>
+        <select value={fCons} onChange={e=>setFCons(e.target.value)} style={{maxWidth:'160px'}}><option value="">Tous conseillers</option>{profiles.map(p=><option key={p.id} value={p.id}>{p.full_name}</option>)}</select>
         <select value={fType} onChange={e=>setFType(e.target.value)} style={{maxWidth:'170px'}}><option value="">Tous types</option>{FAMILIES.map(f=><optgroup key={f.name} label={f.name}>{f.types.map(t=><option key={t} value={t}>{t}</option>)}</optgroup>)}</select>
         <select value={fDoss} onChange={e=>setFDoss(e.target.value)} style={{maxWidth:'155px'}}><option value="">Tous dossiers</option><option value="Dossier complet">Dossier complet</option><option value="En cours">En cours</option><option value="Non vérifié">Non vérifié</option></select>
         <select value={fPay} onChange={e=>setFPay(e.target.value)} style={{maxWidth:'155px'}}><option value="">Tous paiements</option>{PAY_OPTS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select>
         <select value={fStat} onChange={e=>setFStat(e.target.value)} style={{maxWidth:'140px'}}><option value="">Tous statuts</option><option value="ENCOURS">ENCOURS</option><option value="CLOTURE">CLOTURE</option><option value="ANNULE">ANNULE</option></select>
         {(fCons||fType||fStat||fDoss||fPay||search)&&<button onClick={()=>{setFCons('');setFType('');setFStat('');setFDoss('');setFPay('');setSearch('');}} style={{fontSize:'12px'}}>✕ Effacer</button>}
       </div>
+
       <div className="card" style={{overflow:'hidden'}}>
         {list.length===0?(
           <div style={{padding:'48px',textAlign:'center',color:'#999',fontSize:'14px'}}>Aucun contrat</div>
@@ -368,40 +368,52 @@ function SuiviDossiers({contracts,profile,profiles,reads,onSelect,onNew}){
                   const annReq=c.annulation_requested;
                   const annOk=c.status==='ANNULE';
                   const fam=getFamily(c.contract_type);
+                  const lastMsg=lastMsgMap[c.id];
                   const lastRead=reads[c.id];
-                  const hasUnread=c._lastMsgAt&&(!lastRead||new Date(c._lastMsgAt)>new Date(lastRead));
-                  const rowBg=annOk?'#1f2937':annReq?'#374151':hasProb?'#fff5f5':'';
-                  const rowColor=annOk||annReq?'#fff':'';
+                  const hasUnread=lastMsg&&(!lastRead||new Date(lastMsg)>new Date(lastRead));
+
+                  // Couleurs de ligne
+                  const rowBg=annOk?'#374151':annReq?'#d1d5db':hasProb?'#fff5f5':'';
+                  const textColor=annOk?'#f3f4f6':annReq?'#1f2937':'#333';
+                  const mutedColor=annOk?'#9ca3af':annReq?'#4b5563':'#666';
+
                   return(
-                    <tr key={c.id} onClick={()=>onSelect(c)} style={{cursor:'pointer',background:rowBg,color:rowColor}}>
-                      <td style={{color:annOk||annReq?'#d1d5db':'#555',fontSize:'12.5px'}}>{c.conseiller?.full_name||'—'}</td>
-                      <td style={{fontWeight:500}}>
+                    <tr key={c.id} onClick={()=>onSelect(c)} style={{cursor:'pointer',background:rowBg,color:textColor}}>
+                      <td style={{color:mutedColor,fontSize:'12.5px'}}>{c.conseiller?.full_name||'—'}</td>
+                      <td style={{fontWeight:500,color:textColor}}>
                         <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
                           {c.client_name}
                           {hasUnread&&(
-                            <span className="env-pulse" style={{color:'#f59e0b',fontSize:'13px'}} title="Nouveau message">
-                              ✉ <span style={{fontSize:'10px',fontWeight:700,background:'#f59e0b',color:'#fff',borderRadius:'100px',padding:'0 4px'}}>!</span>
-                            </span>
+                            <span className="env-anim" title="Nouveau message" style={{fontSize:'13px',color:'#f59e0b'}}>✉</span>
                           )}
                         </div>
                       </td>
-                      <td style={{color:annOk||annReq?'#9ca3af':'#888',fontFamily:'monospace',fontSize:'11.5px'}}>{c.contract_number}</td>
-                      <td style={{color:annOk||annReq?'#9ca3af':'#666',whiteSpace:'nowrap'}}>{fdate(c.emission_date)}</td>
-                      <td style={{color:annOk||annReq?'#9ca3af':'#666',whiteSpace:'nowrap'}}>{fdate(c.effect_date)}</td>
-                      <td>{fam?<span className="badge" style={{background:annOk||annReq?'#4b5563':fam.bg,color:annOk||annReq?'#d1d5db':fam.color}}>{c.contract_type}</span>:<span className="badge" style={{background:'#f3f4f6',color:'#374151'}}>{c.contract_type}</span>}</td>
-                      <td style={{fontWeight:500,whiteSpace:'nowrap'}}>{feur(c.annual_premium)}</td>
+                      <td style={{color:mutedColor,fontFamily:'monospace',fontSize:'11.5px'}}>{c.contract_number}</td>
+                      <td style={{color:mutedColor,whiteSpace:'nowrap'}}>{fdate(c.emission_date)}</td>
+                      <td style={{color:mutedColor,whiteSpace:'nowrap'}}>{fdate(c.effect_date)}</td>
+                      <td>
+                        {fam
+                          ? <span className="badge" style={{background:annOk?'#4b5563':annReq?'#9ca3af':fam.bg,color:annOk?'#e5e7eb':annReq?'#374151':fam.color}}>{c.contract_type}</span>
+                          : <span className="badge" style={{background:'#f3f4f6',color:'#374151'}}>{c.contract_type}</span>
+                        }
+                      </td>
+                      <td style={{fontWeight:500,whiteSpace:'nowrap',color:textColor}}>{feur(c.annual_premium)}</td>
                       <td>
                         <div style={{display:'flex',alignItems:'center',gap:'4px',flexWrap:'wrap'}}>
                           {annOk
-                            ? <span className="badge" style={{background:'#111',color:'#fff'}}>Annulé</span>
+                            ? <span className="badge" style={{background:'#111',color:'#f9fafb'}}>Annulé</span>
                             : <span className="badge" style={{background:ds.bg,color:ds.tx}}>{ds.l}</span>
                           }
-                          {annReq&&!annOk&&<span className="badge" style={{background:'#374151',color:'#fff'}}>Annulation demandée</span>}
+                          {annReq&&!annOk&&<span className="badge" style={{background:'#4b5563',color:'#f3f4f6'}}>Annulation dem.</span>}
                           {hasProb&&<span className="badge" style={{background:'#fee2e2',color:'#991b1b'}}>⚠ Problème</span>}
                         </div>
                       </td>
                       <td><span className="badge" style={{background:ps.bg,color:ps.tx}}>{ps.label}</span></td>
-                      <td><span className="badge" style={{background:c.status==='ENCOURS'?'#dbeafe':c.status==='CLOTURE'?'#f3f4f6':'#111',color:c.status==='ENCOURS'?'#1e40af':c.status==='CLOTURE'?'#374151':'#fff'}}>{c.status}</span></td>
+                      <td>
+                        <span className="badge" style={{background:annOk?'#111':c.status==='ENCOURS'?'#dbeafe':'#f3f4f6',color:annOk?'#f9fafb':c.status==='ENCOURS'?'#1e40af':'#374151'}}>
+                          {c.status}
+                        </span>
+                      </td>
                     </tr>
                   );
                 })}
@@ -414,11 +426,12 @@ function SuiviDossiers({contracts,profile,profiles,reads,onSelect,onNew}){
   );
 }
 
-/* ═══ PANNEAU DÉTAIL ═══ */
+/* ══════════════════════════════════════ PANNEAU DÉTAIL */
 function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
   const [dt,setDt]=useState(contract.document_tracking||{});
   const [monoType,setMonoType]=useState(contract.mono_type||'');
   const [annReq,setAnnReq]=useState(contract.annulation_requested||false);
+  const [isAnnule,setIsAnnule]=useState(contract.status==='ANNULE');
   const [editing,setEditing]=useState(false);
   const [editF,setEditF]=useState({client_name:contract.client_name,emission_date:contract.emission_date,effect_date:contract.effect_date,provenance:contract.provenance||'',annual_premium:contract.annual_premium||0,commission:contract.commission||0,conseiller_id:contract.conseiller_id,contract_type:contract.contract_type,contract_number:contract.contract_number});
   const [messages,setMessages]=useState([]);
@@ -426,7 +439,6 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
   const [saving,setSaving]=useState(false);
   const canDir=profile.role==='direction';
   const canPieces=['manager','direction'].includes(profile.role);
-  const canAnnReq=['manager','direction','conseiller'].includes(profile.role);
   const isCollab=profile.role==='conseiller';
 
   const loadMsgs=useCallback(async()=>{
@@ -448,21 +460,17 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
     setEditing(false);onRefresh();setSaving(false);
   };
 
-  const saveMonoType=async(val)=>{
-    setMonoType(val);
-    await sb.from('contracts').update({mono_type:val||null}).eq('id',contract.id);
+  const saveMonoType=async(val)=>{setMonoType(val);await sb.from('contracts').update({mono_type:val||null}).eq('id',contract.id);onRefresh();};
+
+  const toggleAnnReq=async()=>{
+    const v=!annReq;setAnnReq(v);
+    await sb.from('contracts').update({annulation_requested:v}).eq('id',contract.id);
     onRefresh();
   };
 
-  const toggleAnnulationReq=async()=>{
-    const newVal=!annReq;
-    setAnnReq(newVal);
-    await sb.from('contracts').update({annulation_requested:newVal}).eq('id',contract.id);
-    onRefresh();
-  };
-
-  const confirmAnnulation=async(checked)=>{
-    await sb.from('contracts').update({status:checked?'ANNULE':'ENCOURS'}).eq('id',contract.id);
+  const toggleAnnule=async(v)=>{
+    setIsAnnule(v);
+    await sb.from('contracts').update({status:v?'ANNULE':'ENCOURS'}).eq('id',contract.id);
     onRefresh();
   };
 
@@ -475,13 +483,16 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
 
   const setMsgStatus=async(id,status)=>{
     await sb.from('contract_messages').update({resolved_status:status,is_resolved:status==='resolved'}).eq('id',id);
-    await loadMsgs();onRefresh();
+    await loadMsgs();
   };
 
-  const TG=({label,field,disabled})=>(
+  const TG=({label,field,disabled,blackChecked})=>(
     <div className="cr">
       <span style={{fontSize:'13.5px',color:disabled?'#aaa':'#222'}}>{label}</span>
-      <label className="toggle"><input type="checkbox" checked={!!dt[field]} disabled={disabled||saving} onChange={e=>updDt({[field]:e.target.checked})}/><span className="slider"></span></label>
+      <label className="toggle">
+        <input type="checkbox" checked={!!dt[field]} disabled={disabled||saving} onChange={e=>updDt({[field]:e.target.checked})}/>
+        <span className="slider" style={blackChecked&&dt[field]?{background:'#111'}:{}}></span>
+      </label>
     </div>
   );
 
@@ -493,23 +504,25 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
 
   const eu=(k,v)=>setEditF(p=>({...p,[k]:v}));
   const fam=getFamily(contract.contract_type);
-  const isAnnule=contract.status==='ANNULE';
+  const headerBg=isAnnule?'#1f2937':annReq?'#374151':'#fff';
+  const headerTx=isAnnule||annReq?'#f3f4f6':'#111';
 
   return(
     <div className="overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
       <div className="panel">
-        <div style={{padding:'16px 20px',borderBottom:'1px solid #e5e7eb',display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0,background:isAnnule?'#1f2937':'#fff'}}>
+        {/* Header */}
+        <div style={{padding:'16px 20px',borderBottom:'1px solid #e5e7eb',display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0,background:headerBg,transition:'background 0.2s'}}>
           <div>
-            <div style={{fontSize:'15px',fontWeight:600,color:isAnnule?'#fff':'#111'}}>{contract.client_name}</div>
+            <div style={{fontSize:'15px',fontWeight:600,color:headerTx}}>{contract.client_name}</div>
             <div style={{display:'flex',alignItems:'center',gap:'6px',marginTop:'3px',flexWrap:'wrap'}}>
-              <span style={{fontSize:'12px',color:isAnnule?'#9ca3af':'#999'}}>{contract.contract_number}</span>
-              {fam&&<span className="badge" style={{background:isAnnule?'#374151':fam.bg,color:isAnnule?'#d1d5db':fam.color,fontSize:'10.5px'}}>{contract.contract_type}</span>}
-              {isAnnule&&<span className="badge" style={{background:'#111',color:'#fff',fontSize:'10.5px'}}>ANNULÉ</span>}
+              <span style={{fontSize:'12px',color:isAnnule||annReq?'#9ca3af':'#999'}}>{contract.contract_number}</span>
+              {fam&&<span className="badge" style={{background:isAnnule||annReq?'#4b5563':fam.bg,color:isAnnule||annReq?'#d1d5db':fam.color,fontSize:'10.5px'}}>{contract.contract_type}</span>}
+              {isAnnule&&<span className="badge" style={{background:'#111',color:'#f9fafb',fontSize:'10.5px'}}>ANNULÉ</span>}
             </div>
           </div>
           <div style={{display:'flex',gap:'6px'}}>
             {canDir&&!editing&&<button onClick={()=>setEditing(true)} style={{fontSize:'12px',padding:'5px 10px'}}>✏️ Modifier</button>}
-            <button onClick={onClose} style={{padding:'6px 10px',fontSize:'13px',background:isAnnule?'#374151':'',color:isAnnule?'#fff':'',borderColor:isAnnule?'#4b5563':''}}>✕</button>
+            <button onClick={onClose} style={{padding:'6px 10px',fontSize:'13px'}}>✕</button>
           </div>
         </div>
 
@@ -562,7 +575,12 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
               <TG label="Justificatifs complets" field="docs_complete" disabled={!canPieces}/>
             </div>
             {canPieces&&(
-              <button onClick={()=>updDt({has_problem:!dt.has_problem})} style={{marginTop:'10px',width:'100%',padding:'8px',fontSize:'12.5px',display:'flex',alignItems:'center',justifyContent:'center',gap:'6px',background:dt.has_problem?'#fef2f2':'#fff',color:dt.has_problem?'#b91c1c':'#555',borderColor:dt.has_problem?'#fecaca':'#e5e7eb'}}>
+              <button onClick={()=>updDt({has_problem:!dt.has_problem})}
+                style={{marginTop:'8px',width:'100%',padding:'9px',fontSize:'12.5px',display:'flex',alignItems:'center',justifyContent:'center',gap:'6px',
+                  background:dt.has_problem?'rgba(185,28,28,0.08)':'transparent',
+                  color:dt.has_problem?'#b91c1c':'#555',
+                  border:`1px solid ${dt.has_problem?'#fecaca':'#e5e7eb'}`,
+                  borderRadius:'8px'}}>
                 {dt.has_problem?'⚠️ Problème signalé — Cliquer pour lever':'⚠️ Signaler un problème sur ce dossier'}
               </button>
             )}
@@ -573,6 +591,7 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
             <div className="sec">Vérifications direction {!canDir&&'· lecture seule'}</div>
             <div className="card" style={{padding:'0 16px'}}>
               <TG label="Dates correctes" field="effect_date_ok" disabled={!canDir}/>
+              {/* Mono contrat */}
               <div style={{padding:'12px 0',borderBottom:'1px solid #f3f4f6'}}>
                 <div style={{fontSize:'13.5px',color:canDir?'#222':'#aaa',marginBottom:'8px'}}>Mono contrat</div>
                 <div style={{display:'flex',flexDirection:'column',gap:'6px'}}>
@@ -584,6 +603,7 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
                   ))}
                 </div>
               </div>
+              {/* Paiement client */}
               <div style={{padding:'12px 0',borderBottom:'1px solid #f3f4f6'}}>
                 <div style={{fontSize:'13.5px',color:canDir?'#222':'#aaa',marginBottom:'8px'}}>Paiement client</div>
                 <div style={{display:'flex',flexDirection:'column',gap:'6px'}}>
@@ -598,8 +618,8 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
               {/* Annulation direction */}
               <div className="cr">
                 <span style={{fontSize:'13.5px',color:canDir?'#222':'#aaa'}}>Annuler le dossier</span>
-                <label className="toggle">
-                  <input type="checkbox" checked={isAnnule} disabled={!canDir||saving} onChange={e=>confirmAnnulation(e.target.checked)} style={{opacity:0,width:0,height:0}}/>
+                <label className="toggle" style={{cursor:canDir?'pointer':'not-allowed'}}>
+                  <input type="checkbox" checked={isAnnule} disabled={!canDir||saving} onChange={e=>toggleAnnule(e.target.checked)}/>
                   <span className="slider" style={{background:isAnnule?'#111':''}}></span>
                 </label>
               </div>
@@ -621,14 +641,14 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
                       <div>{m.message}</div>
                       <div className="msg-time">
                         {fdt(m.created_at)}
-                        {status==='resolved'&&<span style={{color:'#16a34a',fontWeight:600,marginLeft:'6px'}}>✓ Résolu</span>}
-                        {status==='unresolved'&&<span style={{color:'#dc2626',fontWeight:600,marginLeft:'6px'}}>✗ Non résolu</span>}
+                        {status==='resolved'&&<span style={{color:'#16a34a',fontWeight:700,marginLeft:'6px'}}>✓ Résolu</span>}
+                        {status==='unresolved'&&<span style={{color:'#dc2626',fontWeight:700,marginLeft:'6px'}}>✗ Non résolu</span>}
                       </div>
                     </div>
                     {m.author_role==='conseiller'&&canPieces&&(
                       <div style={{display:'flex',gap:'6px',marginTop:'4px'}}>
-                        {status!=='resolved'&&<button onClick={()=>setMsgStatus(m.id,'resolved')} style={{fontSize:'11px',padding:'2px 8px',color:'#16a34a',border:'1px solid #bbf7d0',background:'#f0fdf4'}}>✓ Résolu</button>}
-                        {status!=='unresolved'&&<button onClick={()=>setMsgStatus(m.id,'unresolved')} style={{fontSize:'11px',padding:'2px 8px',color:'#dc2626',border:'1px solid #fecaca',background:'#fef2f2'}}>✗ Non résolu</button>}
+                        {status!=='resolved'&&<button onClick={()=>setMsgStatus(m.id,'resolved')} style={{fontSize:'11px',padding:'3px 10px',color:'#16a34a',border:'1px solid #bbf7d0',background:'#f0fdf4',borderRadius:'6px'}}>✓ Résolu</button>}
+                        {status!=='unresolved'&&<button onClick={()=>setMsgStatus(m.id,'unresolved')} style={{fontSize:'11px',padding:'3px 10px',color:'#dc2626',border:'1px solid #fecaca',background:'#fef2f2',borderRadius:'6px'}}>✗ Non résolu</button>}
                       </div>
                     )}
                   </div>
@@ -642,10 +662,14 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
             <div style={{fontSize:'11px',color:'#aaa',marginTop:'4px'}}>Entrée pour envoyer · Shift+Entrée pour saut de ligne</div>
           </div>
 
-          {/* Bouton annulation demande — conseiller + manager */}
+          {/* Bouton annulation demande — tous sauf direction qui a la vraie annulation */}
           {!isAnnule&&(
-            <button onClick={toggleAnnulationReq} className={annReq?'bn':''} style={{width:'100%',padding:'10px',fontSize:'13px',display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',marginTop:'8px'}}>
-              {annReq?'⬛ Annulation demandée — Cliquer pour annuler la demande':'⬛ Dossier annulé'}
+            <button onClick={toggleAnnReq}
+              style={{width:'100%',padding:'10px',fontSize:'13px',display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',borderRadius:'8px',transition:'all 0.15s',
+                background:annReq?'rgba(17,17,17,0.85)':'transparent',
+                color:annReq?'#f9fafb':'#555',
+                border:`1px solid ${annReq?'#374151':'#e5e7eb'}`}}>
+              {annReq?'⬛ Annulation demandée — Annuler la demande':'⬛ Signaler annulation de ce dossier'}
             </button>
           )}
         </div>
