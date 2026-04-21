@@ -529,6 +529,22 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
             )}
           </div>
 
+          {/* Suivi de dossier */}
+          <div style={{marginBottom:'20px'}}>
+            <div className="sec">Suivi de dossier {!canPieces&&'· lecture seule'}</div>
+            <div className="card" style={{padding:'0 16px'}}>
+              <TG label="N° de contrat conforme" field="contract_nr_ok" disabled={!canPieces}/>
+              <TG label="Rentré signé" field="rented_signed" disabled={!canPieces}/>
+              <TG label="Conforme KYC" field="kyc_compliant" disabled={!canPieces}/>
+              <TG label="Justificatifs complets" field="docs_complete" disabled={!canPieces}/>
+            </div>
+            <button
+              onClick={()=>updDt({has_problem:!dt.has_problem})}
+              style={{marginTop:'10px',width:'100%',padding:'8px',fontSize:'12.5px',display:'flex',alignItems:'center',justifyContent:'center',gap:'6px',background:dt.has_problem?'#fef2f2':'#fff',color:dt.has_problem?'#b91c1c':'#555',borderColor:dt.has_problem?'#fecaca':'#e5e7eb'}}>
+              {dt.has_problem?'⚠️ Problème signalé — Cliquer pour lever':'⚠️ Signaler un problème sur ce dossier'}
+            </button>
+          </div>
+
           {/* Vérifications direction */}
           <div style={{marginBottom:'20px'}}>
             <div className="sec">Vérifications direction {!canDir&&'· lecture seule'}</div>
@@ -579,22 +595,6 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
                 </div>
               </div>
             </div>
-          </div>
-
-          {/* Suivi de dossier */}
-          <div style={{marginBottom:'20px'}}>
-            <div className="sec">Suivi de dossier {!canPieces&&'· lecture seule'}</div>
-            <div className="card" style={{padding:'0 16px'}}>
-              <TG label="N° de contrat conforme" field="contract_nr_ok" disabled={!canPieces}/>
-              <TG label="Rentré signé" field="rented_signed" disabled={!canPieces}/>
-              <TG label="Conforme KYC" field="kyc_compliant" disabled={!canPieces}/>
-              <TG label="Justificatifs complets" field="docs_complete" disabled={!canPieces}/>
-            </div>
-            <button
-              onClick={()=>updDt({has_problem:!dt.has_problem})}
-              style={{marginTop:'10px',width:'100%',padding:'8px',fontSize:'12.5px',display:'flex',alignItems:'center',justifyContent:'center',gap:'6px',background:dt.has_problem?'#fef2f2':'#fff',color:dt.has_problem?'#b91c1c':'#555',borderColor:dt.has_problem?'#fecaca':'#e5e7eb'}}>
-              {dt.has_problem?'⚠️ Problème signalé — Cliquer pour lever':'⚠️ Signaler un problème sur ce dossier'}
-            </button>
           </div>
 
           {/* Échanges */}
