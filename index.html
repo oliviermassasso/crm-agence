@@ -297,6 +297,7 @@ function App(){
   const [selected,setSelected]=useState(null);
   const [reads,setReads]=useState({});
   const [lastMsgMap,setLastMsgMap]=useState({});
+  const [sort,setSort]=useState({col:'emission_date',asc:true});
   const [lf,setLf]=useState({email:'',password:''});
   const [le,setLe]=useState('');
   const [ll,setLl]=useState(false);
@@ -396,7 +397,7 @@ function App(){
       </div>
       <div style={{flex:1,overflow:'auto',background:'#f9fafb'}}>
         {active==='saisir-contrat'&&<FormContrat sb={sb} profile={profile} profiles={profiles} onSaved={function(){refresh();setActive(profile.role==='conseiller'?'mes-dossiers':'suivi-dossiers');}}/>}
-        {(active==='suivi-dossiers'||active==='mes-dossiers')&&<SuiviDossiers contracts={contracts} profile={profile} profiles={profiles} reads={reads} lastMsgMap={lastMsgMap} onSelect={function(c){setSelected(c);markRead(c.id);}} onNew={function(){setActive('saisir-contrat');}}/>}
+        {(active==='suivi-dossiers'||active==='mes-dossiers')&&<SuiviDossiers contracts={contracts} profile={profile} profiles={profiles} reads={reads} lastMsgMap={lastMsgMap} sort={sort} setSort={setSort} onSelect={function(c){setSelected(c);markRead(c.id);}} onNew={function(){setActive('saisir-contrat');}}/>}
         {active==='tableau-bord'&&<TableauBord contracts={contracts} profiles={profiles}/>}
         {(active==='commissions'||active==='mes-commissions')&&<Commissions contracts={contracts} profiles={profiles} profile={profile} sb={sb} onSelect={function(c){setSelected(c);markRead(c.id);}} onRefresh={refresh}/>}
         {!['saisir-contrat','suivi-dossiers','mes-dossiers','tableau-bord','commissions','mes-commissions'].includes(active)&&<Placeholder nav={nav} active={active}/>}
@@ -854,14 +855,13 @@ function FormContrat({sb,profile,profiles,onSaved}){
 }
 
 /* ══ TABLEAU DOSSIERS ══ */
-function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,onSelect,onNew}){
+function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,sort,setSort,onSelect,onNew}){
   const [fCons,setFCons]=useState('');
   const [fType,setFType]=useState('');
   const [fStat,setFStat]=useState('');
   const [fDoss,setFDoss]=useState('');
   const [fPay,setFPay]=useState('');
   const [search,setSearch]=useState('');
-  const [sort,setSort]=useState({col:'emission_date',asc:true});
   function sortBy(col){setSort(function(s){return s.col===col?{col:col,asc:!s.asc}:{col:col,asc:true};});}
   const list=contracts.filter(function(c){
     if(fCons&&c.conseiller_id!==fCons)return false;
