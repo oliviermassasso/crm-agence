@@ -901,7 +901,7 @@ function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,sort,setSort
         :<div style={{overflowX:'auto'}}><table><thead><tr>
           <SH col="conseiller">Conseiller</SH><SH col="client_name">Client</SH><SH col="contract_number">N° contrat</SH>
           <SH col="emission_date">Date émission</SH><SH col="effect_date">Date effet</SH><th>Type</th>
-          <SH col="annual_premium">Prime annuelle</SH><SH col="dossier">Dossier</SH><SH col="paiement">Paiement</SH><SH col="status">Statut</SH>
+          <SH col="annual_premium">Prime annuelle</SH><SH col="dossier">Dossier</SH><SH col="paiement">Paiement cotisation</SH><SH col="status">Statut</SH>
         </tr></thead><tbody>
           {list.map(function(c){
             const ds=docStatus(c.document_tracking);
