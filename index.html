@@ -161,13 +161,17 @@ function isConforme(c) {
   return true;
 }
 
-function calcMonthCommissions(contracts,profiles,year,month) {
-  // Contrats éligibles dont eligible_since tombe dans le mois
+function calcMonthCommissions(contracts,profiles,year,month,paidAtMap) {
+  // paidAtMap = {conseiller_id: paid_at_timestamp} pour les mois gelés
   const monthContracts=contracts.filter(function(c){
     const dt=c.document_tracking||{};
     if(!dt.eligible_since) return false;
     const d=new Date(dt.eligible_since);
-    return d.getFullYear()===year&&d.getMonth()+1===month;
+    if(d.getFullYear()!==year||d.getMonth()+1!==month) return false;
+    // Si le mois est gelé pour ce conseiller, ne prendre que les contrats éligibles AVANT le gel
+    const cutoff=paidAtMap&&paidAtMap[c.conseiller_id];
+    if(cutoff&&new Date(dt.eligible_since)>new Date(cutoff)) return false;
+    return true;
   });
 
   const results={};
@@ -403,7 +407,14 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh}){
 
   useEffect(function(){loadPayments();},[loadPayments]);
 
-  const computed=calcMonthCommissions(contracts,profiles,year,month);
+  // Map conseiller_id -> paid_at pour le gel par timestamp
+  const paidAtMap={};
+  Object.keys(payments).forEach(function(cid){
+    const p=payments[cid];
+    if(p.frozen&&p.paid_at) paidAtMap[cid]=p.paid_at;
+  });
+
+  const computed=calcMonthCommissions(contracts,profiles,year,month,paidAtMap);
 
   const displayProfiles=isCollab
     ? profiles.filter(function(p){return p.id===profile.id;})
@@ -431,7 +442,7 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh}){
         total_com:comp.totalCom||0,
         frozen_contract_ids:frozenIds,
         bs_month:existing&&existing.bs_month?existing.bs_month:bsLabel,
-        paid_at:new Date().toISOString(),
+        paid_at:new Date().toISOString(), // timestamp précis avec secondes
       };
       let res;
       if(existing) res=await sb.from('commission_payments').update(update).eq('id',existing.id);
@@ -493,9 +504,17 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh}){
         const displayTotal=isFrozen?pay.total_com:comp.totalCom;
         const hasDecote=displayDecote>0;
 
-        // Contrats à afficher : si gelé, utiliser le snapshot des IDs
-        const displayContracts=isFrozen&&pay.frozen_contract_ids&&pay.frozen_contract_ids.length>0
-          ? contracts.filter(function(c){return pay.frozen_contract_ids.includes(c.id);})
+        // Filtrage explicite : si gelé, exclure les contrats éligibles après paid_at
+        const cutoff=isFrozen&&pay.paid_at?new Date(pay.paid_at):null;
+        const displayContracts=cutoff
+          ? contracts.filter(function(c){
+              if(c.conseiller_id!==p.id) return false;
+              const dt=c.document_tracking||{};
+              if(!dt.eligible_since) return false;
+              const d=new Date(dt.eligible_since);
+              if(d.getFullYear()!==year||d.getMonth()+1!==month) return false;
+              return new Date(dt.eligible_since)<=cutoff;
+            })
           : comp.contracts;
 
         return(
