@@ -504,8 +504,8 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
 
   const eu=(k,v)=>setEditF(p=>({...p,[k]:v}));
   const fam=getFamily(contract.contract_type);
-  const headerBg=isAnnule?'#1f2937':annReq?'#374151':'#fff';
-  const headerTx=isAnnule||annReq?'#f3f4f6':'#111';
+  const headerBg=isAnnule?'#1f2937':annReq?'#374151':dt.has_problem?'rgba(185,28,28,0.82)':'#fff';
+  const headerTx=isAnnule||annReq||dt.has_problem?'#f3f4f6':'#111';
 
   return(
     <div className="overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
@@ -591,6 +591,15 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
                 {dt.has_problem?'⚠️ Problème signalé — Cliquer pour lever':'⚠️ Signaler un problème sur ce dossier'}
               </button>
             )}
+            {!isAnnule&&(
+              <button onClick={toggleAnnReq}
+                style={{marginTop:'8px',width:'100%',padding:'9px',fontSize:'12.5px',display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',borderRadius:'8px',transition:'all 0.15s',
+                  background:annReq?'rgba(0,0,0,0.82)':'rgba(0,0,0,0.12)',
+                  color:annReq?'#f9fafb':'#333',
+                  border:`1px solid ${annReq?'#374151':'rgba(0,0,0,0.15)'}`}}>
+                {annReq?'⬛ Annulation demandée — Annuler la demande':'⬛ Signaler annulation de ce dossier'}
+              </button>
+            )}
           </div>
 
           {/* Vérifications direction */}
@@ -668,17 +677,6 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
             </div>
             <div style={{fontSize:'11px',color:'#aaa',marginTop:'4px'}}>Entrée pour envoyer · Shift+Entrée pour saut de ligne</div>
           </div>
-
-          {/* Bouton annulation demande — tous sauf direction qui a la vraie annulation */}
-          {!isAnnule&&(
-            <button onClick={toggleAnnReq}
-              style={{width:'100%',padding:'10px',fontSize:'13px',display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',borderRadius:'8px',transition:'all 0.15s',
-                background:annReq?'rgba(0,0,0,0.82)':'rgba(0,0,0,0.12)',
-                color:annReq?'#f9fafb':'#333',
-                border:`1px solid ${annReq?'#374151':'rgba(0,0,0,0.15)'}`}}>
-              {annReq?'⬛ Annulation demandée — Annuler la demande':'⬛ Signaler annulation de ce dossier'}
-            </button>
-          )}
         </div>
       </div>
     </div>
@@ -705,4 +703,3 @@ ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
 </script>
 </body>
 </html>
-
