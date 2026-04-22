@@ -124,6 +124,8 @@ const TYPE_PJ_PA=['PJ','Ma PA'];
 const TYPE_SANTE_TNS=['Ma Santé TNS & Retraités'];
 
 function calcBaseCommission(contract) {
+  // Commission manuelle = prioritaire
+  if(contract.manual_commission!==null&&contract.manual_commission!==undefined) return contract.manual_commission;
   const g=GRILLE_2026[contract.contract_type];
   if(!g) return 0;
   const mt=contract.mono_type||'';
@@ -387,8 +389,10 @@ function Commissions({contracts,profiles,profile,sb,onSelect}){
   const [selCons,setSelCons]=useState(profile.role==='conseiller'?profile.id:'');
   const [payments,setPayments]=useState({});
   const [saving,setSaving]=useState(false);
-  const canEdit=['direction','manager'].includes(profile.role);
+  const canDir=profile.role==='direction';
   const isCollab=profile.role==='conseiller';
+
+  const bsLabel=MONTHS[month-1]+' '+year;
 
   const loadPayments=useCallback(async function(){
     const res=await sb.from('commission_payments').select('*').eq('year',year).eq('month',month);
@@ -399,10 +403,8 @@ function Commissions({contracts,profiles,profile,sb,onSelect}){
 
   useEffect(function(){loadPayments();},[loadPayments]);
 
-  // Calcul auto pour tous les conseillers du mois
   const computed=calcMonthCommissions(contracts,profiles,year,month);
 
-  // Si conseiller, forcer son propre profil
   const displayProfiles=isCollab
     ? profiles.filter(function(p){return p.id===profile.id;})
     : profiles.filter(function(p){return p.role!=='direction';});
@@ -415,17 +417,31 @@ function Commissions({contracts,profiles,profile,sb,onSelect}){
     setSaving(true);
     const existing=payments[consId];
     const comp=computed[consId]||{};
+    // Quand on coche Payé, on gèle tous les calculs du mois
+    const isPayingNow=field==='paid'&&value===true;
     const data={
       conseiller_id:consId,year,month,
       base_com:comp.baseCom||0,
       bonifications:comp.bonif||0,
       decote_rate:comp.decote||0,
       total_com:comp.totalCom||0,
+      frozen:isPayingNow?true:(existing?existing.frozen:false),
+      bs_month:existing&&existing.bs_month?existing.bs_month:bsLabel,
       [field]:value,
     };
     let res;
     if(existing){
-      res=await sb.from('commission_payments').update({[field]:value}).eq('id',existing.id);
+      const update={[field]:value};
+      if(isPayingNow){
+        // Geler tous les calculs actuels au moment du paiement
+        update.frozen=true;
+        update.base_com=comp.baseCom||0;
+        update.bonifications=comp.bonif||0;
+        update.decote_rate=comp.decote||0;
+        update.total_com=comp.totalCom||0;
+        if(!existing.bs_month) update.bs_month=bsLabel;
+      }
+      res=await sb.from('commission_payments').update(update).eq('id',existing.id);
     } else {
       res=await sb.from('commission_payments').insert(data);
     }
@@ -448,7 +464,7 @@ function Commissions({contracts,profiles,profile,sb,onSelect}){
             </select>
           )}
           <select value={month} onChange={function(e){setMonth(parseInt(e.target.value));}} style={{width:'auto',padding:'6px 10px'}}>
-            {MONTHS.map(function(m,i){return <option key={i} value={i+1}>{m}</option>;})}
+            {MONTHS.map(function(ml,i){return <option key={i} value={i+1}>{ml}</option>;})}
           </select>
           <select value={year} onChange={function(e){setYear(parseInt(e.target.value));}} style={{width:'auto',padding:'6px 10px'}}>
             {[2024,2025,2026].map(function(y){return <option key={y} value={y}>{y}</option>;})}
@@ -459,37 +475,43 @@ function Commissions({contracts,profiles,profile,sb,onSelect}){
       {filtered.map(function(p){
         const comp=computed[p.id]||{baseCom:0,bonif:0,tauxNC:0,decote:0,totalCom:0,contracts:[]};
         const pay=payments[p.id]||{};
-        const hasDecote=comp.decote>0;
+        const isFrozen=!!pay.frozen;
+
+        // Si gelé, utiliser les valeurs stockées; sinon calcul live
+        const displayBase=isFrozen?pay.base_com:comp.baseCom;
+        const displayBonif=isFrozen?pay.bonifications:comp.bonif;
+        const displayDecote=isFrozen?pay.decote_rate:comp.decote;
+        const displayTotal=isFrozen?pay.total_com:comp.totalCom;
+        const hasDecote=displayDecote>0;
+
+        // Contrats à afficher : si gelé, uniquement ceux éligibles à ce mois
+        // (comp.contracts = éligibles ce mois, déjà correct)
+        const displayContracts=comp.contracts;
 
         return(
           <div key={p.id} className="card" style={{marginBottom:'16px',overflow:'hidden'}}>
-            {/* Header conseiller */}
-            <div style={{padding:'14px 18px',borderBottom:'1px solid #f3f4f6',display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'8px'}}>
-              <div style={{fontWeight:600,fontSize:'15px'}}>{p.full_name}</div>
+            <div style={{padding:'14px 18px',borderBottom:'1px solid #f3f4f6',display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'8px',background:isFrozen?'#f0fdf4':''}}>
+              <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
+                <span style={{fontWeight:600,fontSize:'15px'}}>{p.full_name}</span>
+                {isFrozen&&<span className="badge" style={{background:'#d1fae5',color:'#065f46'}}>🔒 Gelé · {pay.bs_month}</span>}
+              </div>
               <div style={{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}}>
-                {hasDecote&&<span className="badge" style={{background:'#fee2e2',color:'#991b1b'}}>⚠ Décote NC {comp.decote.toFixed(1)}%</span>}
-                <span style={{fontSize:'13px',color:'#666'}}>Base : {feur(comp.baseCom)}</span>
-                {comp.bonif>0&&<span style={{fontSize:'13px',color:'#059669'}}>+ Bonif : {feur(comp.bonif)}</span>}
-                <span style={{fontSize:'16px',fontWeight:700,color:'#1d4ed8'}}>= {feur(comp.totalCom)}</span>
+                {hasDecote&&<span className="badge" style={{background:'#fee2e2',color:'#991b1b'}}>⚠ Décote NC {displayDecote.toFixed?displayDecote.toFixed(1):displayDecote}%</span>}
+                <span style={{fontSize:'13px',color:'#666'}}>Base : {feur(displayBase)}</span>
+                {displayBonif>0&&<span style={{fontSize:'13px',color:'#059669'}}>+ Bonif : {feur(displayBonif)}</span>}
+                <span style={{fontSize:'16px',fontWeight:700,color:'#1d4ed8'}}>= {feur(displayTotal)}</span>
               </div>
             </div>
 
-            {/* Détail par contrat */}
             <div style={{overflowX:'auto'}}>
               <table>
                 <thead><tr>
-                  <th>Client</th>
-                  <th>Type</th>
-                  <th>Prime annuelle</th>
-                  <th>Taux / Fixe</th>
-                  <th>Commission</th>
-                  <th>Mono</th>
-                  <th>Éligible depuis</th>
+                  <th>Client</th><th>Type</th><th>Prime annuelle</th><th>Taux / Fixe</th><th>Commission</th><th>Mono</th><th>Éligible depuis</th>
                 </tr></thead>
                 <tbody>
-                  {comp.contracts.length===0
+                  {displayContracts.length===0
                     ? <tr><td colSpan="7" style={{textAlign:'center',color:'#aaa',padding:'16px'}}>Aucun contrat éligible ce mois</td></tr>
-                    : comp.contracts.map(function(c){
+                    : displayContracts.map(function(c){
                       const g=GRILLE_2026[c.contract_type];
                       const com=calcBaseCommission(c);
                       const mt=c.mono_type||'';
@@ -500,7 +522,7 @@ function Commissions({contracts,profiles,profile,sb,onSelect}){
                           <td>{feur0(c.annual_premium)}</td>
                           <td style={{color:'#555',fontSize:'12px'}}>{g?(g.fixed?g.rate+'€ fixe':(g.rate*100)+'%'):'—'}</td>
                           <td style={{fontWeight:600,color:'#1d4ed8'}}>{feur(com)}</td>
-                          <td><span style={{fontSize:'12px',color:'#666'}}>{mt?MONO_OPTS.find(function(o){return o.value===mt;})?.label.split(' ')[0]||mt:'—'}</span></td>
+                          <td><span style={{fontSize:'12px',color:'#666'}}>{mt?MONO_OPTS.find(function(o){return o.value===mt;})?MONO_OPTS.find(function(o){return o.value===mt;}).label.split(' ')[0]:mt:'—'}</span></td>
                           <td style={{fontSize:'12px',color:'#888'}}>{c.document_tracking&&c.document_tracking.eligible_since?fdate(c.document_tracking.eligible_since):'—'}</td>
                         </tr>
                       );
@@ -510,34 +532,39 @@ function Commissions({contracts,profiles,profile,sb,onSelect}){
               </table>
             </div>
 
-            {/* Bonifications détail */}
-            {comp.bonif>0&&(
-              <div style={{padding:'10px 18px',background:'#f0fdf4',borderTop:'1px solid #e5e7eb',fontSize:'12.5px',color:'#166534'}}>
-                Bonifications : {feur(comp.bonif)} · Taux NC : {comp.tauxNC.toFixed(1)}%
+            {(displayBonif>0||comp.tauxNC>0)&&(
+              <div style={{padding:'10px 18px',background:'#f8fafc',borderTop:'1px solid #e5e7eb',fontSize:'12.5px',color:'#555',display:'flex',gap:'16px',flexWrap:'wrap'}}>
+                {displayBonif>0&&<span style={{color:'#166534'}}>Bonifications : {feur(displayBonif)}</span>}
+                <span>Taux NC : {comp.tauxNC.toFixed(1)}%{isFrozen?' (gelé)':''}</span>
               </div>
             )}
 
-            {/* Paiement — direction uniquement */}
-            {canEdit&&(
-              <div style={{padding:'14px 18px',borderTop:'1px solid #f3f4f6',display:'flex',gap:'16px',alignItems:'center',flexWrap:'wrap'}}>
+            {/* Direction : paiement */}
+            {canDir&&(
+              <div style={{padding:'14px 18px',borderTop:'1px solid #f3f4f6',display:'flex',gap:'16px',alignItems:'center',flexWrap:'wrap',background:isFrozen?'#f0fdf4':''}}>
                 <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
                   <label style={{margin:0,fontSize:'12.5px',color:'#555'}}>Mois BS</label>
-                  <input value={pay.bs_month||''} onChange={function(e){savePayment(p.id,'bs_month',e.target.value);}} placeholder="ex: Mai 2026" style={{width:'130px',padding:'5px 9px',fontSize:'12.5px'}}/>
+                  <input
+                    value={pay.bs_month||bsLabel}
+                    onChange={function(e){savePayment(p.id,'bs_month',e.target.value);}}
+                    disabled={isFrozen}
+                    style={{width:'130px',padding:'5px 9px',fontSize:'12.5px',background:isFrozen?'#f3f4f6':''}}
+                  />
                 </div>
                 <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
                   <label style={{margin:0,fontSize:'12.5px',color:'#555'}}>Payé</label>
-                  <label className="toggle" style={{cursor:'pointer'}}>
+                  <label className="toggle" style={{cursor:isFrozen?'default':'pointer'}}>
                     <input type="checkbox" checked={!!pay.paid} onChange={function(e){savePayment(p.id,'paid',e.target.checked);}} disabled={saving}/>
                     <span className="slider"></span>
                   </label>
-                  {pay.paid&&<span style={{fontSize:'12px',color:'#059669',fontWeight:500}}>✓ Payé</span>}
+                  {pay.paid&&<span style={{fontSize:'12px',color:'#059669',fontWeight:500}}>✓ Payé · {pay.bs_month||bsLabel}</span>}
                 </div>
-                {pay.bs_month&&<span style={{fontSize:'12px',color:'#888'}}>BS : {pay.bs_month}</span>}
+                {isFrozen&&!pay.paid&&<button onClick={function(){savePayment(p.id,'frozen',false);}} style={{fontSize:'11.5px',padding:'4px 10px',color:'#92400e',border:'1px solid #fde68a',background:'#fef9c3'}}>Dégeler</button>}
               </div>
             )}
 
-            {/* Vue conseiller : statut paiement en lecture seule */}
-            {isCollab&&(
+            {/* Manager / collab : lecture seule */}
+            {!canDir&&(
               <div style={{padding:'12px 18px',borderTop:'1px solid #f3f4f6',fontSize:'12.5px',color:'#555'}}>
                 Statut : {pay.paid
                   ? <span style={{color:'#059669',fontWeight:600}}>✓ Payé{pay.bs_month?' — BS '+pay.bs_month:''}</span>
@@ -875,8 +902,35 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
     await sb.from('document_tracking').update(payload).eq('contract_id',contract.id);
     setDt(newDt);onRefresh();setSaving(false);
   }
-  async function saveEdit(){setSaving(true);await sb.from('contracts').update({client_name:toUpper(editF.client_name),emission_date:editF.emission_date,effect_date:editF.effect_date,provenance:editF.provenance,annual_premium:parseFloat(editF.annual_premium)||0,commission:parseFloat(editF.commission)||0,conseiller_id:editF.conseiller_id,contract_type:editF.contract_type,contract_number:editF.contract_number}).eq('id',contract.id);setEditing(false);onRefresh();setSaving(false);}
-  async function saveMonoType(val){setMonoType(val);await sb.from('contracts').update({mono_type:val||null}).eq('id',contract.id);onRefresh();}
+  async function saveEdit(){
+    setSaving(true);
+    // Si la commission a été modifiée manuellement, la marquer comme manuelle
+    const origCom=calcBaseCommission(Object.assign({},contract,{manual_commission:null}));
+    const newCom=parseFloat(editF.commission)||0;
+    const isManual=Math.abs(newCom-origCom)>0.01;
+    await sb.from('contracts').update({
+      client_name:toUpper(editF.client_name),
+      emission_date:editF.emission_date,
+      effect_date:editF.effect_date,
+      provenance:editF.provenance,
+      annual_premium:parseFloat(editF.annual_premium)||0,
+      commission:newCom,
+      manual_commission:isManual?newCom:null,
+      conseiller_id:editF.conseiller_id,
+      contract_type:editF.contract_type,
+      contract_number:editF.contract_number
+    }).eq('id',contract.id);
+    setEditing(false);onRefresh();setSaving(false);
+  }
+  async function saveMonoType(val){
+    setMonoType(val);
+    // Recalcul immédiat de la commission selon nouveau mono_type
+    const fakeC=Object.assign({},contract,{mono_type:val||null});
+    const newCom=calcBaseCommission(fakeC);
+    // Si pas de commission manuelle (manual_commission null), on recalcule
+    await sb.from('contracts').update({mono_type:val||null,commission:newCom}).eq('id',contract.id);
+    onRefresh();
+  }
   async function toggleAnnReq(){const v=!annReq;setAnnReq(v);await sb.from('contracts').update({annulation_requested:v}).eq('id',contract.id);onRefresh();}
   async function toggleAnnule(v){setIsAnnule(v);await sb.from('contracts').update({status:v?'ANNULE':'ENCOURS'}).eq('id',contract.id);onRefresh();}
   async function sendMsg(){if(!newMsg.trim())return;setSaving(true);await sb.from('contract_messages').insert({contract_id:contract.id,author_id:profile.id,author_name:profile.full_name,author_role:profile.role,message:newMsg.trim(),resolved_status:'pending'});setNewMsg('');await loadMsgs();setSaving(false);}
