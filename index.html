@@ -373,7 +373,7 @@ function App(){
         {active==='saisir-contrat'&&<FormContrat sb={sb} profile={profile} profiles={profiles} onSaved={function(){refresh();setActive(profile.role==='conseiller'?'mes-dossiers':'suivi-dossiers');}}/>}
         {(active==='suivi-dossiers'||active==='mes-dossiers')&&<SuiviDossiers contracts={contracts} profile={profile} profiles={profiles} reads={reads} lastMsgMap={lastMsgMap} onSelect={function(c){setSelected(c);markRead(c.id);}} onNew={function(){setActive('saisir-contrat');}}/>}
         {active==='tableau-bord'&&<TableauBord contracts={contracts} profiles={profiles}/>}
-        {(active==='commissions'||active==='mes-commissions')&&<Commissions contracts={contracts} profiles={profiles} profile={profile} sb={sb} onSelect={function(c){setSelected(c);markRead(c.id);}}/>}
+        {(active==='commissions'||active==='mes-commissions')&&<Commissions contracts={contracts} profiles={profiles} profile={profile} sb={sb} onSelect={function(c){setSelected(c);markRead(c.id);}} onRefresh={refresh}/>}
         {!['saisir-contrat','suivi-dossiers','mes-dossiers','tableau-bord','commissions','mes-commissions'].includes(active)&&<Placeholder nav={nav} active={active}/>}
       </div>
       {selected&&<DetailPanel key={selected.id} contract={selected} profile={profile} profiles={profiles} sb={sb} onClose={function(){setSelected(null);}} onRefresh={refresh}/>}
@@ -382,7 +382,7 @@ function App(){
 }
 
 /* ══ COMMISSIONS ══ */
-function Commissions({contracts,profiles,profile,sb,onSelect}){
+function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh}){
   const now=new Date();
   const [year,setYear]=useState(now.getFullYear());
   const [month,setMonth]=useState(now.getMonth()+1);
@@ -417,35 +417,44 @@ function Commissions({contracts,profiles,profile,sb,onSelect}){
     setSaving(true);
     const existing=payments[consId];
     const comp=computed[consId]||{};
-    // Quand on coche Payé, on gèle tous les calculs du mois
     const isPayingNow=field==='paid'&&value===true;
-    const data={
-      conseiller_id:consId,year,month,
-      base_com:comp.baseCom||0,
-      bonifications:comp.bonif||0,
-      decote_rate:comp.decote||0,
-      total_com:comp.totalCom||0,
-      frozen:isPayingNow?true:(existing?existing.frozen:false),
-      bs_month:existing&&existing.bs_month?existing.bs_month:bsLabel,
-      [field]:value,
-    };
-    let res;
-    if(existing){
-      const update={[field]:value};
-      if(isPayingNow){
-        // Geler tous les calculs actuels au moment du paiement
-        update.frozen=true;
-        update.base_com=comp.baseCom||0;
-        update.bonifications=comp.bonif||0;
-        update.decote_rate=comp.decote||0;
-        update.total_com=comp.totalCom||0;
-        if(!existing.bs_month) update.bs_month=bsLabel;
+    const isUnpaying=field==='paid'&&value===false;
+
+    if(isPayingNow){
+      // Geler : snapshot des IDs + calculs + passer les contrats en PAYE
+      const frozenIds=comp.contracts.map(function(c){return c.id;});
+      const update={
+        paid:true,frozen:true,
+        base_com:comp.baseCom||0,
+        bonifications:comp.bonif||0,
+        decote_rate:comp.decote||0,
+        total_com:comp.totalCom||0,
+        frozen_contract_ids:frozenIds,
+        bs_month:existing&&existing.bs_month?existing.bs_month:bsLabel,
+        paid_at:new Date().toISOString(),
+      };
+      let res;
+      if(existing) res=await sb.from('commission_payments').update(update).eq('id',existing.id);
+      else res=await sb.from('commission_payments').insert(Object.assign({},update,{conseiller_id:consId,year,month}));
+      // Passer tous les contrats du mois en PAYE/CLOTURE
+      if(!res.error&&frozenIds.length>0){
+        await sb.from('contracts').update({status:'PAYE'}).in('id',frozenIds);
       }
-      res=await sb.from('commission_payments').update(update).eq('id',existing.id);
+    } else if(isUnpaying){
+      // Dégeler : remettre les contrats en ENCOURS
+      const frozenIds=(existing&&existing.frozen_contract_ids)||[];
+      if(frozenIds.length>0){
+        await sb.from('contracts').update({status:'ENCOURS'}).in('id',frozenIds);
+      }
+      await sb.from('commission_payments').update({paid:false,frozen:false,frozen_contract_ids:null}).eq('id',existing.id);
     } else {
-      res=await sb.from('commission_payments').insert(data);
+      // Autre champ (bs_month, frozen toggle)
+      const data={conseiller_id:consId,year,month,base_com:comp.baseCom||0,bonifications:comp.bonif||0,decote_rate:comp.decote||0,total_com:comp.totalCom||0,[field]:value};
+      if(existing) await sb.from('commission_payments').update({[field]:value}).eq('id',existing.id);
+      else await sb.from('commission_payments').insert(data);
     }
-    if(!res.error) await loadPayments();
+    await loadPayments();
+    onRefresh&&onRefresh();
     setSaving(false);
   }
 
@@ -484,9 +493,10 @@ function Commissions({contracts,profiles,profile,sb,onSelect}){
         const displayTotal=isFrozen?pay.total_com:comp.totalCom;
         const hasDecote=displayDecote>0;
 
-        // Contrats à afficher : si gelé, uniquement ceux éligibles à ce mois
-        // (comp.contracts = éligibles ce mois, déjà correct)
-        const displayContracts=comp.contracts;
+        // Contrats à afficher : si gelé, utiliser le snapshot des IDs
+        const displayContracts=isFrozen&&pay.frozen_contract_ids&&pay.frozen_contract_ids.length>0
+          ? contracts.filter(function(c){return pay.frozen_contract_ids.includes(c.id);})
+          : comp.contracts;
 
         return(
           <div key={p.id} className="card" style={{marginBottom:'16px',overflow:'hidden'}}>
@@ -825,7 +835,7 @@ function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,onSelect,onN
         <select value={fType} onChange={function(e){setFType(e.target.value);}} style={{maxWidth:'170px'}}><option value="">Tous types</option>{FAMILIES.map(function(f){return <optgroup key={f.name} label={f.name}>{f.types.map(function(t){return <option key={t} value={t}>{t}</option>;})}</optgroup>;})}</select>
         <select value={fDoss} onChange={function(e){setFDoss(e.target.value);}} style={{maxWidth:'155px'}}><option value="">Tous dossiers</option><option value="Dossier complet">Dossier complet</option><option value="En cours">En cours</option><option value="Non vérifié">Non vérifié</option></select>
         <select value={fPay} onChange={function(e){setFPay(e.target.value);}} style={{maxWidth:'155px'}}><option value="">Tous paiements</option>{PAY_OPTS.map(function(o){return <option key={o.value} value={o.value}>{o.label}</option>;})}</select>
-        <select value={fStat} onChange={function(e){setFStat(e.target.value);}} style={{maxWidth:'140px'}}><option value="">Tous statuts</option><option value="ENCOURS">ENCOURS</option><option value="CLOTURE">CLOTURE</option><option value="ANNULE">ANNULE</option></select>
+        <select value={fStat} onChange={function(e){setFStat(e.target.value);}} style={{maxWidth:'140px'}}><option value="">Tous statuts</option><option value="ENCOURS">ENCOURS</option><option value="PAYE">PAYE</option><option value="CLOTURE">CLOTURE</option><option value="ANNULE">ANNULE</option></select>
         {(fCons||fType||fStat||fDoss||fPay||search)&&<button onClick={function(){setFCons('');setFType('');setFStat('');setFDoss('');setFPay('');setSearch('');}} style={{fontSize:'12px'}}>✕ Effacer</button>}
       </div>
       <div className="card" style={{overflow:'hidden'}}>
@@ -845,9 +855,9 @@ function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,onSelect,onN
             const lastMsg=lastMsgMap[c.id];
             const lastRead=reads[c.id];
             const hasUnread=lastMsg&&(!lastRead||new Date(lastMsg)>new Date(lastRead));
-            const rowBg=annOk?'#374151':annReq?'#d1d5db':hasProb?'#fff5f5':'';
+            const rowBg=annOk?'#374151':annReq?'#d1d5db':c.status==='PAYE'?'#f0fdf4':hasProb?'#fff5f5':'';
             const textColor=annOk?'#f3f4f6':annReq?'#1f2937':'#333';
-            const mutedColor=annOk?'#9ca3af':annReq?'#4b5563':'#666';
+            const mutedColor=annOk?'#9ca3af':annReq?'#4b5563':c.status==='PAYE'?'#166534':'#666';
             return <tr key={c.id} onClick={function(){onSelect(c);}} style={{cursor:'pointer',background:rowBg,color:textColor}}>
               <td style={{color:mutedColor,fontSize:'12.5px'}}>{c.conseiller&&c.conseiller.full_name?c.conseiller.full_name:'—'}</td>
               <td style={{fontWeight:500,color:textColor}}><div style={{display:'flex',alignItems:'center',gap:'6px'}}>{c.client_name}{hasUnread&&<span className="env-anim" title="Nouveau message" style={{fontSize:'13px',color:'#f59e0b'}}>✉</span>}</div></td>
@@ -862,7 +872,7 @@ function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,onSelect,onN
                 {hasProb&&<span className="badge" style={{background:'#fee2e2',color:'#991b1b'}}>⚠ Problème</span>}
               </div></td>
               <td><span className="badge" style={{background:ps.bg,color:ps.tx}}>{ps.label}</span></td>
-              <td><span className="badge" style={{background:annOk?'#111':c.status==='ENCOURS'?'#dbeafe':'#f3f4f6',color:annOk?'#f9fafb':c.status==='ENCOURS'?'#1e40af':'#374151'}}>{c.status}</span></td>
+              <td><span className="badge" style={{background:annOk?'#111':c.status==='ENCOURS'?'#dbeafe':c.status==='PAYE'?'#d1fae5':'#f3f4f6',color:annOk?'#f9fafb':c.status==='ENCOURS'?'#1e40af':c.status==='PAYE'?'#065f46':'#374151'}}>{c.status}</span></td>
             </tr>;
           })}
         </tbody></table></div>}
