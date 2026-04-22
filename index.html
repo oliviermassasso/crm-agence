@@ -584,11 +584,10 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
             </div>
             {canPieces&&(
               <button onClick={()=>updDt({has_problem:!dt.has_problem})}
-                style={{marginTop:'8px',width:'100%',padding:'9px',fontSize:'12.5px',display:'flex',alignItems:'center',justifyContent:'center',gap:'6px',
-                  background:dt.has_problem?'rgba(185,28,28,0.08)':'transparent',
-                  color:dt.has_problem?'#b91c1c':'#555',
-                  border:`1px solid ${dt.has_problem?'#fecaca':'#e5e7eb'}`,
-                  borderRadius:'8px'}}>
+                style={{marginTop:'8px',width:'100%',padding:'9px',fontSize:'12.5px',display:'flex',alignItems:'center',justifyContent:'center',gap:'6px',borderRadius:'8px',transition:'all 0.15s',
+                  background:dt.has_problem?'rgba(185,28,28,0.82)':'rgba(185,28,28,0.12)',
+                  color:dt.has_problem?'#fef2f2':'#7f1d1d',
+                  border:`1px solid ${dt.has_problem?'#991b1b':'rgba(185,28,28,0.25)'}`}}>
                 {dt.has_problem?'⚠️ Problème signalé — Cliquer pour lever':'⚠️ Signaler un problème sur ce dossier'}
               </button>
             )}
@@ -706,3 +705,4 @@ ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
 </script>
 </body>
 </html>
+
