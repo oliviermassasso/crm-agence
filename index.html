@@ -65,6 +65,157 @@ const {useState,useCallback,useEffect}=React;
 const SB_URL='https://hmuhuokfbfpcnovmllti.supabase.co';
 const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhtdWh1b2tmYmZwY25vdm1sbHRpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2ODYyNzgsImV4cCI6MjA5MjI2MjI3OH0.aP_M2NwFa8Uk6yGFYAI6os0gNOzuulQJm2sDWIitjRQ';
 
+/* ══ GRILLE 2026 ══ */
+const GRILLE_2026={
+  'Auto/Moto':{rate:0.018,fixed:false},
+  'Courtage Auto/Moto':{rate:0.018,fixed:false},
+  'MRH':{rate:0.04,fixed:false},
+  'PJ':{rate:0.05,fixed:false},
+  'Caravane/Camping-car/Remorque':{rate:0.03,fixed:false},
+  'EDPM':{rate:0.03,fixed:false},
+  'Plaisance':{rate:0.03,fixed:false},
+  'Scolaire':{rate:0.05,fixed:false},
+  'Voyage':{rate:0.03,fixed:false},
+  'Courtage IARD Part':{rate:0.03,fixed:false},
+  'Autres contrats AXA':{rate:0.03,fixed:false},
+  'Ma PA':{rate:0.05,fixed:false},
+  'Prévoyance Pro.':{rate:0.04,fixed:false},
+  'CAP Prévoyance Part.':{rate:0.05,fixed:false},
+  'CAP AVIZEN':{rate:0.05,fixed:false},
+  'ARC':{rate:0.02,fixed:false},
+  'ENTOURAGE':{rate:0.02,fixed:false},
+  'ESSENCIEL':{rate:0.05,fixed:false},
+  'Courtage Prévoyance':{rate:0.03,fixed:false},
+  'Ma Santé TNS & Retraités':{rate:0.04,fixed:false},
+  'Ma Santé HORS TNS & Retraités':{rate:0.02,fixed:false},
+  'Santé AGIPI':{rate:0.02,fixed:false},
+  'Courtage Santé':{rate:0.03,fixed:false},
+  'VTC':{rate:0.018,fixed:false},
+  'MRP':{rate:0.05,fixed:false},
+  'MRI':{rate:0.05,fixed:false},
+  'MRE':{rate:0.05,fixed:false},
+  'RC Pro.':{rate:0.05,fixed:false},
+  'Décennale':{rate:0.04,fixed:false},
+  'Bris Machine':{rate:0.04,fixed:false},
+  'Garages':{rate:0.03,fixed:false},
+  'Flotte':{rate:0.03,fixed:false},
+  'Courtage IARD Pro':{rate:0.03,fixed:false},
+  'Collectives':{rate:0.02,fixed:false},
+  'Crédit Conso. Hors Ass AXA':{rate:0.002,fixed:false},
+  'Crédit Conso. Avec Ass AXA':{rate:0.003,fixed:false},
+  'AXA Banque CB Visa':{rate:3,fixed:true},
+  'AXA Banque CB Premier':{rate:15,fixed:true},
+  'AXA Banque CB Infinite':{rate:35,fixed:true},
+  'Ogoon':{rate:15,fixed:true},
+  'Mobilité bancaire':{rate:10,fixed:true},
+  'Epargne (réserve, livret A, PEA, etc.)':{rate:5,fixed:true},
+  'FAR Retraite (apport affaire)':{rate:20,fixed:true},
+  'Assurance Vie (apport affaire)':{rate:0.0005,fixed:false},
+  'Ass Vie & Retraite PUVL sup 5000€':{rate:0.001,fixed:false},
+  'Ass Vie & Retraite PUVL sup 100000€':{rate:0.002,fixed:false},
+  'FAR Retraite VLP sup 1000€/an':{rate:0.015,fixed:false},
+};
+
+const TYPE_SANTE=['Ma Santé TNS & Retraités','Ma Santé HORS TNS & Retraités','Santé AGIPI','Courtage Santé'];
+const TYPE_PRO=['MRP','MRI','MRE','RC Pro.','Décennale','Bris Machine','Garages','Flotte','Courtage IARD Pro'];
+const TYPE_IARD_AXA=['Auto/Moto','Courtage Auto/Moto','MRH','PJ'];
+const TYPE_MRH=['MRH'];
+const TYPE_PJ_PA=['PJ','Ma PA'];
+const TYPE_SANTE_TNS=['Ma Santé TNS & Retraités'];
+
+function calcBaseCommission(contract) {
+  const g=GRILLE_2026[contract.contract_type];
+  if(!g) return 0;
+  const mt=contract.mono_type||'';
+  const isSante=TYPE_SANTE.includes(contract.contract_type);
+  const isPro=TYPE_PRO.includes(contract.contract_type);
+  // Mono contrat = 0 sauf santé/pro qui ont décote
+  if(mt==='mono'&&!isSante&&!isPro) return 0;
+  let rate=g.rate;
+  if(mt==='mono_sante'&&isSante) rate=Math.max(0,rate-0.01);
+  if(mt==='mono_pro'&&isPro) rate=Math.max(0,rate-0.01);
+  if(g.fixed) return rate;
+  return Math.round((contract.annual_premium||0)*rate*100)/100;
+}
+
+function isConforme(c) {
+  // Annulé = conforme
+  if(c.status==='ANNULE') return true;
+  const dt=c.document_tracking||{};
+  if(dt.has_problem) return false;
+  if(!dt.rented_signed||!dt.kyc_compliant||!dt.docs_complete) return false;
+  return true;
+}
+
+function calcMonthCommissions(contracts,profiles,year,month) {
+  // Filtrer contrats du mois (date émission)
+  const monthContracts=contracts.filter(function(c){
+    if(!c.emission_date) return false;
+    const d=new Date(c.emission_date);
+    return d.getFullYear()===year&&d.getMonth()+1===month&&c.status!=='ANNULE';
+  });
+
+  const results={};
+  profiles.forEach(function(p){
+    if(p.role==='direction') return;
+    const mine=monthContracts.filter(function(c){return c.conseiller_id===p.id;});
+
+    // Taux non-conformité sur TOUS les dossiers ENCOURS du conseiller
+    const allEncours=contracts.filter(function(c){return c.conseiller_id===p.id&&c.status==='ENCOURS';});
+    const nbNonConf=allEncours.filter(function(c){return !isConforme(c);}).length;
+    const tauxNC=allEncours.length>0?nbNonConf/allEncours.length:0;
+
+    // Base commission par contrat
+    let baseCom=0;
+    mine.forEach(function(c){
+      if(!isConforme(c)) return; // non conforme = non payé
+      baseCom+=calcBaseCommission(c);
+    });
+
+    // Bonifications mensuelles sur contrats rentré signé + KYC + justifs
+    const signed=mine.filter(function(c){
+      const dt=c.document_tracking||{};
+      return dt.rented_signed&&dt.kyc_compliant&&dt.docs_complete;
+    });
+    const caIardAxa=signed.filter(function(c){return TYPE_IARD_AXA.includes(c.contract_type);}).reduce(function(s,c){return s+(c.annual_premium||0);},0);
+    const caMrh=signed.filter(function(c){return TYPE_MRH.includes(c.contract_type);}).reduce(function(s,c){return s+(c.annual_premium||0);},0);
+    const caPjPa=signed.filter(function(c){return TYPE_PJ_PA.includes(c.contract_type);}).reduce(function(s,c){return s+(c.annual_premium||0);},0);
+    const caSanteTns=signed.filter(function(c){return TYPE_SANTE_TNS.includes(c.contract_type);}).reduce(function(s,c){return s+(c.annual_premium||0);},0);
+    const nbSigned=signed.length;
+
+    let bonif=0;
+    // CA AN AXA (auto+MRH+PJ)
+    if(caIardAxa>=20000) bonif+=250;
+    else if(caIardAxa>=15000) bonif+=120;
+    // CA AN AXA MRH
+    if(caMrh>=3000) bonif+=50;
+    // CA AN AXA PJ+PA
+    if(caPjPa>=1500) bonif+=50;
+    // CA AN SANTE TNS & Senior
+    if(caSanteTns>=20000) bonif+=300;
+    else if(caSanteTns>=15000) bonif+=150;
+    else if(caSanteTns>=5000) bonif+=50;
+    // Nb AN >= 40
+    if(nbSigned>=40) bonif+=100;
+
+    // Décote non-conformité
+    let decote=0;
+    if(tauxNC>0.15) decote=tauxNC;
+    const totalCom=Math.round((baseCom+bonif)*(1-decote)*100)/100;
+
+    results[p.id]={
+      conseiller:p,
+      contracts:mine,
+      baseCom:Math.round(baseCom*100)/100,
+      bonif,
+      tauxNC:Math.round(tauxNC*10000)/100,
+      decote:Math.round(decote*10000)/100,
+      totalCom,
+    };
+  });
+  return results;
+}
+
 const FAMILIES=[
   {name:'IARD Particulier',color:'#1d4ed8',bg:'#dbeafe',types:['Auto/Moto','MRH','PJ','Caravane/Camping-car/Remorque','EDPM','Plaisance','Scolaire','Voyage']},
   {name:'Courtage',color:'#7c3aed',bg:'#ede9fe',types:['Courtage Auto/Moto','Courtage IARD Part','Courtage Prévoyance','Courtage Santé','Courtage IARD Pro']},
@@ -78,32 +229,32 @@ const FAMILIES=[
   {name:'Épargne & Retraite',color:'#92400e',bg:'#fef9c3',types:['FAR Retraite (apport affaire)','Assurance Vie (apport affaire)','Ass Vie & Retraite PUVL sup 5000€','Ass Vie & Retraite PUVL sup 100000€','FAR Retraite VLP sup 1000€/an']},
   {name:'Autres',color:'#475569',bg:'#f1f5f9',types:['Autres contrats AXA']},
 ];
-const ALL_TYPES=FAMILIES.flatMap(f=>f.types);
-const getFamily=t=>FAMILIES.find(f=>f.types.includes(t));
+const ALL_TYPES=FAMILIES.flatMap(function(f){return f.types;});
+const getFamily=function(t){return FAMILIES.find(function(f){return f.types.includes(t);});};
 const MONTHS=['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
 const PROVS=['Leads / E-contact AXA','Leads / E-contact AGENCE','PRVT','Rebond','Reco','Demande du client'];
 const MONO_OPTS=[{value:'',label:'Aucun'},{value:'mono',label:'Mono contrat (com = 0€)'},{value:'mono_sante',label:'Mono santé (taux − 1%)'},{value:'mono_pro',label:'Mono pro (taux − 1%)'}];
 const PAY_OPTS=[{value:'non_paye',label:'Pas encore payé',bg:'#f3f4f6',tx:'#374151'},{value:'paye',label:'Payé',bg:'#d1fae5',tx:'#065f46'},{value:'impaye',label:'Impayé',bg:'#fee2e2',tx:'#991b1b'}];
 const NAV={
-  direction:[{id:'saisir-contrat',label:'Saisir un contrat',icon:'+'},{id:'suivi-dossiers',label:'Suivi des dossiers',icon:'≡'},{id:'tableau-bord',label:'Tableau de bord',icon:'◉'},{id:'commissions',label:'Commissions',icon:'€',s:4},{id:'resiliations',label:'Résiliations',icon:'↩',s:7},{id:'salaires',label:'Salaires',icon:'∑',s:6},{id:'configuration',label:'Configuration',icon:'⚙',s:5}],
-  manager:[{id:'saisir-contrat',label:'Saisir un contrat',icon:'+'},{id:'suivi-dossiers',label:'Suivi des dossiers',icon:'≡'},{id:'tableau-bord',label:'Tableau de bord',icon:'◉'},{id:'commissions',label:'Commissions',icon:'€',s:4},{id:'resiliations',label:'Résiliations',icon:'↩',s:7}],
-  conseiller:[{id:'saisir-contrat',label:'Saisir un contrat',icon:'+'},{id:'mes-dossiers',label:'Mes dossiers',icon:'≡'},{id:'mes-commissions',label:'Mes commissions',icon:'€',s:4}]
+  direction:[{id:'saisir-contrat',label:'Saisir un contrat',icon:'+'},{id:'suivi-dossiers',label:'Suivi des dossiers',icon:'≡'},{id:'tableau-bord',label:'Tableau de bord',icon:'◉'},{id:'commissions',label:'Commissions',icon:'€'},{id:'resiliations',label:'Résiliations',icon:'↩',s:7},{id:'salaires',label:'Salaires',icon:'∑',s:6},{id:'configuration',label:'Configuration',icon:'⚙',s:5}],
+  manager:[{id:'saisir-contrat',label:'Saisir un contrat',icon:'+'},{id:'suivi-dossiers',label:'Suivi des dossiers',icon:'≡'},{id:'tableau-bord',label:'Tableau de bord',icon:'◉'},{id:'commissions',label:'Commissions',icon:'€'},{id:'resiliations',label:'Résiliations',icon:'↩',s:7}],
+  conseiller:[{id:'saisir-contrat',label:'Saisir un contrat',icon:'+'},{id:'mes-dossiers',label:'Mes dossiers',icon:'≡'},{id:'mes-commissions',label:'Mes commissions',icon:'€'}]
 };
 const RL={direction:'Direction',manager:'Manager',conseiller:'Conseiller'};
 const RC={direction:{bg:'#dbeafe',tx:'#1e40af'},manager:{bg:'#fef3c7',tx:'#92400e'},conseiller:{bg:'#d1fae5',tx:'#065f46'}};
-const today=()=>new Date().toISOString().split('T')[0];
-const fdate=d=>d?new Date(d).toLocaleDateString('fr-FR'):'—';
-const feur=n=>new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:0,maximumFractionDigits:0}).format(n||0);
-const fdt=d=>{if(!d)return '';const dt=new Date(d);return dt.toLocaleDateString('fr-FR')+' '+dt.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});};
-const toUpper=s=>(s||'').toUpperCase();
-
+const today=function(){return new Date().toISOString().split('T')[0];};
+const fdate=function(d){return d?new Date(d).toLocaleDateString('fr-FR'):'—';};
+const feur=function(n){return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(n||0);};
+const feur0=function(n){return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:0,maximumFractionDigits:0}).format(n||0);};
+const fdt=function(d){if(!d)return '';const dt=new Date(d);return dt.toLocaleDateString('fr-FR')+' '+dt.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});};
+const toUpper=function(s){return (s||'').toUpperCase();};
 function docStatus(dt){
   if(!dt) return {l:'Non vérifié',bg:'#f3f4f6',tx:'#374151'};
   if(dt.contract_nr_ok&&dt.rented_signed&&dt.kyc_compliant&&dt.docs_complete) return {l:'Dossier complet',bg:'#d1fae5',tx:'#065f46'};
   if(!dt.contract_nr_ok&&!dt.rented_signed&&!dt.kyc_compliant&&!dt.docs_complete) return {l:'Non vérifié',bg:'#f3f4f6',tx:'#374151'};
   return {l:'En cours',bg:'#fef3c7',tx:'#92400e'};
 }
-function payOpt(dt){return PAY_OPTS.find(p=>p.value===(dt?.payment_status||'non_paye'))||PAY_OPTS[0];}
+function payOpt(dt){return PAY_OPTS.find(function(p){return p.value===(dt&&dt.payment_status?dt.payment_status:'non_paye');})||PAY_OPTS[0];}
 function sumCA(arr){return arr.reduce(function(s,c){return s+(c.annual_premium||0);},0);}
 
 /* ══ APP ══ */
@@ -151,10 +302,10 @@ function App(){
     setLl(false);
   };
 
-  const logout=async function(){if(sb) await sb.auth.signOut();setProfile(null);setSb(null);setContracts([]);setActive(null);setReads({});setLastMsgMap({});setLf({email:'',password:''});};
-  const refresh=useCallback(function(){if(sb&&profile) load(sb,profile);},[sb,profile,load]);
+  const logout=async function(){if(sb)await sb.auth.signOut();setProfile(null);setSb(null);setContracts([]);setActive(null);setReads({});setLastMsgMap({});setLf({email:'',password:''});};
+  const refresh=useCallback(function(){if(sb&&profile)load(sb,profile);},[sb,profile,load]);
   const markRead=useCallback(async function(cid){
-    if(!sb||!profile) return;
+    if(!sb||!profile)return;
     const now=new Date().toISOString();
     await sb.from('message_reads').upsert({user_id:profile.id,contract_id:cid,read_at:now},{onConflict:'user_id,contract_id'});
     setReads(function(r){return Object.assign({},r,{[cid]:now});});
@@ -168,8 +319,8 @@ function App(){
           <div style={{fontSize:'13px',color:'#666'}}>Gestion commerciale · Assurance AXA</div>
         </div>
         <div className="card" style={{padding:'28px'}}>
-          <div className="fg"><label>Email</label><input type="email" value={lf.email} onChange={function(e){setLf(function(f){return Object.assign({},f,{email:e.target.value});});}} placeholder="prenom.nom@agence.fr" onKeyDown={function(e){if(e.key==='Enter') login();}}/></div>
-          <div className="fg"><label>Mot de passe</label><input type="password" value={lf.password} onChange={function(e){setLf(function(f){return Object.assign({},f,{password:e.target.value});});}} placeholder="••••••••" onKeyDown={function(e){if(e.key==='Enter') login();}}/></div>
+          <div className="fg"><label>Email</label><input type="email" value={lf.email} onChange={function(e){setLf(function(f){return Object.assign({},f,{email:e.target.value});});}} placeholder="prenom.nom@agence.fr" onKeyDown={function(e){if(e.key==='Enter')login();}}/></div>
+          <div className="fg"><label>Mot de passe</label><input type="password" value={lf.password} onChange={function(e){setLf(function(f){return Object.assign({},f,{password:e.target.value});});}} placeholder="••••••••" onKeyDown={function(e){if(e.key==='Enter')login();}}/></div>
           {le&&<div style={{background:'#fef2f2',color:'#b91c1c',border:'1px solid #fecaca',padding:'10px 14px',borderRadius:'8px',fontSize:'13px',marginBottom:'14px'}}>{le}</div>}
           <button className="bp" onClick={login} disabled={ll} style={{width:'100%',padding:'11px'}}>{ll?'Connexion…':'Se connecter'}</button>
         </div>
@@ -180,6 +331,7 @@ function App(){
   const nav=NAV[profile.role]||[];
   const rc=RC[profile.role];
   const ini=(profile.full_name||'?').split(' ').map(function(w){return w[0];}).join('').slice(0,2).toUpperCase();
+  const comId=profile.role==='conseiller'?'mes-commissions':'commissions';
 
   return(
     <div style={{display:'flex',height:'100vh',overflow:'hidden'}}>
@@ -210,9 +362,184 @@ function App(){
         {active==='saisir-contrat'&&<FormContrat sb={sb} profile={profile} profiles={profiles} onSaved={function(){refresh();setActive(profile.role==='conseiller'?'mes-dossiers':'suivi-dossiers');}}/>}
         {(active==='suivi-dossiers'||active==='mes-dossiers')&&<SuiviDossiers contracts={contracts} profile={profile} profiles={profiles} reads={reads} lastMsgMap={lastMsgMap} onSelect={function(c){setSelected(c);markRead(c.id);}} onNew={function(){setActive('saisir-contrat');}}/>}
         {active==='tableau-bord'&&<TableauBord contracts={contracts} profiles={profiles}/>}
-        {!['saisir-contrat','suivi-dossiers','mes-dossiers','tableau-bord'].includes(active)&&<Placeholder nav={nav} active={active}/>}
+        {(active==='commissions'||active==='mes-commissions')&&<Commissions contracts={contracts} profiles={profiles} profile={profile} sb={sb}/>}
+        {!['saisir-contrat','suivi-dossiers','mes-dossiers','tableau-bord','commissions','mes-commissions'].includes(active)&&<Placeholder nav={nav} active={active}/>}
       </div>
       {selected&&<DetailPanel key={selected.id} contract={selected} profile={profile} profiles={profiles} sb={sb} onClose={function(){setSelected(null);}} onRefresh={refresh}/>}
+    </div>
+  );
+}
+
+/* ══ COMMISSIONS ══ */
+function Commissions({contracts,profiles,profile,sb}){
+  const now=new Date();
+  const [year,setYear]=useState(now.getFullYear());
+  const [month,setMonth]=useState(now.getMonth()+1);
+  const [selCons,setSelCons]=useState(profile.role==='conseiller'?profile.id:'');
+  const [payments,setPayments]=useState({});
+  const [saving,setSaving]=useState(false);
+  const canEdit=['direction','manager'].includes(profile.role);
+  const isCollab=profile.role==='conseiller';
+
+  const loadPayments=useCallback(async function(){
+    const res=await sb.from('commission_payments').select('*').eq('year',year).eq('month',month);
+    const pm={};
+    (res.data||[]).forEach(function(p){pm[p.conseiller_id]=p;});
+    setPayments(pm);
+  },[sb,year,month]);
+
+  useEffect(function(){loadPayments();},[loadPayments]);
+
+  // Calcul auto pour tous les conseillers du mois
+  const computed=calcMonthCommissions(contracts,profiles,year,month);
+
+  // Si conseiller, forcer son propre profil
+  const displayProfiles=isCollab
+    ? profiles.filter(function(p){return p.id===profile.id;})
+    : profiles.filter(function(p){return p.role!=='direction';});
+
+  const filtered=selCons&&!isCollab
+    ? displayProfiles.filter(function(p){return p.id===selCons;})
+    : displayProfiles;
+
+  async function savePayment(consId,field,value){
+    setSaving(true);
+    const existing=payments[consId];
+    const comp=computed[consId]||{};
+    const data={
+      conseiller_id:consId,year,month,
+      base_com:comp.baseCom||0,
+      bonifications:comp.bonif||0,
+      decote_rate:comp.decote||0,
+      total_com:comp.totalCom||0,
+      [field]:value,
+    };
+    let res;
+    if(existing){
+      res=await sb.from('commission_payments').update({[field]:value}).eq('id',existing.id);
+    } else {
+      res=await sb.from('commission_payments').insert(data);
+    }
+    if(!res.error) await loadPayments();
+    setSaving(false);
+  }
+
+  return(
+    <div style={{padding:'28px 32px',maxWidth:'1000px'}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'22px',flexWrap:'wrap',gap:'12px'}}>
+        <div>
+          <div style={{fontSize:'22px',fontWeight:600,marginBottom:'2px'}}>{isCollab?'Mes commissions':'Commissions'}</div>
+          <div style={{fontSize:'13px',color:'#666'}}>Grille 2026 · {MONTHS[month-1]} {year}</div>
+        </div>
+        <div style={{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'center'}}>
+          {!isCollab&&(
+            <select value={selCons} onChange={function(e){setSelCons(e.target.value);}} style={{width:'auto',padding:'6px 10px'}}>
+              <option value="">Tous les conseillers</option>
+              {profiles.filter(function(p){return p.role!=='direction';}).map(function(p){return <option key={p.id} value={p.id}>{p.full_name}</option>;})}
+            </select>
+          )}
+          <select value={month} onChange={function(e){setMonth(parseInt(e.target.value));}} style={{width:'auto',padding:'6px 10px'}}>
+            {MONTHS.map(function(m,i){return <option key={i} value={i+1}>{m}</option>;})}
+          </select>
+          <select value={year} onChange={function(e){setYear(parseInt(e.target.value));}} style={{width:'auto',padding:'6px 10px'}}>
+            {[2024,2025,2026].map(function(y){return <option key={y} value={y}>{y}</option>;})}
+          </select>
+        </div>
+      </div>
+
+      {filtered.map(function(p){
+        const comp=computed[p.id]||{baseCom:0,bonif:0,tauxNC:0,decote:0,totalCom:0,contracts:[]};
+        const pay=payments[p.id]||{};
+        const hasDecote=comp.decote>0;
+
+        return(
+          <div key={p.id} className="card" style={{marginBottom:'16px',overflow:'hidden'}}>
+            {/* Header conseiller */}
+            <div style={{padding:'14px 18px',borderBottom:'1px solid #f3f4f6',display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'8px'}}>
+              <div style={{fontWeight:600,fontSize:'15px'}}>{p.full_name}</div>
+              <div style={{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}}>
+                {hasDecote&&<span className="badge" style={{background:'#fee2e2',color:'#991b1b'}}>⚠ Décote NC {comp.decote.toFixed(1)}%</span>}
+                <span style={{fontSize:'13px',color:'#666'}}>Base : {feur(comp.baseCom)}</span>
+                {comp.bonif>0&&<span style={{fontSize:'13px',color:'#059669'}}>+ Bonif : {feur(comp.bonif)}</span>}
+                <span style={{fontSize:'16px',fontWeight:700,color:'#1d4ed8'}}>= {feur(comp.totalCom)}</span>
+              </div>
+            </div>
+
+            {/* Détail par contrat */}
+            <div style={{overflowX:'auto'}}>
+              <table>
+                <thead><tr>
+                  <th>Client</th>
+                  <th>Type</th>
+                  <th>Prime annuelle</th>
+                  <th>Taux / Fixe</th>
+                  <th>Commission</th>
+                  <th>Conforme</th>
+                  <th>Mono</th>
+                </tr></thead>
+                <tbody>
+                  {comp.contracts.length===0
+                    ? <tr><td colSpan="7" style={{textAlign:'center',color:'#aaa',padding:'16px'}}>Aucun contrat ce mois</td></tr>
+                    : comp.contracts.map(function(c){
+                      const g=GRILLE_2026[c.contract_type];
+                      const conf=isConforme(c);
+                      const com=conf?calcBaseCommission(c):0;
+                      const mt=c.mono_type||'';
+                      return(
+                        <tr key={c.id} style={{background:!conf?'#fef9f9':''}}>
+                          <td style={{fontWeight:500}}>{c.client_name}</td>
+                          <td><span className="badge" style={{background:'#f3f4f6',color:'#374151',fontSize:'10.5px'}}>{c.contract_type}</span></td>
+                          <td>{feur0(c.annual_premium)}</td>
+                          <td style={{color:'#555',fontSize:'12px'}}>{g?(g.fixed?g.rate+'€ fixe':(g.rate*100)+'%'):'—'}</td>
+                          <td style={{fontWeight:600,color:conf?'#1d4ed8':'#aaa'}}>{feur(com)}</td>
+                          <td><span className="badge" style={{background:conf?'#d1fae5':'#fee2e2',color:conf?'#065f46':'#991b1b'}}>{conf?'✓':'✗'}</span></td>
+                          <td><span style={{fontSize:'12px',color:'#666'}}>{mt?MONO_OPTS.find(function(o){return o.value===mt;})?.label.split(' ')[0]||mt:'—'}</span></td>
+                        </tr>
+                      );
+                    })
+                  }
+                </tbody>
+              </table>
+            </div>
+
+            {/* Bonifications détail */}
+            {comp.bonif>0&&(
+              <div style={{padding:'10px 18px',background:'#f0fdf4',borderTop:'1px solid #e5e7eb',fontSize:'12.5px',color:'#166534'}}>
+                Bonifications : {feur(comp.bonif)} · Taux NC : {comp.tauxNC.toFixed(1)}%
+              </div>
+            )}
+
+            {/* Paiement — direction uniquement */}
+            {canEdit&&(
+              <div style={{padding:'14px 18px',borderTop:'1px solid #f3f4f6',display:'flex',gap:'16px',alignItems:'center',flexWrap:'wrap'}}>
+                <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                  <label style={{margin:0,fontSize:'12.5px',color:'#555'}}>Mois BS</label>
+                  <input value={pay.bs_month||''} onChange={function(e){savePayment(p.id,'bs_month',e.target.value);}} placeholder="ex: Mai 2026" style={{width:'130px',padding:'5px 9px',fontSize:'12.5px'}}/>
+                </div>
+                <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                  <label style={{margin:0,fontSize:'12.5px',color:'#555'}}>Payé</label>
+                  <label className="toggle" style={{cursor:'pointer'}}>
+                    <input type="checkbox" checked={!!pay.paid} onChange={function(e){savePayment(p.id,'paid',e.target.checked);}} disabled={saving}/>
+                    <span className="slider"></span>
+                  </label>
+                  {pay.paid&&<span style={{fontSize:'12px',color:'#059669',fontWeight:500}}>✓ Payé</span>}
+                </div>
+                {pay.bs_month&&<span style={{fontSize:'12px',color:'#888'}}>BS : {pay.bs_month}</span>}
+              </div>
+            )}
+
+            {/* Vue conseiller : statut paiement en lecture seule */}
+            {isCollab&&(
+              <div style={{padding:'12px 18px',borderTop:'1px solid #f3f4f6',fontSize:'12.5px',color:'#555'}}>
+                Statut : {pay.paid
+                  ? <span style={{color:'#059669',fontWeight:600}}>✓ Payé{pay.bs_month?' — BS '+pay.bs_month:''}</span>
+                  : <span style={{color:'#92400e'}}>En attente</span>
+                }
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -223,119 +550,83 @@ function TableauBord({contracts,profiles}){
   const [year,setYear]=useState(now.getFullYear());
   const [month,setMonth]=useState(now.getMonth()+1);
   const [mode,setMode]=useState('mois');
-
   function inPeriod(c,y,m){
-    if(!c.emission_date) return false;
+    if(!c.emission_date)return false;
     const d=new Date(c.emission_date);
     if(mode==='mois') return d.getFullYear()===y&&d.getMonth()+1===m;
     return d.getFullYear()===y;
   }
-
   const active=contracts.filter(function(c){return c.status!=='ANNULE';});
   const cur=active.filter(function(c){return inPeriod(c,year,month);});
   const prevY=mode==='mois'?(month===1?year-1:year):year-1;
   const prevM=mode==='mois'?(month===1?12:month-1):month;
   const prev=active.filter(function(c){return inPeriod(c,prevY,prevM);});
-
-  const ca=sumCA(cur);
-  const caPrev=sumCA(prev);
+  const ca=sumCA(cur),caPrev=sumCA(prev);
   const evoCa=caPrev>0?((ca-caPrev)/caPrev*100):null;
-  const nb=cur.length;
-  const nbPrev=prev.length;
+  const nb=cur.length,nbPrev=prev.length;
   const evoNb=nbPrev>0?((nb-nbPrev)/nbPrev*100):null;
-
   const caByFamily=FAMILIES.map(function(f){
     const s=cur.filter(function(c){return f.types.includes(c.contract_type);}).reduce(function(a,c){return a+(c.annual_premium||0);},0);
     return {name:f.name,color:f.color,bg:f.bg,ca:s};
   }).filter(function(f){return f.ca>0;}).sort(function(a,b){return b.ca-a.ca;});
   const maxFam=caByFamily.length>0?caByFamily[0].ca:1;
-
   const monthlyData=MONTHS.map(function(ml,i){
     const c=active.filter(function(c){const d=new Date(c.emission_date);return d.getFullYear()===year&&d.getMonth()===i;});
     const p=active.filter(function(c){const d=new Date(c.emission_date);return d.getFullYear()===year-1&&d.getMonth()===i;});
     return {m:ml,cur:sumCA(c),prev:sumCA(p)};
   });
-  const maxMonthly=Math.max.apply(null,monthlyData.map(function(d){return Math.max(d.cur,d.prev);}));
-  const maxM=maxMonthly>0?maxMonthly:1;
-
+  const maxM=Math.max.apply(null,monthlyData.map(function(d){return Math.max(d.cur,d.prev);}));
+  const maxMV=maxM>0?maxM:1;
   const conseillers=profiles.filter(function(p){return p.role==='conseiller'||p.role==='manager';});
   const rankData=conseillers.map(function(p){
     const mine=cur.filter(function(c){return c.conseiller_id===p.id;});
     const prevMine=prev.filter(function(c){return c.conseiller_id===p.id;});
     return {id:p.id,name:p.full_name,ca:sumCA(mine),nb:mine.length,caPrev:sumCA(prevMine),nbPrev:prevMine.length};
   }).sort(function(a,b){return b.ca-a.ca;});
-
   function Evo(props){
-    const val=props.val;
-    if(val===null) return React.createElement('span',{style:{color:'#aaa',fontSize:'11px'}},'—');
-    const pos=val>=0;
-    return React.createElement('span',{style:{fontSize:'11.5px',fontWeight:600,color:pos?'#059669':'#dc2626'}},(pos?'▲ ':'▼ ')+Math.abs(val).toFixed(1)+'%');
+    const v=props.val;
+    if(v===null)return React.createElement('span',{style:{color:'#aaa',fontSize:'11px'}},'—');
+    return React.createElement('span',{style:{fontSize:'11.5px',fontWeight:600,color:v>=0?'#059669':'#dc2626'}},(v>=0?'▲ ':'▼ ')+Math.abs(v).toFixed(1)+'%');
   }
-
   function KPI(props){
-    return(
-      <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'16px 18px',flex:1,minWidth:'140px'}}>
-        <div style={{fontSize:'11px',color:'#888',marginBottom:'6px',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.5px'}}>{props.label}</div>
-        <div style={{fontSize:'22px',fontWeight:600,marginBottom:'4px'}}>{props.value}</div>
-        <Evo val={props.evo}/>
-      </div>
-    );
+    return <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'16px 18px',flex:1,minWidth:'140px'}}>
+      <div style={{fontSize:'11px',color:'#888',marginBottom:'6px',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.5px'}}>{props.label}</div>
+      <div style={{fontSize:'22px',fontWeight:600,marginBottom:'4px'}}>{props.value}</div>
+      <Evo val={props.evo}/>
+    </div>;
   }
-
-  const labelPeriode=mode==='mois'?(MONTHS[month-1]+' '+year):('Année '+year);
-
   return(
     <div style={{padding:'28px 32px',maxWidth:'960px'}}>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'22px',flexWrap:'wrap',gap:'12px'}}>
-        <div>
-          <div style={{fontSize:'22px',fontWeight:600,marginBottom:'2px'}}>Tableau de bord</div>
-          <div style={{fontSize:'13px',color:'#666'}}>{labelPeriode}</div>
-        </div>
+        <div><div style={{fontSize:'22px',fontWeight:600,marginBottom:'2px'}}>Tableau de bord</div><div style={{fontSize:'13px',color:'#666'}}>{mode==='mois'?MONTHS[month-1]+' '+year:'Année '+year}</div></div>
         <div style={{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}}>
           <div style={{display:'flex',border:'1px solid #e5e7eb',borderRadius:'8px',overflow:'hidden'}}>
-            <button onClick={function(){setMode('mois');}} style={{padding:'6px 14px',fontSize:'12.5px',border:'none',borderRadius:0,background:mode==='mois'?'#1d4ed8':'#fff',color:mode==='mois'?'#fff':'#555',fontWeight:mode==='mois'?500:400}}>Mois</button>
-            <button onClick={function(){setMode('annee');}} style={{padding:'6px 14px',fontSize:'12.5px',border:'none',borderRadius:0,borderLeft:'1px solid #e5e7eb',background:mode==='annee'?'#1d4ed8':'#fff',color:mode==='annee'?'#fff':'#555',fontWeight:mode==='annee'?500:400}}>Année</button>
+            <button onClick={function(){setMode('mois');}} style={{padding:'6px 14px',fontSize:'12.5px',border:'none',borderRadius:0,background:mode==='mois'?'#1d4ed8':'#fff',color:mode==='mois'?'#fff':'#555'}}>Mois</button>
+            <button onClick={function(){setMode('annee');}} style={{padding:'6px 14px',fontSize:'12.5px',border:'none',borderLeft:'1px solid #e5e7eb',borderRadius:0,background:mode==='annee'?'#1d4ed8':'#fff',color:mode==='annee'?'#fff':'#555'}}>Année</button>
           </div>
-          {mode==='mois'&&(
-            <select value={month} onChange={function(e){setMonth(parseInt(e.target.value));}} style={{width:'auto',padding:'6px 10px'}}>
-              {MONTHS.map(function(ml,i){return <option key={i} value={i+1}>{ml}</option>;})}
-            </select>
-          )}
-          <select value={year} onChange={function(e){setYear(parseInt(e.target.value));}} style={{width:'auto',padding:'6px 10px'}}>
-            {[2023,2024,2025,2026].map(function(y){return <option key={y} value={y}>{y}</option>;})}
-          </select>
+          {mode==='mois'&&<select value={month} onChange={function(e){setMonth(parseInt(e.target.value));}} style={{width:'auto',padding:'6px 10px'}}>{MONTHS.map(function(ml,i){return <option key={i} value={i+1}>{ml}</option>;})}</select>}
+          <select value={year} onChange={function(e){setYear(parseInt(e.target.value));}} style={{width:'auto',padding:'6px 10px'}}>{[2023,2024,2025,2026].map(function(y){return <option key={y} value={y}>{y}</option>;})}</select>
         </div>
       </div>
-
       <div style={{display:'flex',gap:'12px',marginBottom:'24px',flexWrap:'wrap'}}>
-        <KPI label="CA période" value={feur(ca)} evo={evoCa}/>
+        <KPI label="CA période" value={feur0(ca)} evo={evoCa}/>
         <KPI label="Nb contrats" value={nb} evo={evoNb}/>
-        <KPI label="Panier moyen" value={nb>0?feur(Math.round(ca/nb)):'—'} evo={null}/>
-        <KPI label="Écart vs période préc." value={feur(ca-caPrev)} evo={evoCa}/>
+        <KPI label="Panier moyen" value={nb>0?feur0(Math.round(ca/nb)):'—'} evo={null}/>
+        <KPI label="Écart vs préc." value={feur0(ca-caPrev)} evo={evoCa}/>
       </div>
-
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'16px',marginBottom:'16px'}}>
         <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px'}}>
-          <div style={{fontSize:'13px',fontWeight:600,marginBottom:'14px',color:'#333'}}>CA par famille</div>
-          {caByFamily.length===0
-            ? <div style={{color:'#aaa',fontSize:'13px',textAlign:'center',padding:'20px 0'}}>Aucune donnée sur cette période</div>
-            : caByFamily.map(function(f){return(
-              <div key={f.name} style={{marginBottom:'10px'}}>
-                <div style={{display:'flex',justifyContent:'space-between',fontSize:'12px',marginBottom:'3px'}}>
-                  <span style={{color:f.color,fontWeight:500}}>{f.name}</span>
-                  <span style={{fontWeight:600}}>{feur(f.ca)}</span>
-                </div>
-                <div style={{height:'6px',background:'#f3f4f6',borderRadius:'3px',overflow:'hidden'}}>
-                  <div style={{height:'100%',width:(f.ca/maxFam*100)+'%',background:f.color,borderRadius:'3px'}}/>
-                </div>
-              </div>
-            );})
-          }
+          <div style={{fontSize:'13px',fontWeight:600,marginBottom:'14px'}}>CA par famille</div>
+          {caByFamily.length===0?<div style={{color:'#aaa',fontSize:'13px',textAlign:'center',padding:'20px 0'}}>Aucune donnée</div>:caByFamily.map(function(f){return(
+            <div key={f.name} style={{marginBottom:'10px'}}>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:'12px',marginBottom:'3px'}}><span style={{color:f.color,fontWeight:500}}>{f.name}</span><span style={{fontWeight:600}}>{feur0(f.ca)}</span></div>
+              <div style={{height:'6px',background:'#f3f4f6',borderRadius:'3px'}}><div style={{height:'100%',width:(f.ca/maxFam*100)+'%',background:f.color,borderRadius:'3px'}}/></div>
+            </div>
+          );})}
         </div>
-
         <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px'}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'14px'}}>
-            <div style={{fontSize:'13px',fontWeight:600,color:'#333'}}>CA mensuel {year}</div>
+            <div style={{fontSize:'13px',fontWeight:600}}>CA mensuel {year}</div>
             <div style={{display:'flex',gap:'10px',fontSize:'11px',color:'#666'}}>
               <span style={{display:'flex',alignItems:'center',gap:'4px'}}><span style={{width:'10px',height:'10px',borderRadius:'2px',background:'#1d4ed8',display:'inline-block'}}/>{year}</span>
               <span style={{display:'flex',alignItems:'center',gap:'4px'}}><span style={{width:'10px',height:'10px',borderRadius:'2px',background:'#bfdbfe',display:'inline-block'}}/>{year-1}</span>
@@ -345,8 +636,8 @@ function TableauBord({contracts,profiles}){
             {monthlyData.map(function(d,i){return(
               <div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',height:'100%',justifyContent:'flex-end'}}>
                 <div style={{width:'100%',display:'flex',gap:'1px',alignItems:'flex-end',height:'110px'}}>
-                  <div style={{flex:1,background:'#bfdbfe',borderRadius:'2px 2px 0 0',height:(d.prev/maxM*100)+'%',minHeight:d.prev>0?'2px':'0'}}/>
-                  <div style={{flex:1,background:'#1d4ed8',borderRadius:'2px 2px 0 0',height:(d.cur/maxM*100)+'%',minHeight:d.cur>0?'2px':'0'}}/>
+                  <div style={{flex:1,background:'#bfdbfe',borderRadius:'2px 2px 0 0',height:(d.prev/maxMV*100)+'%',minHeight:d.prev>0?'2px':'0'}}/>
+                  <div style={{flex:1,background:'#1d4ed8',borderRadius:'2px 2px 0 0',height:(d.cur/maxMV*100)+'%',minHeight:d.cur>0?'2px':'0'}}/>
                 </div>
                 <div style={{fontSize:'9px',color:'#aaa',marginTop:'3px'}}>{d.m}</div>
               </div>
@@ -354,41 +645,32 @@ function TableauBord({contracts,profiles}){
           </div>
         </div>
       </div>
-
       <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px'}}>
-        <div style={{fontSize:'13px',fontWeight:600,marginBottom:'14px',color:'#333'}}>Classement conseillers</div>
+        <div style={{fontSize:'13px',fontWeight:600,marginBottom:'14px'}}>Classement conseillers</div>
         {rankData.filter(function(r){return r.ca>0||r.nb>0;}).length===0
-          ? <div style={{color:'#aaa',fontSize:'13px',textAlign:'center',padding:'20px 0'}}>Aucune donnée sur cette période</div>
-          : <table style={{width:'100%',borderCollapse:'collapse',fontSize:'13px'}}>
-            <thead>
-              <tr style={{borderBottom:'1px solid #f3f4f6'}}>
-                <th style={{padding:'8px 10px',textAlign:'left',fontSize:'11px',color:'#888',fontWeight:600,textTransform:'uppercase'}}>#</th>
-                <th style={{padding:'8px 10px',textAlign:'left',fontSize:'11px',color:'#888',fontWeight:600,textTransform:'uppercase'}}>Conseiller</th>
-                <th style={{padding:'8px 10px',textAlign:'right',fontSize:'11px',color:'#888',fontWeight:600,textTransform:'uppercase'}}>CA</th>
-                <th style={{padding:'8px 10px',textAlign:'right',fontSize:'11px',color:'#888',fontWeight:600,textTransform:'uppercase'}}>vs N-1</th>
-                <th style={{padding:'8px 10px',textAlign:'right',fontSize:'11px',color:'#888',fontWeight:600,textTransform:'uppercase'}}>Contrats</th>
-                <th style={{padding:'8px 10px',textAlign:'right',fontSize:'11px',color:'#888',fontWeight:600,textTransform:'uppercase'}}>vs N-1</th>
-              </tr>
-            </thead>
+          ?<div style={{color:'#aaa',fontSize:'13px',textAlign:'center',padding:'20px 0'}}>Aucune donnée</div>
+          :<table style={{width:'100%',borderCollapse:'collapse',fontSize:'13px'}}>
+            <thead><tr style={{borderBottom:'1px solid #f3f4f6'}}>
+              <th style={{padding:'8px 10px',textAlign:'left',fontSize:'11px',color:'#888',fontWeight:600,textTransform:'uppercase'}}>#</th>
+              <th style={{padding:'8px 10px',textAlign:'left',fontSize:'11px',color:'#888',fontWeight:600,textTransform:'uppercase'}}>Conseiller</th>
+              <th style={{padding:'8px 10px',textAlign:'right',fontSize:'11px',color:'#888',fontWeight:600,textTransform:'uppercase'}}>CA</th>
+              <th style={{padding:'8px 10px',textAlign:'right',fontSize:'11px',color:'#888',fontWeight:600,textTransform:'uppercase'}}>vs N-1</th>
+              <th style={{padding:'8px 10px',textAlign:'right',fontSize:'11px',color:'#888',fontWeight:600,textTransform:'uppercase'}}>Contrats</th>
+              <th style={{padding:'8px 10px',textAlign:'right',fontSize:'11px',color:'#888',fontWeight:600,textTransform:'uppercase'}}>vs N-1</th>
+            </tr></thead>
             <tbody>
               {rankData.map(function(r,i){
                 const eCA=r.caPrev>0?((r.ca-r.caPrev)/r.caPrev*100):null;
                 const eNB=r.nbPrev>0?((r.nb-r.nbPrev)/r.nbPrev*100):null;
                 const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':(i+1)+'';
-                return(
-                  <tr key={r.id} style={{borderBottom:'1px solid #f9fafb'}}>
-                    <td style={{padding:'9px 10px',color:'#999',fontSize:'12px'}}>{medal}</td>
-                    <td style={{padding:'9px 10px',fontWeight:500}}>{r.name}</td>
-                    <td style={{padding:'9px 10px',textAlign:'right',fontWeight:600}}>{feur(r.ca)}</td>
-                    <td style={{padding:'9px 10px',textAlign:'right'}}>
-                      {eCA===null?<span style={{color:'#aaa'}}>—</span>:<span style={{color:eCA>=0?'#059669':'#dc2626',fontWeight:600,fontSize:'12px'}}>{eCA>=0?'▲ ':'▼ '}{Math.abs(eCA).toFixed(1)}%</span>}
-                    </td>
-                    <td style={{padding:'9px 10px',textAlign:'right'}}>{r.nb}</td>
-                    <td style={{padding:'9px 10px',textAlign:'right'}}>
-                      {eNB===null?<span style={{color:'#aaa'}}>—</span>:<span style={{color:eNB>=0?'#059669':'#dc2626',fontWeight:600,fontSize:'12px'}}>{eNB>=0?'▲ ':'▼ '}{Math.abs(eNB).toFixed(1)}%</span>}
-                    </td>
-                  </tr>
-                );
+                return <tr key={r.id} style={{borderBottom:'1px solid #f9fafb'}}>
+                  <td style={{padding:'9px 10px',color:'#999',fontSize:'12px'}}>{medal}</td>
+                  <td style={{padding:'9px 10px',fontWeight:500}}>{r.name}</td>
+                  <td style={{padding:'9px 10px',textAlign:'right',fontWeight:600}}>{feur0(r.ca)}</td>
+                  <td style={{padding:'9px 10px',textAlign:'right'}}>{eCA===null?<span style={{color:'#aaa'}}>—</span>:<span style={{color:eCA>=0?'#059669':'#dc2626',fontWeight:600,fontSize:'12px'}}>{eCA>=0?'▲ ':'▼ '}{Math.abs(eCA).toFixed(1)}%</span>}</td>
+                  <td style={{padding:'9px 10px',textAlign:'right'}}>{r.nb}</td>
+                  <td style={{padding:'9px 10px',textAlign:'right'}}>{eNB===null?<span style={{color:'#aaa'}}>—</span>:<span style={{color:eNB>=0?'#059669':'#dc2626',fontWeight:600,fontSize:'12px'}}>{eNB>=0?'▲ ':'▼ '}{Math.abs(eNB).toFixed(1)}%</span>}</td>
+                </tr>;
               })}
             </tbody>
           </table>
@@ -407,7 +689,6 @@ function FormContrat({sb,profile,profiles,onSaved}){
   function u(k,v){setF(function(p){return Object.assign({},p,{[k]:v});});}
   const isDir=['direction','manager'].includes(profile.role);
   const fam=getFamily(f.contract_type);
-
   async function save(){
     if(!f.client_name.trim()){setErr('Le nom du client est obligatoire.');return;}
     if(!f.contract_number.trim()){setErr('Le numéro de contrat est obligatoire.');return;}
@@ -415,11 +696,12 @@ function FormContrat({sb,profile,profiles,onSaved}){
     if(!f.effect_date){setErr("La date d'effet est obligatoire.");return;}
     if(!f.annual_premium||parseFloat(f.annual_premium)<=0){setErr('La prime annuelle est obligatoire.');return;}
     setSaving(true);setErr('');
-    const res=await sb.from('contracts').insert({conseiller_id:f.conseiller_id||profile.id,client_name:toUpper(f.client_name.trim()),contract_number:f.contract_number.trim(),emission_date:f.emission_date,effect_date:f.effect_date,contract_type:f.contract_type,provenance:f.provenance,annual_premium:parseFloat(f.annual_premium)||0,commission:0,comments:f.comments});
+    const g=GRILLE_2026[f.contract_type];
+    const autocom=g?(g.fixed?g.rate:Math.round((parseFloat(f.annual_premium)||0)*g.rate*100)/100):0;
+    const res=await sb.from('contracts').insert({conseiller_id:f.conseiller_id||profile.id,client_name:toUpper(f.client_name.trim()),contract_number:f.contract_number.trim(),emission_date:f.emission_date,effect_date:f.effect_date,contract_type:f.contract_type,provenance:f.provenance,annual_premium:parseFloat(f.annual_premium)||0,commission:autocom,comments:f.comments});
     if(res.error){setErr('Erreur : '+res.error.message);setSaving(false);return;}
     onSaved();
   }
-
   return(
     <div style={{padding:'36px 40px',maxWidth:'720px'}}>
       <div style={{marginBottom:'28px'}}><div style={{fontSize:'22px',fontWeight:600,marginBottom:'4px'}}>Saisir un contrat</div><div style={{fontSize:'13.5px',color:'#666'}}>Les champs * sont obligatoires</div></div>
@@ -428,8 +710,7 @@ function FormContrat({sb,profile,profiles,onSaved}){
         <div className="fg2">
           <div className="fg"><label>Nom / Raison sociale *</label><input value={f.client_name} onChange={function(e){u('client_name',e.target.value);}} onBlur={function(e){u('client_name',toUpper(e.target.value));}} placeholder="DUPONT JEAN"/></div>
           <div className="fg">
-            <label style={{display:'flex',alignItems:'center',gap:'6px'}}>
-              N° contrat *
+            <label style={{display:'flex',alignItems:'center',gap:'6px'}}>N° contrat *
               <div className="tip-wrap"><span style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:'15px',height:'15px',borderRadius:'50%',background:'#e5e7eb',color:'#555',fontSize:'10px',fontWeight:700,cursor:'help',flexShrink:0}}>?</span><span className="tip">Sans n° de contrat, indiquez la nature : "Courtage", "Banque", etc.</span></div>
             </label>
             <input value={f.contract_number} onChange={function(e){u('contract_number',e.target.value);}} placeholder="N° ou ex: Courtage, Banque…"/>
@@ -449,7 +730,15 @@ function FormContrat({sb,profile,profiles,onSaved}){
           </div>
           <div className="fg"><label>Provenance</label><select value={f.provenance} onChange={function(e){u('provenance',e.target.value);}}>{PROVS.map(function(p){return <option key={p} value={p}>{p}</option>;})}</select></div>
         </div>
-        <div className="fg"><label>Prime annuelle TTC (€) *</label><input type="number" min="0" step="0.01" value={f.annual_premium} onChange={function(e){u('annual_premium',e.target.value);}} placeholder="ex: 1 250"/><div style={{fontSize:'11.5px',color:'#888',marginTop:'4px'}}>Commission calculée automatiquement selon la grille (Sprint 5).</div></div>
+        <div className="fg">
+          <label>Prime annuelle TTC (€) *</label>
+          <input type="number" min="0" step="0.01" value={f.annual_premium} onChange={function(e){u('annual_premium',e.target.value);}} placeholder="ex: 1 250"/>
+          {f.annual_premium&&parseFloat(f.annual_premium)>0&&GRILLE_2026[f.contract_type]&&(
+            <div style={{fontSize:'11.5px',color:'#1d4ed8',marginTop:'4px',fontWeight:500}}>
+              Commission estimée : {feur(GRILLE_2026[f.contract_type].fixed?GRILLE_2026[f.contract_type].rate:Math.round(parseFloat(f.annual_premium)*GRILLE_2026[f.contract_type].rate*100)/100)}
+            </div>
+          )}
+        </div>
         <div className="fg"><label>Commentaires</label><textarea value={f.comments} onChange={function(e){u('comments',e.target.value);}} rows={3} style={{resize:'vertical'}}/></div>
         {err&&<div style={{background:'#fef2f2',color:'#b91c1c',border:'1px solid #fecaca',padding:'10px 14px',borderRadius:'8px',fontSize:'13px',marginBottom:'14px'}}>{err}</div>}
         <div style={{display:'flex',gap:'10px',justifyContent:'flex-end'}}>
@@ -471,37 +760,28 @@ function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,onSelect,onN
   const [search,setSearch]=useState('');
   const [sort,setSort]=useState({col:'created_at',asc:false});
   function sortBy(col){setSort(function(s){return s.col===col?{col:col,asc:!s.asc}:{col:col,asc:true};});}
-
   const list=contracts.filter(function(c){
-    if(fCons&&c.conseiller_id!==fCons) return false;
-    if(fType&&c.contract_type!==fType) return false;
-    if(fStat&&c.status!==fStat) return false;
-    if(fDoss){const ds=docStatus(c.document_tracking);if(ds.l!==fDoss) return false;}
-    if(fPay&&(c.document_tracking?.payment_status||'non_paye')!==fPay) return false;
-    if(search&&!c.client_name.toLowerCase().includes(search.toLowerCase())&&!c.contract_number.includes(search)) return false;
+    if(fCons&&c.conseiller_id!==fCons)return false;
+    if(fType&&c.contract_type!==fType)return false;
+    if(fStat&&c.status!==fStat)return false;
+    if(fDoss){const ds=docStatus(c.document_tracking);if(ds.l!==fDoss)return false;}
+    if(fPay&&(c.document_tracking&&c.document_tracking.payment_status?c.document_tracking.payment_status:'non_paye')!==fPay)return false;
+    if(search&&!c.client_name.toLowerCase().includes(search.toLowerCase())&&!c.contract_number.includes(search))return false;
     return true;
   }).sort(function(a,b){
     let va=a[sort.col],vb=b[sort.col];
     if(sort.col==='dossier'){va=docStatus(a.document_tracking).l;vb=docStatus(b.document_tracking).l;}
-    if(sort.col==='paiement'){va=a.document_tracking?.payment_status||'';vb=b.document_tracking?.payment_status||'';}
-    if(sort.col==='conseiller'){va=a.conseiller?.full_name||'';vb=b.conseiller?.full_name||'';}
-    if(va<vb) return sort.asc?-1:1;
-    if(va>vb) return sort.asc?1:-1;
+    if(sort.col==='paiement'){va=(a.document_tracking&&a.document_tracking.payment_status)||'';vb=(b.document_tracking&&b.document_tracking.payment_status)||'';}
+    if(sort.col==='conseiller'){va=a.conseiller&&a.conseiller.full_name?a.conseiller.full_name:'';vb=b.conseiller&&b.conseiller.full_name?b.conseiller.full_name:'';}
+    if(va<vb)return sort.asc?-1:1;
+    if(va>vb)return sort.asc?1:-1;
     return 0;
   });
-
-  function SH(props){
-    const on=sort.col===props.col;
-    return <th onClick={function(){sortBy(props.col);}} style={{background:on?'#eff6ff':''}}>{props.children}{on?(sort.asc?' ↑':' ↓'):' ↕'}</th>;
-  }
-
+  function SH(props){const on=sort.col===props.col;return <th onClick={function(){sortBy(props.col);}} style={{background:on?'#eff6ff':''}}>{props.children}{on?(sort.asc?' ↑':' ↓'):' ↕'}</th>;}
   return(
     <div style={{padding:'28px 32px'}}>
       <div style={{marginBottom:'18px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'12px',flexWrap:'wrap'}}>
-        <div>
-          <div style={{fontSize:'22px',fontWeight:600,marginBottom:'4px'}}>{profile.role==='conseiller'?'Mes dossiers':'Suivi des dossiers'}</div>
-          <div style={{fontSize:'13px',color:'#666'}}>{list.length} contrat{list.length!==1?'s':''}</div>
-        </div>
+        <div><div style={{fontSize:'22px',fontWeight:600,marginBottom:'4px'}}>{profile.role==='conseiller'?'Mes dossiers':'Suivi des dossiers'}</div><div style={{fontSize:'13px',color:'#666'}}>{list.length} contrat{list.length!==1?'s':''}</div></div>
         <button className="bp" onClick={onNew}>+ Nouveau contrat</button>
       </div>
       <div style={{display:'flex',gap:'8px',marginBottom:'14px',flexWrap:'wrap'}}>
@@ -514,66 +794,43 @@ function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,onSelect,onN
         {(fCons||fType||fStat||fDoss||fPay||search)&&<button onClick={function(){setFCons('');setFType('');setFStat('');setFDoss('');setFPay('');setSearch('');}} style={{fontSize:'12px'}}>✕ Effacer</button>}
       </div>
       <div className="card" style={{overflow:'hidden'}}>
-        {list.length===0
-          ? <div style={{padding:'48px',textAlign:'center',color:'#999',fontSize:'14px'}}>Aucun contrat</div>
-          : <div style={{overflowX:'auto'}}>
-            <table>
-              <thead><tr>
-                <SH col="conseiller">Conseiller</SH>
-                <SH col="client_name">Client</SH>
-                <SH col="contract_number">N° contrat</SH>
-                <SH col="emission_date">Date émission</SH>
-                <SH col="effect_date">Date effet</SH>
-                <th>Type</th>
-                <SH col="annual_premium">Prime annuelle</SH>
-                <SH col="dossier">Dossier</SH>
-                <SH col="paiement">Paiement</SH>
-                <SH col="status">Statut</SH>
-              </tr></thead>
-              <tbody>
-                {list.map(function(c){
-                  const ds=docStatus(c.document_tracking);
-                  const ps=payOpt(c.document_tracking);
-                  const hasProb=c.document_tracking?.has_problem;
-                  const annReq=c.annulation_requested;
-                  const annOk=c.status==='ANNULE';
-                  const fam=getFamily(c.contract_type);
-                  const lastMsg=lastMsgMap[c.id];
-                  const lastRead=reads[c.id];
-                  const hasUnread=lastMsg&&(!lastRead||new Date(lastMsg)>new Date(lastRead));
-                  const rowBg=annOk?'#374151':annReq?'#d1d5db':hasProb?'#fff5f5':'';
-                  const textColor=annOk?'#f3f4f6':annReq?'#1f2937':'#333';
-                  const mutedColor=annOk?'#9ca3af':annReq?'#4b5563':'#666';
-                  return(
-                    <tr key={c.id} onClick={function(){onSelect(c);}} style={{cursor:'pointer',background:rowBg,color:textColor}}>
-                      <td style={{color:mutedColor,fontSize:'12.5px'}}>{c.conseiller?.full_name||'—'}</td>
-                      <td style={{fontWeight:500,color:textColor}}>
-                        <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
-                          {c.client_name}
-                          {hasUnread&&<span className="env-anim" title="Nouveau message" style={{fontSize:'13px',color:'#f59e0b'}}>✉</span>}
-                        </div>
-                      </td>
-                      <td style={{color:mutedColor,fontFamily:'monospace',fontSize:'11.5px'}}>{c.contract_number}</td>
-                      <td style={{color:mutedColor,whiteSpace:'nowrap'}}>{fdate(c.emission_date)}</td>
-                      <td style={{color:mutedColor,whiteSpace:'nowrap'}}>{fdate(c.effect_date)}</td>
-                      <td>{fam?<span className="badge" style={{background:annOk||annReq?'#4b5563':fam.bg,color:annOk||annReq?'#d1d5db':fam.color}}>{c.contract_type}</span>:<span className="badge" style={{background:'#f3f4f6',color:'#374151'}}>{c.contract_type}</span>}</td>
-                      <td style={{fontWeight:500,whiteSpace:'nowrap',color:textColor}}>{feur(c.annual_premium)}</td>
-                      <td>
-                        <div style={{display:'flex',alignItems:'center',gap:'4px',flexWrap:'wrap'}}>
-                          {annOk?<span className="badge" style={{background:'#111',color:'#f9fafb'}}>Annulé</span>:<span className="badge" style={{background:ds.bg,color:ds.tx}}>{ds.l}</span>}
-                          {annReq&&!annOk&&<span className="badge" style={{background:'#4b5563',color:'#f3f4f6'}}>Annulation dem.</span>}
-                          {hasProb&&<span className="badge" style={{background:'#fee2e2',color:'#991b1b'}}>⚠ Problème</span>}
-                        </div>
-                      </td>
-                      <td><span className="badge" style={{background:ps.bg,color:ps.tx}}>{ps.label}</span></td>
-                      <td><span className="badge" style={{background:annOk?'#111':c.status==='ENCOURS'?'#dbeafe':'#f3f4f6',color:annOk?'#f9fafb':c.status==='ENCOURS'?'#1e40af':'#374151'}}>{c.status}</span></td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        }
+        {list.length===0?<div style={{padding:'48px',textAlign:'center',color:'#999',fontSize:'14px'}}>Aucun contrat</div>
+        :<div style={{overflowX:'auto'}}><table><thead><tr>
+          <SH col="conseiller">Conseiller</SH><SH col="client_name">Client</SH><SH col="contract_number">N° contrat</SH>
+          <SH col="emission_date">Date émission</SH><SH col="effect_date">Date effet</SH><th>Type</th>
+          <SH col="annual_premium">Prime annuelle</SH><SH col="dossier">Dossier</SH><SH col="paiement">Paiement</SH><SH col="status">Statut</SH>
+        </tr></thead><tbody>
+          {list.map(function(c){
+            const ds=docStatus(c.document_tracking);
+            const ps=payOpt(c.document_tracking);
+            const hasProb=c.document_tracking&&c.document_tracking.has_problem;
+            const annReq=c.annulation_requested;
+            const annOk=c.status==='ANNULE';
+            const fam=getFamily(c.contract_type);
+            const lastMsg=lastMsgMap[c.id];
+            const lastRead=reads[c.id];
+            const hasUnread=lastMsg&&(!lastRead||new Date(lastMsg)>new Date(lastRead));
+            const rowBg=annOk?'#374151':annReq?'#d1d5db':hasProb?'#fff5f5':'';
+            const textColor=annOk?'#f3f4f6':annReq?'#1f2937':'#333';
+            const mutedColor=annOk?'#9ca3af':annReq?'#4b5563':'#666';
+            return <tr key={c.id} onClick={function(){onSelect(c);}} style={{cursor:'pointer',background:rowBg,color:textColor}}>
+              <td style={{color:mutedColor,fontSize:'12.5px'}}>{c.conseiller&&c.conseiller.full_name?c.conseiller.full_name:'—'}</td>
+              <td style={{fontWeight:500,color:textColor}}><div style={{display:'flex',alignItems:'center',gap:'6px'}}>{c.client_name}{hasUnread&&<span className="env-anim" title="Nouveau message" style={{fontSize:'13px',color:'#f59e0b'}}>✉</span>}</div></td>
+              <td style={{color:mutedColor,fontFamily:'monospace',fontSize:'11.5px'}}>{c.contract_number}</td>
+              <td style={{color:mutedColor,whiteSpace:'nowrap'}}>{fdate(c.emission_date)}</td>
+              <td style={{color:mutedColor,whiteSpace:'nowrap'}}>{fdate(c.effect_date)}</td>
+              <td>{fam?<span className="badge" style={{background:annOk||annReq?'#4b5563':fam.bg,color:annOk||annReq?'#d1d5db':fam.color}}>{c.contract_type}</span>:<span className="badge" style={{background:'#f3f4f6',color:'#374151'}}>{c.contract_type}</span>}</td>
+              <td style={{fontWeight:500,whiteSpace:'nowrap',color:textColor}}>{feur0(c.annual_premium)}</td>
+              <td><div style={{display:'flex',alignItems:'center',gap:'4px',flexWrap:'wrap'}}>
+                {annOk?<span className="badge" style={{background:'#111',color:'#f9fafb'}}>Annulé</span>:<span className="badge" style={{background:ds.bg,color:ds.tx}}>{ds.l}</span>}
+                {annReq&&!annOk&&<span className="badge" style={{background:'#4b5563',color:'#f3f4f6'}}>Annulation dem.</span>}
+                {hasProb&&<span className="badge" style={{background:'#fee2e2',color:'#991b1b'}}>⚠ Problème</span>}
+              </div></td>
+              <td><span className="badge" style={{background:ps.bg,color:ps.tx}}>{ps.label}</span></td>
+              <td><span className="badge" style={{background:annOk?'#111':c.status==='ENCOURS'?'#dbeafe':'#f3f4f6',color:annOk?'#f9fafb':c.status==='ENCOURS'?'#1e40af':'#374151'}}>{c.status}</span></td>
+            </tr>;
+          })}
+        </tbody></table></div>}
       </div>
     </div>
   );
@@ -593,67 +850,23 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
   const canDir=profile.role==='direction';
   const canPieces=['manager','direction'].includes(profile.role);
   const isCollab=profile.role==='conseiller';
-
-  const loadMsgs=useCallback(async function(){
-    const res=await sb.from('contract_messages').select('*').eq('contract_id',contract.id).order('created_at',{ascending:true});
-    setMessages(res.data||[]);
-  },[sb,contract.id]);
-
+  const loadMsgs=useCallback(async function(){const res=await sb.from('contract_messages').select('*').eq('contract_id',contract.id).order('created_at',{ascending:true});setMessages(res.data||[]);},[sb,contract.id]);
   useEffect(function(){loadMsgs();},[loadMsgs]);
-
-  async function updDt(u){
-    setSaving(true);
-    await sb.from('document_tracking').update(Object.assign({},u,{updated_at:new Date().toISOString()})).eq('contract_id',contract.id);
-    setDt(function(p){return Object.assign({},p,u);});
-    onRefresh();setSaving(false);
-  }
-
-  async function saveEdit(){
-    setSaving(true);
-    await sb.from('contracts').update({client_name:toUpper(editF.client_name),emission_date:editF.emission_date,effect_date:editF.effect_date,provenance:editF.provenance,annual_premium:parseFloat(editF.annual_premium)||0,commission:parseFloat(editF.commission)||0,conseiller_id:editF.conseiller_id,contract_type:editF.contract_type,contract_number:editF.contract_number}).eq('id',contract.id);
-    setEditing(false);onRefresh();setSaving(false);
-  }
-
+  async function updDt(u){setSaving(true);await sb.from('document_tracking').update(Object.assign({},u,{updated_at:new Date().toISOString()})).eq('contract_id',contract.id);setDt(function(p){return Object.assign({},p,u);});onRefresh();setSaving(false);}
+  async function saveEdit(){setSaving(true);await sb.from('contracts').update({client_name:toUpper(editF.client_name),emission_date:editF.emission_date,effect_date:editF.effect_date,provenance:editF.provenance,annual_premium:parseFloat(editF.annual_premium)||0,commission:parseFloat(editF.commission)||0,conseiller_id:editF.conseiller_id,contract_type:editF.contract_type,contract_number:editF.contract_number}).eq('id',contract.id);setEditing(false);onRefresh();setSaving(false);}
   async function saveMonoType(val){setMonoType(val);await sb.from('contracts').update({mono_type:val||null}).eq('id',contract.id);onRefresh();}
   async function toggleAnnReq(){const v=!annReq;setAnnReq(v);await sb.from('contracts').update({annulation_requested:v}).eq('id',contract.id);onRefresh();}
   async function toggleAnnule(v){setIsAnnule(v);await sb.from('contracts').update({status:v?'ANNULE':'ENCOURS'}).eq('id',contract.id);onRefresh();}
-  async function sendMsg(){
-    if(!newMsg.trim()) return;setSaving(true);
-    await sb.from('contract_messages').insert({contract_id:contract.id,author_id:profile.id,author_name:profile.full_name,author_role:profile.role,message:newMsg.trim(),resolved_status:'pending'});
-    setNewMsg('');await loadMsgs();setSaving(false);
-  }
-  async function setMsgStatus(id,status){
-    await sb.from('contract_messages').update({resolved_status:status,is_resolved:status==='resolved'}).eq('id',id);
-    await loadMsgs();
-  }
-
-  function TG(props){
-    return(
-      <div className="cr">
-        <span style={{fontSize:'13.5px',color:props.disabled?'#aaa':'#222'}}>{props.label}</span>
-        <label className="toggle">
-          <input type="checkbox" checked={!!dt[props.field]} disabled={props.disabled||saving} onChange={function(e){updDt({[props.field]:e.target.checked});}}/>
-          <span className="slider" style={props.blackChecked&&dt[props.field]?{background:'#111'}:{}}></span>
-        </label>
-      </div>
-    );
-  }
-
-  function IR(props){
-    return(
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'9px 0',borderBottom:'1px solid #f3f4f6',fontSize:'13.5px'}}>
-        <span style={{color:'#666'}}>{props.label}</span><span style={{fontWeight:500}}>{props.value}</span>
-      </div>
-    );
-  }
-
+  async function sendMsg(){if(!newMsg.trim())return;setSaving(true);await sb.from('contract_messages').insert({contract_id:contract.id,author_id:profile.id,author_name:profile.full_name,author_role:profile.role,message:newMsg.trim(),resolved_status:'pending'});setNewMsg('');await loadMsgs();setSaving(false);}
+  async function setMsgStatus(id,status){await sb.from('contract_messages').update({resolved_status:status,is_resolved:status==='resolved'}).eq('id',id);await loadMsgs();}
+  function TG(props){return <div className="cr"><span style={{fontSize:'13.5px',color:props.disabled?'#aaa':'#222'}}>{props.label}</span><label className="toggle"><input type="checkbox" checked={!!dt[props.field]} disabled={props.disabled||saving} onChange={function(e){updDt({[props.field]:e.target.checked});}}/><span className="slider" style={props.blackChecked&&dt[props.field]?{background:'#111'}:{}}></span></label></div>;}
+  function IR(props){return <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'9px 0',borderBottom:'1px solid #f3f4f6',fontSize:'13.5px'}}><span style={{color:'#666'}}>{props.label}</span><span style={{fontWeight:500}}>{props.value}</span></div>;}
   function eu(k,v){setEditF(function(p){return Object.assign({},p,{[k]:v});});}
   const fam=getFamily(contract.contract_type);
   const headerBg=isAnnule?'#1f2937':annReq?'#374151':dt.has_problem?'rgba(185,28,28,0.82)':'#fff';
   const headerTx=isAnnule||annReq||dt.has_problem?'#f3f4f6':'#111';
-
   return(
-    <div className="overlay" onClick={function(e){if(e.target===e.currentTarget) onClose();}}>
+    <div className="overlay" onClick={function(e){if(e.target===e.currentTarget)onClose();}}>
       <div className="panel">
         <div style={{padding:'16px 20px',borderBottom:'1px solid #e5e7eb',display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0,background:headerBg,transition:'background 0.2s'}}>
           <div>
@@ -669,7 +882,6 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
             <button onClick={onClose} style={{padding:'6px 10px',fontSize:'13px'}}>✕</button>
           </div>
         </div>
-
         <div style={{flex:1,overflowY:'auto',padding:'20px'}}>
           <div style={{marginBottom:'20px'}}>
             <div className="sec">Informations</div>
@@ -695,23 +907,17 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
               </div>
             ):(
               <div className="card" style={{padding:'0 16px'}}>
-                <IR label="Conseiller" value={contract.conseiller?.full_name||'—'}/>
-                <IR label="N° contrat" value={
-                  React.createElement('span',{style:{display:'flex',alignItems:'center',gap:'6px'}},
-                    contract.contract_number||'—',
-                    contract.contract_number&&React.createElement(CopyBtn,{text:contract.contract_number})
-                  )
-                }/>
+                <IR label="Conseiller" value={contract.conseiller&&contract.conseiller.full_name?contract.conseiller.full_name:'—'}/>
+                <IR label="N° contrat" value={React.createElement('span',{style:{display:'flex',alignItems:'center',gap:'6px'}},contract.contract_number||'—',contract.contract_number&&React.createElement(CopyBtn,{text:contract.contract_number}))}/>
                 <IR label="Date émission" value={fdate(contract.emission_date)}/>
                 <IR label="Date d'effet" value={fdate(contract.effect_date)}/>
                 <IR label="Provenance" value={contract.provenance||'—'}/>
-                <IR label="Prime annuelle" value={feur(contract.annual_premium)}/>
-                {!isCollab&&<IR label="Commission" value={feur(contract.commission)}/>}
+                <IR label="Prime annuelle" value={feur0(contract.annual_premium)}/>
+                {!isCollab&&<IR label="Commission calculée" value={feur(calcBaseCommission(contract))}/>}
                 {contract.comments&&<IR label="Commentaire" value={contract.comments}/>}
               </div>
             )}
           </div>
-
           <div style={{marginBottom:'20px'}}>
             <div className="sec">Suivi de dossier {!canPieces&&'· lecture seule'}</div>
             <div className="card" style={{padding:'0 16px'}}>
@@ -720,26 +926,9 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
               <TG label="Conforme KYC" field="kyc_compliant" disabled={!canPieces}/>
               <TG label="Justificatifs complets" field="docs_complete" disabled={!canPieces}/>
             </div>
-            {canPieces&&(
-              <button onClick={function(){updDt({has_problem:!dt.has_problem});}}
-                style={{marginTop:'8px',width:'100%',padding:'9px',fontSize:'12.5px',display:'flex',alignItems:'center',justifyContent:'center',gap:'6px',borderRadius:'8px',transition:'all 0.15s',
-                  background:dt.has_problem?'rgba(185,28,28,0.82)':'rgba(185,28,28,0.12)',
-                  color:dt.has_problem?'#fef2f2':'#7f1d1d',
-                  border:'1px solid '+(dt.has_problem?'#991b1b':'rgba(185,28,28,0.25)')}}>
-                {dt.has_problem?'⚠️ Problème signalé — Cliquer pour lever':'⚠️ Signaler un problème sur ce dossier'}
-              </button>
-            )}
-            {!isAnnule&&(
-              <button onClick={toggleAnnReq}
-                style={{marginTop:'8px',width:'100%',padding:'9px',fontSize:'12.5px',display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',borderRadius:'8px',transition:'all 0.15s',
-                  background:annReq?'rgba(0,0,0,0.82)':'rgba(0,0,0,0.12)',
-                  color:annReq?'#f9fafb':'#333',
-                  border:'1px solid '+(annReq?'#374151':'rgba(0,0,0,0.15)')}}>
-                {annReq?'⬛ Annulation demandée — Annuler la demande':'⬛ Signaler annulation de ce dossier'}
-              </button>
-            )}
+            {canPieces&&<button onClick={function(){updDt({has_problem:!dt.has_problem});}} style={{marginTop:'8px',width:'100%',padding:'9px',fontSize:'12.5px',display:'flex',alignItems:'center',justifyContent:'center',gap:'6px',borderRadius:'8px',transition:'all 0.15s',background:dt.has_problem?'rgba(185,28,28,0.82)':'rgba(185,28,28,0.12)',color:dt.has_problem?'#fef2f2':'#7f1d1d',border:'1px solid '+(dt.has_problem?'#991b1b':'rgba(185,28,28,0.25)')}}>{dt.has_problem?'⚠️ Problème signalé — Cliquer pour lever':'⚠️ Signaler un problème sur ce dossier'}</button>}
+            {!isAnnule&&<button onClick={toggleAnnReq} style={{marginTop:'8px',width:'100%',padding:'9px',fontSize:'12.5px',display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',borderRadius:'8px',transition:'all 0.15s',background:annReq?'rgba(0,0,0,0.82)':'rgba(0,0,0,0.12)',color:annReq?'#f9fafb':'#333',border:'1px solid '+(annReq?'#374151':'rgba(0,0,0,0.15)')}}>{annReq?'⬛ Annulation demandée — Annuler la demande':'⬛ Signaler annulation de ce dossier'}</button>}
           </div>
-
           <div style={{marginBottom:'20px'}}>
             <div className="sec">Vérifications direction {!canDir&&'· lecture seule'}</div>
             <div className="card" style={{padding:'0 16px'}}>
@@ -747,35 +936,21 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
               <div style={{padding:'12px 0',borderBottom:'1px solid #f3f4f6'}}>
                 <div style={{fontSize:'13.5px',color:canDir?'#222':'#aaa',marginBottom:'8px'}}>Mono contrat</div>
                 <div style={{display:'flex',flexDirection:'column',gap:'6px'}}>
-                  {MONO_OPTS.map(function(o){return(
-                    <label key={o.value} style={{display:'flex',alignItems:'center',gap:'8px',cursor:canDir?'pointer':'not-allowed',opacity:canDir?1:0.5,padding:'7px 10px',border:'1px solid '+(monoType===o.value&&o.value?'#3b82f6':'#e5e7eb'),borderRadius:'8px',background:monoType===o.value&&o.value?'#eff6ff':'#fff',fontSize:'13px'}}>
-                      <input type="radio" name={'mono_'+contract.id} value={o.value} checked={monoType===o.value} disabled={!canDir} onChange={function(){saveMonoType(o.value);}} style={{width:'auto',display:'inline',padding:0,border:'none',background:'none',cursor:canDir?'pointer':'not-allowed'}}/>
-                      {o.label}
-                    </label>
-                  );})}
+                  {MONO_OPTS.map(function(o){return <label key={o.value} style={{display:'flex',alignItems:'center',gap:'8px',cursor:canDir?'pointer':'not-allowed',opacity:canDir?1:0.5,padding:'7px 10px',border:'1px solid '+(monoType===o.value&&o.value?'#3b82f6':'#e5e7eb'),borderRadius:'8px',background:monoType===o.value&&o.value?'#eff6ff':'#fff',fontSize:'13px'}}><input type="radio" name={'mono_'+contract.id} value={o.value} checked={monoType===o.value} disabled={!canDir} onChange={function(){saveMonoType(o.value);}} style={{width:'auto',display:'inline',padding:0,border:'none',background:'none',cursor:canDir?'pointer':'not-allowed'}}/>{o.label}</label>;})}
                 </div>
               </div>
               <div style={{padding:'12px 0',borderBottom:'1px solid #f3f4f6'}}>
                 <div style={{fontSize:'13.5px',color:canDir?'#222':'#aaa',marginBottom:'8px'}}>Cotisation payée</div>
                 <div style={{display:'flex',flexDirection:'column',gap:'6px'}}>
-                  {PAY_OPTS.map(function(o){return(
-                    <label key={o.value} style={{display:'flex',alignItems:'center',gap:'8px',cursor:canDir?'pointer':'not-allowed',opacity:canDir?1:0.5,padding:'7px 10px',border:'1px solid '+((dt.payment_status||'non_paye')===o.value?'#aaa':'#e5e7eb'),borderRadius:'8px',background:(dt.payment_status||'non_paye')===o.value?o.bg:'#fff',color:o.tx,fontSize:'13px'}}>
-                      <input type="radio" name={'pay_'+contract.id} value={o.value} checked={(dt.payment_status||'non_paye')===o.value} disabled={!canDir} onChange={function(){if(canDir) updDt({payment_status:o.value});}} style={{width:'auto',display:'inline',padding:0,border:'none',background:'none',cursor:canDir?'pointer':'not-allowed'}}/>
-                      {o.label}
-                    </label>
-                  );})}
+                  {PAY_OPTS.map(function(o){return <label key={o.value} style={{display:'flex',alignItems:'center',gap:'8px',cursor:canDir?'pointer':'not-allowed',opacity:canDir?1:0.5,padding:'7px 10px',border:'1px solid '+((dt.payment_status||'non_paye')===o.value?'#aaa':'#e5e7eb'),borderRadius:'8px',background:(dt.payment_status||'non_paye')===o.value?o.bg:'#fff',color:o.tx,fontSize:'13px'}}><input type="radio" name={'pay_'+contract.id} value={o.value} checked={(dt.payment_status||'non_paye')===o.value} disabled={!canDir} onChange={function(){if(canDir)updDt({payment_status:o.value});}} style={{width:'auto',display:'inline',padding:0,border:'none',background:'none',cursor:canDir?'pointer':'not-allowed'}}/>{o.label}</label>;})}
                 </div>
               </div>
               <div className="cr">
                 <span style={{fontSize:'13.5px',color:canDir?'#222':'#aaa'}}>Annuler le dossier</span>
-                <label className="toggle" style={{cursor:canDir?'pointer':'not-allowed'}}>
-                  <input type="checkbox" checked={isAnnule} disabled={!canDir||saving} onChange={function(e){toggleAnnule(e.target.checked);}}/>
-                  <span className="slider" style={{background:isAnnule?'#111':''}}></span>
-                </label>
+                <label className="toggle" style={{cursor:canDir?'pointer':'not-allowed'}}><input type="checkbox" checked={isAnnule} disabled={!canDir||saving} onChange={function(e){toggleAnnule(e.target.checked);}}/><span className="slider" style={{background:isAnnule?'#111':''}}></span></label>
               </div>
             </div>
           </div>
-
           <div>
             <div className="sec">Échanges</div>
             <div className="chat-wrap">
@@ -783,25 +958,17 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
               {messages.map(function(m){
                 const isRight=['manager','direction'].includes(m.author_role);
                 const status=m.resolved_status||'pending';
-                return(
-                  <div key={m.id} style={{display:'flex',flexDirection:'column',alignItems:isRight?'flex-end':'flex-start'}}>
-                    <div className={'msg '+(isRight?'msg-right':'msg-left')}>
-                      <div className="msg-meta">{m.author_name}</div>
-                      <div>{m.message}</div>
-                      <div className="msg-time">
-                        {fdt(m.created_at)}
-                        {status==='resolved'&&<span style={{color:'#16a34a',fontWeight:700,marginLeft:'6px'}}>✓ Résolu</span>}
-                        {status==='unresolved'&&<span style={{color:'#dc2626',fontWeight:700,marginLeft:'6px'}}>✗ Non résolu</span>}
-                      </div>
-                    </div>
-                    {m.author_role==='conseiller'&&canPieces&&(
-                      <div style={{display:'flex',gap:'6px',marginTop:'4px'}}>
-                        {status!=='resolved'&&<button onClick={function(){setMsgStatus(m.id,'resolved');}} style={{fontSize:'11px',padding:'3px 10px',color:'#16a34a',border:'1px solid #bbf7d0',background:'#f0fdf4',borderRadius:'6px'}}>✓ Résolu</button>}
-                        {status!=='unresolved'&&<button onClick={function(){setMsgStatus(m.id,'unresolved');}} style={{fontSize:'11px',padding:'3px 10px',color:'#dc2626',border:'1px solid #fecaca',background:'#fef2f2',borderRadius:'6px'}}>✗ Non résolu</button>}
-                      </div>
-                    )}
+                return <div key={m.id} style={{display:'flex',flexDirection:'column',alignItems:isRight?'flex-end':'flex-start'}}>
+                  <div className={'msg '+(isRight?'msg-right':'msg-left')}>
+                    <div className="msg-meta">{m.author_name}</div>
+                    <div>{m.message}</div>
+                    <div className="msg-time">{fdt(m.created_at)}{status==='resolved'&&<span style={{color:'#16a34a',fontWeight:700,marginLeft:'6px'}}>✓ Résolu</span>}{status==='unresolved'&&<span style={{color:'#dc2626',fontWeight:700,marginLeft:'6px'}}>✗ Non résolu</span>}</div>
                   </div>
-                );
+                  {m.author_role==='conseiller'&&canPieces&&<div style={{display:'flex',gap:'6px',marginTop:'4px'}}>
+                    {status!=='resolved'&&<button onClick={function(){setMsgStatus(m.id,'resolved');}} style={{fontSize:'11px',padding:'3px 10px',color:'#16a34a',border:'1px solid #bbf7d0',background:'#f0fdf4',borderRadius:'6px'}}>✓ Résolu</button>}
+                    {status!=='unresolved'&&<button onClick={function(){setMsgStatus(m.id,'unresolved');}} style={{fontSize:'11px',padding:'3px 10px',color:'#dc2626',border:'1px solid #fecaca',background:'#fef2f2',borderRadius:'6px'}}>✗ Non résolu</button>}
+                  </div>}
+                </div>;
               })}
             </div>
             <div style={{display:'flex',gap:'8px',marginTop:'12px'}}>
@@ -818,29 +985,21 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
 
 function CopyBtn({text}){
   const [copied,setCopied]=useState(false);
-  return(
-    <span onClick={function(e){e.stopPropagation();navigator.clipboard.writeText(text);setCopied(true);setTimeout(function(){setCopied(false);},1500);}}
-      title={copied?'Copié !':'Copier'}
-      style={{cursor:'pointer',fontSize:'12px',padding:'1px 4px',border:'1px solid '+(copied?'#bbf7d0':'#bfdbfe'),borderRadius:'4px',background:copied?'#f0fdf4':'#eff6ff',color:copied?'#16a34a':'#3b82f6',userSelect:'none',transition:'all 0.2s'}}>
-      {copied?'✓':'⧉'}
-    </span>
-  );
+  return <span onClick={function(e){e.stopPropagation();navigator.clipboard.writeText(text);setCopied(true);setTimeout(function(){setCopied(false);},1500);}} title={copied?'Copié !':'Copier'} style={{cursor:'pointer',fontSize:'12px',padding:'1px 4px',border:'1px solid '+(copied?'#bbf7d0':'#bfdbfe'),borderRadius:'4px',background:copied?'#f0fdf4':'#eff6ff',color:copied?'#16a34a':'#3b82f6',userSelect:'none',transition:'all 0.2s'}}>{copied?'✓':'⧉'}</span>;
 }
 
 function Placeholder({nav,active}){
   const item=nav&&nav.find(function(n){return n.id===active;});
-  if(!item) return null;
-  return(
-    <div style={{padding:'40px'}}>
-      <div style={{fontSize:'22px',fontWeight:600,marginBottom:'24px'}}>{item.label}</div>
-      <div className="card" style={{padding:'60px 40px',textAlign:'center'}}>
-        <div style={{fontSize:'28px',color:'#ccc',marginBottom:'14px'}}>{item.icon}</div>
-        <div style={{fontSize:'15px',fontWeight:500,marginBottom:'8px'}}>Module en cours de construction</div>
-        <div style={{fontSize:'13.5px',color:'#888',maxWidth:'300px',margin:'0 auto 16px',lineHeight:1.6}}>Ce module sera développé au Sprint {item.s}.</div>
-        <span style={{display:'inline-block',background:'#f3f4f6',border:'1px solid #e5e7eb',borderRadius:'8px',padding:'5px 16px',fontSize:'12px',color:'#666'}}>Sprint {item.s}</span>
-      </div>
+  if(!item)return null;
+  return <div style={{padding:'40px'}}>
+    <div style={{fontSize:'22px',fontWeight:600,marginBottom:'24px'}}>{item.label}</div>
+    <div className="card" style={{padding:'60px 40px',textAlign:'center'}}>
+      <div style={{fontSize:'28px',color:'#ccc',marginBottom:'14px'}}>{item.icon}</div>
+      <div style={{fontSize:'15px',fontWeight:500,marginBottom:'8px'}}>Module en cours de construction</div>
+      <div style={{fontSize:'13.5px',color:'#888',maxWidth:'300px',margin:'0 auto 16px',lineHeight:1.6}}>Ce module sera développé au Sprint {item.s}.</div>
+      <span style={{display:'inline-block',background:'#f3f4f6',border:'1px solid #e5e7eb',borderRadius:'8px',padding:'5px 16px',fontSize:'12px',color:'#666'}}>Sprint {item.s}</span>
     </div>
-  );
+  </div>;
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
