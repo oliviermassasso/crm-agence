@@ -554,7 +554,14 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
             ):(
               <div className="card" style={{padding:'0 16px'}}>
                 <IR label="Conseiller" value={contract.conseiller?.full_name||'—'}/>
-                <IR label="N° contrat" value={contract.contract_number||'—'}/>
+                <IR label="N° contrat" value={
+                  <span style={{display:'flex',alignItems:'center',gap:'6px'}}>
+                    {contract.contract_number||'—'}
+                    {contract.contract_number&&(
+                      <span onClick={e=>{e.stopPropagation();navigator.clipboard.writeText(contract.contract_number);}} title="Copier" style={{cursor:'pointer',fontSize:'12px',color:'#3b82f6',padding:'1px 4px',border:'1px solid #bfdbfe',borderRadius:'4px',background:'#eff6ff',userSelect:'none'}}>⧉</span>
+                    )}
+                  </span>
+                }/>
                 <IR label="Date émission" value={fdate(contract.emission_date)}/>
                 <IR label="Date d'effet" value={fdate(contract.effect_date)}/>
                 <IR label="Provenance" value={contract.provenance||'—'}/>
@@ -603,9 +610,9 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
                   ))}
                 </div>
               </div>
-              {/* Paiement client */}
+              {/* Cotisation payée */}
               <div style={{padding:'12px 0',borderBottom:'1px solid #f3f4f6'}}>
-                <div style={{fontSize:'13.5px',color:canDir?'#222':'#aaa',marginBottom:'8px'}}>Paiement client</div>
+                <div style={{fontSize:'13.5px',color:canDir?'#222':'#aaa',marginBottom:'8px'}}>Cotisation payée</div>
                 <div style={{display:'flex',flexDirection:'column',gap:'6px'}}>
                   {PAY_OPTS.map(o=>(
                     <label key={o.value} style={{display:'flex',alignItems:'center',gap:'8px',cursor:canDir?'pointer':'not-allowed',opacity:canDir?1:0.5,padding:'7px 10px',border:`1px solid ${(dt.payment_status||'non_paye')===o.value?'#aaa':'#e5e7eb'}`,borderRadius:'8px',background:(dt.payment_status||'non_paye')===o.value?o.bg:'#fff',color:o.tx,fontSize:'13px'}}>
@@ -666,9 +673,9 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
           {!isAnnule&&(
             <button onClick={toggleAnnReq}
               style={{width:'100%',padding:'10px',fontSize:'13px',display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',borderRadius:'8px',transition:'all 0.15s',
-                background:annReq?'rgba(17,17,17,0.85)':'transparent',
-                color:annReq?'#f9fafb':'#555',
-                border:`1px solid ${annReq?'#374151':'#e5e7eb'}`}}>
+                background:annReq?'rgba(0,0,0,0.75)':'rgba(0,0,0,0.06)',
+                color:annReq?'#f9fafb':'#333',
+                border:`1px solid ${annReq?'#374151':'rgba(0,0,0,0.15)'}`}}>
               {annReq?'⬛ Annulation demandée — Annuler la demande':'⬛ Signaler annulation de ce dossier'}
             </button>
           )}
