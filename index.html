@@ -301,13 +301,19 @@ function App(){
   const [le,setLe]=useState('');
   const [ll,setLl]=useState(false);
 
-  const load=useCallback(async function(cl,p){
+  const load=useCallback(async function(cl,p,selectedId){
     const ps=await cl.from('profiles').select('*').order('full_name');
     setProfiles(ps.data||[]);
     let q=cl.from('contracts').select('*,document_tracking(*),conseiller:conseiller_id(id,full_name,role)');
     if(p.role==='conseiller') q=q.eq('conseiller_id',p.id);
-    const cs=await q.order('created_at',{ascending:false});
-    setContracts(cs.data||[]);
+    const cs=await q.order('emission_date',{ascending:true});
+    const newContracts=cs.data||[];
+    setContracts(newContracts);
+    // Mettre à jour le contrat sélectionné si ouvert
+    if(selectedId){
+      const updated=newContracts.find(function(c){return c.id===selectedId;});
+      if(updated) setSelected(updated);
+    }
     const msgs=await cl.from('contract_messages').select('contract_id,created_at').order('created_at',{ascending:false});
     const lmm={};
     (msgs.data||[]).forEach(function(m){if(!lmm[m.contract_id]) lmm[m.contract_id]=m.created_at;});
@@ -332,8 +338,8 @@ function App(){
     setLl(false);
   };
 
-  const logout=async function(){if(sb)await sb.auth.signOut();setProfile(null);setSb(null);setContracts([]);setActive(null);setReads({});setLastMsgMap({});setLf({email:'',password:''});};
-  const refresh=useCallback(function(){if(sb&&profile)load(sb,profile);},[sb,profile,load]);
+  const logout=async function(){if(sb)await sb.auth.signOut();setProfile(null);setSb(null);setContracts([]);setActive(null);setReads({});setLastMsgMap({});setSelected(null);setLf({email:'',password:''});};
+  const refresh=useCallback(function(){if(sb&&profile)load(sb,profile,selected&&selected.id);},[sb,profile,load,selected]);
   const markRead=useCallback(async function(cid){
     if(!sb||!profile)return;
     const now=new Date().toISOString();
@@ -855,7 +861,7 @@ function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,onSelect,onN
   const [fDoss,setFDoss]=useState('');
   const [fPay,setFPay]=useState('');
   const [search,setSearch]=useState('');
-  const [sort,setSort]=useState({col:'created_at',asc:false});
+  const [sort,setSort]=useState({col:'emission_date',asc:true});
   function sortBy(col){setSort(function(s){return s.col===col?{col:col,asc:!s.asc}:{col:col,asc:true};});}
   const list=contracts.filter(function(c){
     if(fCons&&c.conseiller_id!==fCons)return false;
