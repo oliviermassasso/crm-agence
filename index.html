@@ -162,16 +162,31 @@ function isConforme(c) {
 }
 
 function calcMonthCommissions(contracts,profiles,year,month,paidAtMap) {
-  // paidAtMap = {conseiller_id: paid_at_timestamp} pour les mois gelés
+  // Mois précédent
+  const prevMonth=month===1?12:month-1;
+  const prevYear=month===1?year-1:year;
+
   const monthContracts=contracts.filter(function(c){
     const dt=c.document_tracking||{};
     if(!dt.eligible_since) return false;
     const d=new Date(dt.eligible_since);
-    if(d.getFullYear()!==year||d.getMonth()+1!==month) return false;
-    // Si le mois est gelé pour ce conseiller, ne prendre que les contrats éligibles AVANT le gel
-    const cutoff=paidAtMap&&paidAtMap[c.conseiller_id];
-    if(cutoff&&new Date(dt.eligible_since)>new Date(cutoff)) return false;
-    return true;
+    const consId=c.conseiller_id;
+
+    // Contrat éligible dans ce mois
+    if(d.getFullYear()===year&&d.getMonth()+1===month){
+      // Si mois gelé : exclure après paid_at
+      const cutoff=paidAtMap&&paidAtMap[consId]&&paidAtMap[consId][month];
+      if(cutoff&&new Date(dt.eligible_since)>new Date(cutoff)) return false;
+      return true;
+    }
+
+    // Contrat éligible dans le mois précédent MAIS après le paid_at de ce mois → déborde sur ce mois
+    if(d.getFullYear()===prevYear&&d.getMonth()+1===prevMonth){
+      const prevCutoff=paidAtMap&&paidAtMap[consId]&&paidAtMap[consId][prevMonth];
+      if(prevCutoff&&new Date(dt.eligible_since)>new Date(prevCutoff)) return true;
+    }
+
+    return false;
   });
 
   const results={};
@@ -399,19 +414,27 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh}){
   const bsLabel=MONTHS[month-1]+' '+year;
 
   const loadPayments=useCallback(async function(){
-    const res=await sb.from('commission_payments').select('*').eq('year',year).eq('month',month);
+    const res=await sb.from('commission_payments').select('*').eq('year',year);
     const pm={};
-    (res.data||[]).forEach(function(p){pm[p.conseiller_id]=p;});
+    (res.data||[]).forEach(function(p){
+      if(!pm[p.conseiller_id]) pm[p.conseiller_id]={};
+      pm[p.conseiller_id][p.month]=p;
+    });
     setPayments(pm);
-  },[sb,year,month]);
+  },[sb,year]);
 
   useEffect(function(){loadPayments();},[loadPayments]);
 
-  // Map conseiller_id -> paid_at pour le gel par timestamp
+  // Map conseiller_id -> {month: paid_at} pour tous les mois gelés
   const paidAtMap={};
   Object.keys(payments).forEach(function(cid){
-    const p=payments[cid];
-    if(p.frozen&&p.paid_at) paidAtMap[cid]=p.paid_at;
+    Object.keys(payments[cid]).forEach(function(m){
+      const p=payments[cid][m];
+      if(p.frozen&&p.paid_at){
+        if(!paidAtMap[cid]) paidAtMap[cid]={};
+        paidAtMap[cid][parseInt(m)]=p.paid_at;
+      }
+    });
   });
 
   const computed=calcMonthCommissions(contracts,profiles,year,month,paidAtMap);
@@ -426,7 +449,7 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh}){
 
   async function savePayment(consId,field,value){
     setSaving(true);
-    const existing=payments[consId];
+    const existing=payments[consId]&&payments[consId][month]?payments[consId][month]:null;
     const comp=computed[consId]||{};
     const isPayingNow=field==='paid'&&value===true;
     const isUnpaying=field==='paid'&&value===false;
@@ -494,7 +517,7 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh}){
 
       {filtered.map(function(p){
         const comp=computed[p.id]||{baseCom:0,bonif:0,tauxNC:0,decote:0,totalCom:0,contracts:[]};
-        const pay=payments[p.id]||{};
+        const pay=(payments[p.id]&&payments[p.id][month])||{};
         const isFrozen=!!pay.frozen;
 
         // Si gelé, utiliser les valeurs stockées; sinon calcul live
@@ -504,18 +527,28 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh}){
         const displayTotal=isFrozen?pay.total_com:comp.totalCom;
         const hasDecote=displayDecote>0;
 
-        // Filtrage explicite : si gelé, exclure les contrats éligibles après paid_at
+        // Filtrage explicite avec gestion du débordement du mois précédent
         const cutoff=isFrozen&&pay.paid_at?new Date(pay.paid_at):null;
-        const displayContracts=cutoff
-          ? contracts.filter(function(c){
-              if(c.conseiller_id!==p.id) return false;
-              const dt=c.document_tracking||{};
-              if(!dt.eligible_since) return false;
-              const d=new Date(dt.eligible_since);
-              if(d.getFullYear()!==year||d.getMonth()+1!==month) return false;
-              return new Date(dt.eligible_since)<=cutoff;
-            })
-          : comp.contracts;
+        const prevM=month===1?12:month-1;
+        const prevY=month===1?year-1:year;
+        const prevCutoff=payments[p.id]&&payments[p.id][prevM]&&payments[p.id][prevM].paid_at
+          ?new Date(payments[p.id][prevM].paid_at):null;
+        const displayContracts=contracts.filter(function(c){
+          if(c.conseiller_id!==p.id) return false;
+          const dt=c.document_tracking||{};
+          if(!dt.eligible_since) return false;
+          const es=new Date(dt.eligible_since);
+          // Ce mois
+          if(es.getFullYear()===year&&es.getMonth()+1===month){
+            if(cutoff&&es>cutoff) return false;
+            return true;
+          }
+          // Débordement mois précédent
+          if(es.getFullYear()===prevY&&es.getMonth()+1===prevM){
+            if(prevCutoff&&es>prevCutoff) return true;
+          }
+          return false;
+        });
 
         return(
           <div key={p.id} className="card" style={{marginBottom:'16px',overflow:'hidden'}}>
