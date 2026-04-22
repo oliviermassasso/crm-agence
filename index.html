@@ -214,7 +214,8 @@ function App(){
       <div style={{flex:1,overflow:'auto',background:'#f9fafb'}}>
         {active==='saisir-contrat'&&<FormContrat sb={sb} profile={profile} profiles={profiles} onSaved={()=>{refresh();setActive(profile.role==='conseiller'?'mes-dossiers':'suivi-dossiers');}}/>}
         {(active==='suivi-dossiers'||active==='mes-dossiers')&&<SuiviDossiers contracts={contracts} profile={profile} profiles={profiles} reads={reads} lastMsgMap={lastMsgMap} onSelect={c=>{setSelected(c);markRead(c.id);}} onNew={()=>setActive('saisir-contrat')}/>}
-        {!['saisir-contrat','suivi-dossiers','mes-dossiers'].includes(active)&&<Placeholder nav={nav} active={active}/>}
+        {active==='tableau-bord'&&<TableauBord contracts={contracts} profiles={profiles} profile={profile} sb={sb}/>}
+        {!['saisir-contrat','suivi-dossiers','mes-dossiers','tableau-bord'].includes(active)&&<Placeholder nav={nav} active={active}/>}
       </div>
 
       {selected&&<DetailPanel key={selected.id} contract={selected} profile={profile} profiles={profiles} sb={sb} onClose={()=>setSelected(null)} onRefresh={refresh}/>}
@@ -683,7 +684,206 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
   );
 }
 
-function Placeholder({nav,active}){
+/* ══════════════════════════════════════ TABLEAU DE BORD */
+function TableauBord({contracts,profiles,profile,sb}){
+  const now=new Date();
+  const [year,setYear]=useState(now.getFullYear());
+  const [month,setMonth]=useState(now.getMonth()+1);
+  const [viewMode,setViewMode]=useState('mois'); // mois | annee
+
+  const MONTHS=['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+  const feur=n=>new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:0,maximumFractionDigits:0}).format(n||0);
+
+  // Filtres temporels
+  const inPeriod=(c,y,m)=>{
+    if(!c.emission_date) return false;
+    const d=new Date(c.emission_date);
+    if(viewMode==='mois') return d.getFullYear()===y&&d.getMonth()+1===m;
+    return d.getFullYear()===y;
+  };
+
+  const active=contracts.filter(c=>c.status!=='ANNULE');
+  const periodContracts=active.filter(c=>inPeriod(c,year,month));
+  const prevContracts=viewMode==='mois'
+    ? active.filter(c=>inPeriod(c,month===1?year-1:year,month===1?12:month-1))
+    : active.filter(c=>inPeriod(c,year-1,month));
+
+  const sumCA=arr=>arr.reduce((s,c)=>s+(c.annual_premium||0),0);
+  const ca=sumCA(periodContracts);
+  const caPrev=sumCA(prevContracts);
+  const evoCa=caPrev>0?((ca-caPrev)/caPrev*100):null;
+  const nbC=periodContracts.length;
+  const nbPrev=prevContracts.length;
+  const evoNb=nbPrev>0?((nbC-nbPrev)/nbPrev*100):null;
+
+  // CA par famille
+  const caByFamily=FAMILIES.map(f=>{
+    const s=periodContracts.filter(c=>f.types.includes(c.contract_type)).reduce((a,c)=>a+(c.annual_premium||0),0);
+    return {name:f.name,color:f.color,bg:f.bg,ca:s};
+  }).filter(f=>f.ca>0).sort((a,b)=>b.ca-a.ca);
+  const maxFamCA=caByFamily[0]?.ca||1;
+
+  // Résultats par conseiller
+  const conseillers=profiles.filter(p=>p.role==='conseiller'||(p.role==='manager'));
+  const rankData=conseillers.map(p=>{
+    const mine=periodContracts.filter(c=>c.conseiller_id===p.id);
+    const prevMine=prevContracts.filter(c=>c.conseiller_id===p.id);
+    return {
+      id:p.id,name:p.full_name,
+      ca:sumCA(mine),nb:mine.length,
+      caPrev:sumCA(prevMine),nbPrev:prevMine.length,
+    };
+  }).sort((a,b)=>b.ca-a.ca);
+
+  // CA mensuel sur l'année (pour graphique barre)
+  const monthlyData=MONTHS.map((m,i)=>{
+    const cur=active.filter(c=>{const d=new Date(c.emission_date);return d.getFullYear()===year&&d.getMonth()===i;});
+    const prev=active.filter(c=>{const d=new Date(c.emission_date);return d.getFullYear()===year-1&&d.getMonth()===i;});
+    return {m,cur:sumCA(cur),prev:sumCA(prev)};
+  });
+  const maxMonthly=Math.max(...monthlyData.map(d=>Math.max(d.cur,d.prev)),1);
+
+  const Evo=({val})=>{
+    if(val===null) return <span style={{color:'#aaa',fontSize:'11px'}}>—</span>;
+    const pos=val>=0;
+    return <span style={{fontSize:'11.5px',fontWeight:600,color:pos?'#059669':'#dc2626'}}>{pos?'▲':'▼'} {Math.abs(val).toFixed(1)}%</span>;
+  };
+
+  const KPI=({label,value,evo})=>(
+    <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'16px 18px',flex:1,minWidth:'140px'}}>
+      <div style={{fontSize:'11.5px',color:'#888',marginBottom:'6px',fontWeight:500,textTransform:'uppercase',letterSpacing:'0.5px'}}>{label}</div>
+      <div style={{fontSize:'22px',fontWeight:600,marginBottom:'4px'}}>{value}</div>
+      <Evo val={evo}/>
+    </div>
+  );
+
+  return(
+    <div style={{padding:'28px 32px',maxWidth:'960px'}}>
+      {/* Header */}
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'22px',flexWrap:'wrap',gap:'12px'}}>
+        <div>
+          <div style={{fontSize:'22px',fontWeight:600,marginBottom:'2px'}}>Tableau de bord</div>
+          <div style={{fontSize:'13px',color:'#666'}}>
+            {viewMode==='mois'?`${MONTHS[month-1]} ${year}`:`Année ${year}`}
+          </div>
+        </div>
+        <div style={{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}}>
+          {/* Toggle mois/année */}
+          <div style={{display:'flex',border:'1px solid #e5e7eb',borderRadius:'8px',overflow:'hidden'}}>
+            {['mois','annee'].map(v=>(
+              <button key={v} onClick={()=>setViewMode(v)} style={{padding:'6px 14px',fontSize:'12.5px',border:'none',borderRadius:0,background:viewMode===v?'#1d4ed8':'#fff',color:viewMode===v?'#fff':'#555',fontWeight:viewMode===v?500:400}}>
+                {v==='mois'?'Mois':'Année'}
+              </button>
+            ))}
+          </div>
+          {viewMode==='mois'&&(
+            <select value={month} onChange={e=>setMonth(+e.target.value)} style={{width:'auto',padding:'6px 10px'}}>
+              {MONTHS.map((m,i)=><option key={i} value={i+1}>{m}</option>)}
+            </select>
+          )}
+          <select value={year} onChange={e=>setYear(+e.target.value)} style={{width:'auto',padding:'6px 10px'}}>
+            {[2023,2024,2025,2026].map(y=><option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {/* KPIs */}
+      <div style={{display:'flex',gap:'12px',marginBottom:'24px',flexWrap:'wrap'}}>
+        <KPI label="CA période" value={feur(ca)} evo={evoCa}/>
+        <KPI label="Nb contrats" value={nbC} evo={evoNb}/>
+        <KPI label="Panier moyen" value={nbC>0?feur(ca/nbC):'—'} evo={null}/>
+        <KPI label="Vs période préc." value={feur(ca-caPrev)} evo={evoCa}/>
+      </div>
+
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'16px',marginBottom:'16px'}}>
+
+        {/* CA par famille */}
+        <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px'}}>
+          <div style={{fontSize:'13px',fontWeight:600,marginBottom:'14px',color:'#333'}}>CA par famille</div>
+          {caByFamily.length===0
+            ? <div style={{color:'#aaa',fontSize:'13px',textAlign:'center',padding:'20px'}}>Aucune donnée</div>
+            : caByFamily.map(f=>(
+              <div key={f.name} style={{marginBottom:'10px'}}>
+                <div style={{display:'flex',justifyContent:'space-between',fontSize:'12px',marginBottom:'3px'}}>
+                  <span style={{color:f.color,fontWeight:500}}>{f.name}</span>
+                  <span style={{fontWeight:600}}>{feur(f.ca)}</span>
+                </div>
+                <div style={{height:'6px',background:'#f3f4f6',borderRadius:'3px',overflow:'hidden'}}>
+                  <div style={{height:'100%',width:`${f.ca/maxFamCA*100}%`,background:f.color,borderRadius:'3px',transition:'width 0.4s'}}/>
+                </div>
+              </div>
+            ))
+          }
+        </div>
+
+        {/* CA mensuel */}
+        <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'14px'}}>
+            <div style={{fontSize:'13px',fontWeight:600,color:'#333'}}>CA mensuel {year}</div>
+            <div style={{display:'flex',gap:'10px',fontSize:'11px'}}>
+              <span style={{display:'flex',alignItems:'center',gap:'4px'}}><span style={{width:'10px',height:'10px',borderRadius:'2px',background:'#1d4ed8',display:'inline-block'}}/>{year}</span>
+              <span style={{display:'flex',alignItems:'center',gap:'4px'}}><span style={{width:'10px',height:'10px',borderRadius:'2px',background:'#bfdbfe',display:'inline-block'}}/>{year-1}</span>
+            </div>
+          </div>
+          <div style={{display:'flex',alignItems:'flex-end',gap:'3px',height:'120px'}}>
+            {monthlyData.map((d,i)=>(
+              <div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:'2px',height:'100%',justifyContent:'flex-end'}}>
+                <div style={{width:'100%',display:'flex',gap:'1px',alignItems:'flex-end',height:'100px'}}>
+                  <div style={{flex:1,background:'#bfdbfe',borderRadius:'2px 2px 0 0',height:`${d.prev/maxMonthly*100}%`,minHeight:d.prev>0?'2px':'0'}}/>
+                  <div style={{flex:1,background:'#1d4ed8',borderRadius:'2px 2px 0 0',height:`${d.cur/maxMonthly*100}%`,minHeight:d.cur>0?'2px':'0'}}/>
+                </div>
+                <div style={{fontSize:'9px',color:'#aaa',textAlign:'center'}}>{d.m}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Classement conseillers */}
+      <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px'}}>
+        <div style={{fontSize:'13px',fontWeight:600,marginBottom:'14px',color:'#333'}}>Classement conseillers</div>
+        {rankData.length===0
+          ? <div style={{color:'#aaa',fontSize:'13px',textAlign:'center',padding:'20px'}}>Aucune donnée</div>
+          : <table style={{width:'100%',borderCollapse:'collapse',fontSize:'13px'}}>
+            <thead>
+              <tr style={{borderBottom:'1px solid #f3f4f6'}}>
+                <th style={{padding:'8px 10px',textAlign:'left',fontSize:'11px',color:'#888',fontWeight:600,textTransform:'uppercase'}}>#</th>
+                <th style={{padding:'8px 10px',textAlign:'left',fontSize:'11px',color:'#888',fontWeight:600,textTransform:'uppercase'}}>Conseiller</th>
+                <th style={{padding:'8px 10px',textAlign:'right',fontSize:'11px',color:'#888',fontWeight:600,textTransform:'uppercase'}}>CA</th>
+                <th style={{padding:'8px 10px',textAlign:'right',fontSize:'11px',color:'#888',fontWeight:600,textTransform:'uppercase'}}>vs N-1</th>
+                <th style={{padding:'8px 10px',textAlign:'right',fontSize:'11px',color:'#888',fontWeight:600,textTransform:'uppercase'}}>Contrats</th>
+                <th style={{padding:'8px 10px',textAlign:'right',fontSize:'11px',color:'#888',fontWeight:600,textTransform:'uppercase'}}>vs N-1</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rankData.map((r,i)=>{
+                const evoCa=r.caPrev>0?((r.ca-r.caPrev)/r.caPrev*100):null;
+                const evoNb=r.nbPrev>0?((r.nb-r.nbPrev)/r.nbPrev*100):null;
+                const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':'';
+                return(
+                  <tr key={r.id} style={{borderBottom:'1px solid #f9fafb'}}>
+                    <td style={{padding:'9px 10px',color:'#999',fontSize:'12px'}}>{medal||`${i+1}`}</td>
+                    <td style={{padding:'9px 10px',fontWeight:500}}>{r.name}</td>
+                    <td style={{padding:'9px 10px',textAlign:'right',fontWeight:600}}>{feur(r.ca)}</td>
+                    <td style={{padding:'9px 10px',textAlign:'right'}}>
+                      {evoCa===null?<span style={{color:'#aaa'}}>—</span>:<span style={{color:evoCa>=0?'#059669':'#dc2626',fontWeight:600,fontSize:'12px'}}>{evoCa>=0?'▲':'▼'} {Math.abs(evoCa).toFixed(1)}%</span>}
+                    </td>
+                    <td style={{padding:'9px 10px',textAlign:'right'}}>{r.nb}</td>
+                    <td style={{padding:'9px 10px',textAlign:'right'}}>
+                      {evoNb===null?<span style={{color:'#aaa'}}>—</span>:<span style={{color:evoNb>=0?'#059669':'#dc2626',fontWeight:600,fontSize:'12px'}}>{evoNb>=0?'▲':'▼'} {Math.abs(evoNb).toFixed(1)}%</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        }
+      </div>
+    </div>
+  );
+}
+
+
   const item=nav?.find(n=>n.id===active);
   if(!item) return null;
   return(
