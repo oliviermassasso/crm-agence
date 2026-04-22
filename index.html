@@ -138,8 +138,20 @@ function calcBaseCommission(contract) {
   return Math.round((contract.annual_premium||0)*rate*100)/100;
 }
 
+function isEligibleForCommission(c) {
+  if(c.status==='ANNULE') return false;
+  const dt=c.document_tracking||{};
+  if(dt.has_problem) return false;
+  if(!dt.rented_signed) return false;
+  if(!dt.contract_nr_ok) return false;
+  if(!dt.kyc_compliant) return false;
+  if(!dt.docs_complete) return false;
+  if(!dt.effect_date_ok) return false;
+  if(dt.payment_status!=='paye') return false;
+  return true;
+}
+
 function isConforme(c) {
-  // Annulé = conforme
   if(c.status==='ANNULE') return true;
   const dt=c.document_tracking||{};
   if(dt.has_problem) return false;
@@ -148,11 +160,12 @@ function isConforme(c) {
 }
 
 function calcMonthCommissions(contracts,profiles,year,month) {
-  // Filtrer contrats du mois (date émission)
+  // Contrats éligibles dont eligible_since tombe dans le mois
   const monthContracts=contracts.filter(function(c){
-    if(!c.emission_date) return false;
-    const d=new Date(c.emission_date);
-    return d.getFullYear()===year&&d.getMonth()+1===month&&c.status!=='ANNULE';
+    const dt=c.document_tracking||{};
+    if(!dt.eligible_since) return false;
+    const d=new Date(dt.eligible_since);
+    return d.getFullYear()===year&&d.getMonth()+1===month;
   });
 
   const results={};
@@ -165,18 +178,14 @@ function calcMonthCommissions(contracts,profiles,year,month) {
     const nbNonConf=allEncours.filter(function(c){return !isConforme(c);}).length;
     const tauxNC=allEncours.length>0?nbNonConf/allEncours.length:0;
 
-    // Base commission par contrat
+    // Base commission par contrat — tous éligibles par définition
     let baseCom=0;
     mine.forEach(function(c){
-      if(!isConforme(c)) return; // non conforme = non payé
       baseCom+=calcBaseCommission(c);
     });
 
-    // Bonifications mensuelles sur contrats rentré signé + KYC + justifs
-    const signed=mine.filter(function(c){
-      const dt=c.document_tracking||{};
-      return dt.rented_signed&&dt.kyc_compliant&&dt.docs_complete;
-    });
+    // Bonifications mensuelles sur contrats éligibles (= tous dans mine)
+    const signed=mine;
     const caIardAxa=signed.filter(function(c){return TYPE_IARD_AXA.includes(c.contract_type);}).reduce(function(s,c){return s+(c.annual_premium||0);},0);
     const caMrh=signed.filter(function(c){return TYPE_MRH.includes(c.contract_type);}).reduce(function(s,c){return s+(c.annual_premium||0);},0);
     const caPjPa=signed.filter(function(c){return TYPE_PJ_PA.includes(c.contract_type);}).reduce(function(s,c){return s+(c.annual_premium||0);},0);
@@ -362,7 +371,7 @@ function App(){
         {active==='saisir-contrat'&&<FormContrat sb={sb} profile={profile} profiles={profiles} onSaved={function(){refresh();setActive(profile.role==='conseiller'?'mes-dossiers':'suivi-dossiers');}}/>}
         {(active==='suivi-dossiers'||active==='mes-dossiers')&&<SuiviDossiers contracts={contracts} profile={profile} profiles={profiles} reads={reads} lastMsgMap={lastMsgMap} onSelect={function(c){setSelected(c);markRead(c.id);}} onNew={function(){setActive('saisir-contrat');}}/>}
         {active==='tableau-bord'&&<TableauBord contracts={contracts} profiles={profiles}/>}
-        {(active==='commissions'||active==='mes-commissions')&&<Commissions contracts={contracts} profiles={profiles} profile={profile} sb={sb}/>}
+        {(active==='commissions'||active==='mes-commissions')&&<Commissions contracts={contracts} profiles={profiles} profile={profile} sb={sb} onSelect={function(c){setSelected(c);markRead(c.id);}}/>}
         {!['saisir-contrat','suivi-dossiers','mes-dossiers','tableau-bord','commissions','mes-commissions'].includes(active)&&<Placeholder nav={nav} active={active}/>}
       </div>
       {selected&&<DetailPanel key={selected.id} contract={selected} profile={profile} profiles={profiles} sb={sb} onClose={function(){setSelected(null);}} onRefresh={refresh}/>}
@@ -371,7 +380,7 @@ function App(){
 }
 
 /* ══ COMMISSIONS ══ */
-function Commissions({contracts,profiles,profile,sb}){
+function Commissions({contracts,profiles,profile,sb,onSelect}){
   const now=new Date();
   const [year,setYear]=useState(now.getFullYear());
   const [month,setMonth]=useState(now.getMonth()+1);
@@ -474,26 +483,25 @@ function Commissions({contracts,profiles,profile,sb}){
                   <th>Prime annuelle</th>
                   <th>Taux / Fixe</th>
                   <th>Commission</th>
-                  <th>Conforme</th>
                   <th>Mono</th>
+                  <th>Éligible depuis</th>
                 </tr></thead>
                 <tbody>
                   {comp.contracts.length===0
-                    ? <tr><td colSpan="7" style={{textAlign:'center',color:'#aaa',padding:'16px'}}>Aucun contrat ce mois</td></tr>
+                    ? <tr><td colSpan="7" style={{textAlign:'center',color:'#aaa',padding:'16px'}}>Aucun contrat éligible ce mois</td></tr>
                     : comp.contracts.map(function(c){
                       const g=GRILLE_2026[c.contract_type];
-                      const conf=isConforme(c);
-                      const com=conf?calcBaseCommission(c):0;
+                      const com=calcBaseCommission(c);
                       const mt=c.mono_type||'';
                       return(
-                        <tr key={c.id} style={{background:!conf?'#fef9f9':''}}>
+                        <tr key={c.id} onClick={function(){onSelect(c);}} style={{cursor:'pointer'}}>
                           <td style={{fontWeight:500}}>{c.client_name}</td>
                           <td><span className="badge" style={{background:'#f3f4f6',color:'#374151',fontSize:'10.5px'}}>{c.contract_type}</span></td>
                           <td>{feur0(c.annual_premium)}</td>
                           <td style={{color:'#555',fontSize:'12px'}}>{g?(g.fixed?g.rate+'€ fixe':(g.rate*100)+'%'):'—'}</td>
-                          <td style={{fontWeight:600,color:conf?'#1d4ed8':'#aaa'}}>{feur(com)}</td>
-                          <td><span className="badge" style={{background:conf?'#d1fae5':'#fee2e2',color:conf?'#065f46':'#991b1b'}}>{conf?'✓':'✗'}</span></td>
+                          <td style={{fontWeight:600,color:'#1d4ed8'}}>{feur(com)}</td>
                           <td><span style={{fontSize:'12px',color:'#666'}}>{mt?MONO_OPTS.find(function(o){return o.value===mt;})?.label.split(' ')[0]||mt:'—'}</span></td>
+                          <td style={{fontSize:'12px',color:'#888'}}>{c.document_tracking&&c.document_tracking.eligible_since?fdate(c.document_tracking.eligible_since):'—'}</td>
                         </tr>
                       );
                     })
@@ -852,7 +860,21 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
   const isCollab=profile.role==='conseiller';
   const loadMsgs=useCallback(async function(){const res=await sb.from('contract_messages').select('*').eq('contract_id',contract.id).order('created_at',{ascending:true});setMessages(res.data||[]);},[sb,contract.id]);
   useEffect(function(){loadMsgs();},[loadMsgs]);
-  async function updDt(u){setSaving(true);await sb.from('document_tracking').update(Object.assign({},u,{updated_at:new Date().toISOString()})).eq('contract_id',contract.id);setDt(function(p){return Object.assign({},p,u);});onRefresh();setSaving(false);}
+  async function updDt(u){
+    setSaving(true);
+    const newDt=Object.assign({},dt,u);
+    // Calcul eligible_since
+    const wasEligible=isEligibleForCommission({status:contract.status,document_tracking:dt});
+    const fakeC={status:contract.status,document_tracking:newDt};
+    const nowEligible=isEligibleForCommission(fakeC);
+    if(nowEligible&&!wasEligible) newDt.eligible_since=new Date().toISOString();
+    if(!nowEligible&&wasEligible) newDt.eligible_since=null;
+    const payload=Object.assign({},u,{updated_at:new Date().toISOString()});
+    if(nowEligible&&!wasEligible) payload.eligible_since=newDt.eligible_since;
+    if(!nowEligible&&wasEligible) payload.eligible_since=null;
+    await sb.from('document_tracking').update(payload).eq('contract_id',contract.id);
+    setDt(newDt);onRefresh();setSaving(false);
+  }
   async function saveEdit(){setSaving(true);await sb.from('contracts').update({client_name:toUpper(editF.client_name),emission_date:editF.emission_date,effect_date:editF.effect_date,provenance:editF.provenance,annual_premium:parseFloat(editF.annual_premium)||0,commission:parseFloat(editF.commission)||0,conseiller_id:editF.conseiller_id,contract_type:editF.contract_type,contract_number:editF.contract_number}).eq('id',contract.id);setEditing(false);onRefresh();setSaving(false);}
   async function saveMonoType(val){setMonoType(val);await sb.from('contracts').update({mono_type:val||null}).eq('id',contract.id);onRefresh();}
   async function toggleAnnReq(){const v=!annReq;setAnnReq(v);await sb.from('contracts').update({annulation_requested:v}).eq('id',contract.id);onRefresh();}
