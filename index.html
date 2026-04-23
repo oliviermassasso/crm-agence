@@ -958,10 +958,10 @@ function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,sort,setSort
             const lastMsg=lastMsgMap[c.id];
             const lastRead=reads[c.id];
             const hasUnread=lastMsg&&(!lastRead||new Date(lastMsg)>new Date(lastRead));
-            const rowBg=annOk?'#f3f4f6':annReq?'#e5e7eb':c.status==='PAYE'?'#f0fdf4':hasProb?'#fff5f5':'';
+            const rowBg=annOk?'#e2e8f0':annReq?'#cbd5e1':c.status==='PAYE'?'#f0fdf4':hasProb?'#fff5f5':'';
             const isDup=c.contract_number&&dupNums.has(normNum(c.contract_number));
-            const textColor=annOk?'#6b7280':annReq?'#374151':'#333';
-            const mutedColor=annOk?'#9ca3af':annReq?'#6b7280':c.status==='PAYE'?'#166534':'#666';
+            const textColor=annOk?'#334155':annReq?'#334155':'#333';
+            const mutedColor=annOk?'#64748b':annReq?'#64748b':c.status==='PAYE'?'#166534':'#666';
             return <tr key={c.id} onClick={function(){onSelect(c);}} style={{cursor:'pointer',background:rowBg,color:textColor}}>
               <td style={{color:mutedColor,fontSize:'12.5px'}}>{c.conseiller&&c.conseiller.full_name?c.conseiller.full_name:'—'}</td>
               <td style={{fontWeight:500,color:textColor}}><div style={{display:'flex',alignItems:'center',gap:'6px'}}>{c.client_name}{hasUnread&&<span className="env-anim" title="Nouveau message" style={{fontSize:'13px',color:'#f59e0b'}}>✉</span>}</div></td>
@@ -976,12 +976,12 @@ function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,sort,setSort
               <td>{fam?<span className="badge" style={{background:annOk||annReq?'#4b5563':fam.bg,color:annOk||annReq?'#d1d5db':fam.color}}>{c.contract_type}</span>:<span className="badge" style={{background:'#f3f4f6',color:'#374151'}}>{c.contract_type}</span>}</td>
               <td style={{fontWeight:500,whiteSpace:'nowrap',color:textColor}}>{feur0(c.annual_premium)}</td>
               <td><div style={{display:'flex',alignItems:'center',gap:'4px',flexWrap:'wrap'}}>
-                {annOk?<span className="badge" style={{background:'#e5e7eb',color:'#374151'}}>Annulé</span>:<span className="badge" style={{background:ds.bg,color:ds.tx}}>{ds.l}</span>}
-                {annReq&&!annOk&&<span className="badge" style={{background:'#e5e7eb',color:'#374151'}}>Annulation dem.</span>}
+                {annOk?<span className="badge" style={{background:'#94a3b8',color:'#fff'}}>Annulé</span>:<span className="badge" style={{background:ds.bg,color:ds.tx}}>{ds.l}</span>}
+                {annReq&&!annOk&&<span className="badge" style={{background:'#94a3b8',color:'#fff'}}>Annulation dem.</span>}
                 {hasProb&&<span className="badge" style={{background:'#fee2e2',color:'#991b1b'}}>⚠ Problème</span>}
               </div></td>
               <td><span className="badge" style={{background:ps.bg,color:ps.tx}}>{ps.label}</span></td>
-              <td><span className="badge" style={{background:annOk?'#e5e7eb':c.status==='ENCOURS'?'#dbeafe':c.status==='PAYE'?'#d1fae5':'#f3f4f6',color:annOk?'#374151':c.status==='ENCOURS'?'#1e40af':c.status==='PAYE'?'#065f46':'#374151'}}>{c.status}</span></td>
+              <td><span className="badge" style={{background:annOk?'#94a3b8':c.status==='ENCOURS'?'#dbeafe':c.status==='PAYE'?'#d1fae5':'#f3f4f6',color:annOk?'#fff':c.status==='ENCOURS'?'#1e40af':c.status==='PAYE'?'#065f46':'#374151'}}>{c.status}</span></td>
             </tr>;
           })}
         </tbody></table></div>}
@@ -1078,8 +1078,8 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
   function IR(props){return <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'9px 0',borderBottom:'1px solid #f3f4f6',fontSize:'13.5px'}}><span style={{color:'#666'}}>{props.label}</span><span style={{fontWeight:500}}>{props.value}</span></div>;}
   function eu(k,v){setEditF(function(p){return Object.assign({},p,{[k]:v});});}
   const fam=getFamily(contract.contract_type);
-  const headerBg=isAnnule?'#f3f4f6':annReq?'#e5e7eb':dt.has_problem?'rgba(185,28,28,0.82)':isPaye?'#f0fdf4':'#fff';
-  const headerTx=dt.has_problem?'#f3f4f6':isAnnule?'#6b7280':annReq?'#374151':isPaye?'#065f46':'#111';
+  const headerBg=isAnnule?'#e2e8f0':annReq?'#cbd5e1':dt.has_problem?'rgba(185,28,28,0.82)':isPaye?'#f0fdf4':'#fff';
+  const headerTx=dt.has_problem?'#f3f4f6':isAnnule?'#334155':annReq?'#334155':isPaye?'#065f46':'#111';
   return(
     <div className="overlay" onClick={function(e){if(e.target===e.currentTarget)onClose();}}>
       <div className="panel">
@@ -1092,9 +1092,9 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
                 </span>}
               </div>
             <div style={{display:'flex',alignItems:'center',gap:'6px',marginTop:'3px',flexWrap:'wrap'}}>
-              <span style={{fontSize:'12px',color:isAnnule||annReq?'#9ca3af':'#999'}}>{contract.contract_number}</span>
-              {fam&&<span className="badge" style={{background:isAnnule||annReq?'#e5e7eb':fam.bg,color:isAnnule||annReq?'#6b7280':fam.color,fontSize:'10.5px'}}>{contract.contract_type}</span>}
-              {isAnnule&&<span className="badge" style={{background:'#e5e7eb',color:'#6b7280',fontSize:'10.5px'}}>ANNULÉ</span>}
+              <span style={{fontSize:'12px',color:isAnnule||annReq?'#64748b':'#999'}}>{contract.contract_number}</span>
+              {fam&&<span className="badge" style={{background:isAnnule||annReq?'#94a3b8':fam.bg,color:isAnnule||annReq?'#fff':fam.color,fontSize:'10.5px'}}>{contract.contract_type}</span>}
+              {isAnnule&&<span className="badge" style={{background:'#94a3b8',color:'#fff',fontSize:'10.5px'}}>ANNULÉ</span>}
             </div>
           </div>
           <div style={{display:'flex',gap:'6px'}}>
@@ -1160,7 +1160,7 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
               <TG label="Justificatifs complets" field="docs_complete" disabled={!canPieces}/>
             </div>
             {canPieces&&<button onClick={function(){updDt({has_problem:!dt.has_problem});}} style={{marginTop:'8px',width:'100%',padding:'9px',fontSize:'12.5px',display:'flex',alignItems:'center',justifyContent:'center',gap:'6px',borderRadius:'8px',transition:'all 0.15s',background:dt.has_problem?'rgba(185,28,28,0.82)':'rgba(185,28,28,0.12)',color:dt.has_problem?'#fef2f2':'#7f1d1d',border:'1px solid '+(dt.has_problem?'#991b1b':'rgba(185,28,28,0.25)')}}>{dt.has_problem?'⚠️ Problème signalé — Cliquer pour lever':'⚠️ Signaler un problème sur ce dossier'}</button>}
-            {!isAnnule&&<button onClick={toggleAnnReq} style={{marginTop:'8px',width:'100%',padding:'9px',fontSize:'12.5px',display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',borderRadius:'8px',transition:'all 0.15s',background:annReq?'#e5e7eb':'rgba(0,0,0,0.06)',color:annReq?'#374151':'#555',border:'1px solid '+(annReq?'#9ca3af':'rgba(0,0,0,0.1)')}}>{annReq?'⬛ Annulation demandée — Annuler la demande':'⬛ Signaler annulation de ce dossier'}</button>}
+            {!isAnnule&&<button onClick={toggleAnnReq} style={{marginTop:'8px',width:'100%',padding:'9px',fontSize:'12.5px',display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',borderRadius:'8px',transition:'all 0.15s',background:annReq?'#cbd5e1':'rgba(0,0,0,0.06)',color:annReq?'#334155':'#555',border:'1px solid '+(annReq?'#94a3b8':'rgba(0,0,0,0.1)')}}>{annReq?'⬛ Annulation demandée — Annuler la demande':'⬛ Signaler annulation de ce dossier'}</button>}
           </div>
           <div style={{marginBottom:'20px'}}>
             <div className="sec">Vérifications direction {!canDir&&'· lecture seule'}</div>
