@@ -286,6 +286,15 @@ function App(){
   const [reads,setReads]=useState({});
   const [lastMsgMap,setLastMsgMap]=useState({});
   const [sort,setSort]=useState({col:'emission_date',asc:true});
+  const [fCons,setFCons]=useState([]);
+  const [fYear,setFYear]=useState([]);
+  const [fMonth,setFMonth]=useState([]);
+  const [fType,setFType]=useState([]);
+  const [fStat,setFStat]=useState([]);
+  const [fDoss,setFDoss]=useState([]);
+  const [fPay,setFPay]=useState([]);
+  const [fDup,setFDup]=useState(false);
+  const [search,setSearch]=useState('');
   const [lf,setLf]=useState({email:'',password:''});
   const [le,setLe]=useState('');
   const [ll,setLl]=useState(false);
@@ -394,7 +403,7 @@ function App(){
       </div>
       <div style={{flex:1,overflow:'auto',background:'#f9fafb'}}>
         {active==='saisir-contrat'&&<FormContrat sb={sb} profile={profile} profiles={profiles} onSaved={function(){refresh();setActive(profile.role==='conseiller'?'mes-dossiers':'suivi-dossiers');}}/>}
-        {(active==='suivi-dossiers'||active==='mes-dossiers')&&<SuiviDossiers contracts={contracts} profile={profile} profiles={profiles} reads={reads} lastMsgMap={lastMsgMap} sort={sort} setSort={setSort} onSelect={function(c){setSelected(c);markRead(c.id);}} onNew={function(){setActive('saisir-contrat');}}/>}
+        {(active==='suivi-dossiers'||active==='mes-dossiers')&&<SuiviDossiers contracts={contracts} profile={profile} profiles={profiles} reads={reads} lastMsgMap={lastMsgMap} sort={sort} setSort={setSort} fCons={fCons} setFCons={setFCons} fYear={fYear} setFYear={setFYear} fMonth={fMonth} setFMonth={setFMonth} fType={fType} setFType={setFType} fStat={fStat} setFStat={setFStat} fDoss={fDoss} setFDoss={setFDoss} fPay={fPay} setFPay={setFPay} fDup={fDup} setFDup={setFDup} search={search} setSearch={setSearch} onSelect={function(c){setSelected(c);markRead(c.id);}} onNew={function(){setActive('saisir-contrat');}}/>}
         {active==='tableau-bord'&&<TableauBord contracts={contracts} profiles={profiles}/>}
         {(active==='commissions'||active==='mes-commissions')&&<Commissions contracts={contracts} profiles={profiles} profile={profile} sb={sb} onSelect={function(c){setSelected(c);markRead(c.id);}} onRefresh={refresh}/>}
         {!['saisir-contrat','suivi-dossiers','mes-dossiers','tableau-bord','commissions','mes-commissions'].includes(active)&&<Placeholder nav={nav} active={active}/>}
@@ -907,16 +916,7 @@ function MultiSelect({label,options,value,onChange,width}){
 }
 
 
-function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,sort,setSort,onSelect,onNew}){
-  const [fCons,setFCons]=useState([]);
-  const [fYear,setFYear]=useState([]);
-  const [fMonth,setFMonth]=useState([]);
-  const [fDup,setFDup]=useState(false);
-  const [fType,setFType]=useState([]);
-  const [fStat,setFStat]=useState([]);
-  const [fDoss,setFDoss]=useState([]);
-  const [fPay,setFPay]=useState([]);
-  const [search,setSearch]=useState('');
+function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,sort,setSort,fCons,setFCons,fYear,setFYear,fMonth,setFMonth,fType,setFType,fStat,setFStat,fDoss,setFDoss,fPay,setFPay,fDup,setFDup,search,setSearch,onSelect,onNew}){
   function sortBy(col){setSort(function(s){return s.col===col?{col:col,asc:!s.asc}:{col:col,asc:true};});}
 
   // Détecter les doublons AVANT le filtre
