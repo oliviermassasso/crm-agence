@@ -868,16 +868,54 @@ function FormContrat({sb,profile,profiles,onSaved}){
   );
 }
 
-/* ══ TABLEAU DOSSIERS ══ */
+/* ══ MULTI SELECT ══ */
+function MultiSelect({label,options,value,onChange,width}){
+  const [open,setOpen]=useState(false);
+  const ref=React.useRef(null);
+  useEffect(function(){
+    function handle(e){if(ref.current&&!ref.current.contains(e.target))setOpen(false);}
+    document.addEventListener('mousedown',handle);
+    return function(){document.removeEventListener('mousedown',handle);};
+  },[]);
+  function toggle(v){
+    if(value.includes(v)) onChange(value.filter(function(x){return x!==v;}));
+    else onChange(value.concat(v));
+  }
+  const displayLabel=value.length===0?label:value.length===1?(options.find(function(o){return o.value===value[0];})||{label:value[0]}).label:value.length+' sélectionnés';
+  return(
+    <div ref={ref} style={{position:'relative',flexShrink:0,width:width||'auto',minWidth:'120px'}}>
+      <button onClick={function(){setOpen(!open);}} style={{width:'100%',padding:'9px 12px',border:'1px solid '+(value.length>0?'#3b82f6':'#e5e7eb'),borderRadius:'8px',background:value.length>0?'#eff6ff':'#fff',color:value.length>0?'#1d4ed8':'#111',fontSize:'13px',textAlign:'left',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'4px',cursor:'pointer'}}>
+        <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flex:1}}>{displayLabel}</span>
+        <span style={{fontSize:'10px',color:'#999',flexShrink:0}}>{open?'▲':'▼'}</span>
+      </button>
+      {open&&(
+        <div style={{position:'absolute',top:'calc(100% + 4px)',left:0,zIndex:50,background:'#fff',border:'1px solid #e5e7eb',borderRadius:'8px',boxShadow:'0 4px 16px rgba(0,0,0,0.12)',minWidth:'100%',maxHeight:'220px',overflowY:'auto'}}>
+          {value.length>0&&<div onClick={function(){onChange([]);}} style={{padding:'7px 12px',fontSize:'12px',color:'#dc2626',cursor:'pointer',borderBottom:'1px solid #f3f4f6'}}>✕ Tout effacer</div>}
+          {options.map(function(o){
+            const sel=value.includes(o.value);
+            return(
+              <div key={o.value} onClick={function(){toggle(o.value);}} style={{padding:'7px 12px',fontSize:'13px',cursor:'pointer',background:sel?'#eff6ff':'#fff',color:sel?'#1d4ed8':'#111',display:'flex',alignItems:'center',gap:'8px'}}>
+                <span style={{width:'14px',height:'14px',border:'1.5px solid '+(sel?'#1d4ed8':'#d1d5db'),borderRadius:'3px',background:sel?'#1d4ed8':'#fff',display:'inline-flex',alignItems:'center',justifyContent:'center',flexShrink:0,fontSize:'10px',color:'#fff'}}>{sel?'✓':''}</span>
+                {o.label}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,sort,setSort,onSelect,onNew}){
-  const [fCons,setFCons]=useState('');
-  const [fYear,setFYear]=useState('');
-  const [fMonth,setFMonth]=useState('');
+  const [fCons,setFCons]=useState([]);
+  const [fYear,setFYear]=useState([]);
+  const [fMonth,setFMonth]=useState([]);
   const [fDup,setFDup]=useState(false);
-  const [fType,setFType]=useState('');
-  const [fStat,setFStat]=useState('');
-  const [fDoss,setFDoss]=useState('');
-  const [fPay,setFPay]=useState('');
+  const [fType,setFType]=useState([]);
+  const [fStat,setFStat]=useState([]);
+  const [fDoss,setFDoss]=useState([]);
+  const [fPay,setFPay]=useState([]);
   const [search,setSearch]=useState('');
   function sortBy(col){setSort(function(s){return s.col===col?{col:col,asc:!s.asc}:{col:col,asc:true};});}
 
@@ -894,15 +932,15 @@ function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,sort,setSort
   });
 
   const list=contracts.filter(function(c){
-    if(fCons&&c.conseiller_id!==fCons)return false;
-    if(fYear&&c.emission_date&&new Date(c.emission_date).getFullYear()!==parseInt(fYear))return false;
-    if(fMonth&&c.emission_date&&(new Date(c.emission_date).getMonth()+1)!==parseInt(fMonth))return false;
+    if(fCons.length>0&&!fCons.includes(c.conseiller_id))return false;
+    if(fYear.length>0&&(!c.emission_date||!fYear.includes(String(new Date(c.emission_date).getFullYear()))))return false;
+    if(fMonth.length>0&&(!c.emission_date||!fMonth.includes(String(new Date(c.emission_date).getMonth()+1))))return false;
     if(fDup&&(!c.contract_number||!dupNums.has(normNum(c.contract_number))))return false;
-    if(fType&&c.contract_type!==fType)return false;
-    if(fStat&&c.status!==fStat)return false;
-    if(fDoss){const ds=docStatus(c.document_tracking);if(ds.l!==fDoss)return false;}
-    if(fPay&&(c.document_tracking&&c.document_tracking.payment_status?c.document_tracking.payment_status:'non_paye')!==fPay)return false;
-    if(search&&!c.client_name.toLowerCase().includes(search.toLowerCase())&&!c.contract_number.includes(search))return false;
+    if(fType.length>0&&!fType.includes(c.contract_type))return false;
+    if(fStat.length>0&&!fStat.includes(c.status))return false;
+    if(fDoss.length>0){const ds=docStatus(c.document_tracking);if(!fDoss.includes(ds.l))return false;}
+    if(fPay.length>0&&!fPay.includes((c.document_tracking&&c.document_tracking.payment_status)||'non_paye'))return false;
+    if(search&&!c.client_name.toLowerCase().includes(search.toLowerCase())&&!(c.contract_number||'').includes(search))return false;
     return true;
   }).sort(function(a,b){
     let va=a[sort.col],vb=b[sort.col];
@@ -922,22 +960,18 @@ function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,sort,setSort
         <button className="bp" onClick={onNew}>+ Nouveau contrat</button>
       </div>
       <div style={{display:'flex',gap:'8px',marginBottom:'14px',flexWrap:'wrap',alignItems:'center'}}>
-        <input value={search} onChange={function(e){setSearch(e.target.value);}} placeholder="Client ou n° contrat…" style={{maxWidth:'200px'}}/>
-        <select value={fYear} onChange={function(e){setFYear(e.target.value);}} style={{maxWidth:'100px'}}>
-          <option value="">Toutes années</option>
-          {[2021,2022,2023,2024,2025,2026].map(function(y){return <option key={y} value={y}>{y}</option>;})}
-        </select>
-        <select value={fMonth} onChange={function(e){setFMonth(e.target.value);}} style={{maxWidth:'110px'}}>
-          <option value="">Tous mois</option>
-          {MONTHS.map(function(m,i){return <option key={i} value={i+1}>{m}</option>;})}
-        </select>
-        <select value={fCons} onChange={function(e){setFCons(e.target.value);}} style={{maxWidth:'160px'}}><option value="">Tous conseillers</option>{profiles.map(function(p){return <option key={p.id} value={p.id}>{p.full_name}</option>;})}</select>
-        <select value={fType} onChange={function(e){setFType(e.target.value);}} style={{maxWidth:'170px'}}><option value="">Tous types</option>{FAMILIES.map(function(f){return <optgroup key={f.name} label={f.name}>{f.types.map(function(t){return <option key={t} value={t}>{t}</option>;})}</optgroup>;})}</select>
-        <select value={fDoss} onChange={function(e){setFDoss(e.target.value);}} style={{maxWidth:'155px'}}><option value="">Tous dossiers</option><option value="Dossier complet">Dossier complet</option><option value="En cours">En cours</option><option value="Non vérifié">Non vérifié</option></select>
-        <select value={fPay} onChange={function(e){setFPay(e.target.value);}} style={{maxWidth:'155px'}}><option value="">Tous paiements</option>{PAY_OPTS.map(function(o){return <option key={o.value} value={o.value}>{o.label}</option>;})}</select>
-        <select value={fStat} onChange={function(e){setFStat(e.target.value);}} style={{maxWidth:'140px'}}><option value="">Tous statuts</option><option value="ENCOURS">ENCOURS</option><option value="PAYE">PAYE</option><option value="CLOTURE">CLOTURE</option><option value="ANNULE">ANNULE</option></select>
-        {(fCons||fType||fStat||fDoss||fPay||fYear||fMonth||fDup||search)&&<button onClick={function(){setFCons('');setFType('');setFStat('');setFDoss('');setFPay('');setFYear('');setFMonth('');setFDup(false);setSearch('');}} style={{fontSize:'12px'}}>✕ Effacer</button>}
-        <div style={{marginLeft:'auto'}}>
+        <input value={search} onChange={function(e){setSearch(e.target.value);}} placeholder="Client ou n° contrat…" style={{maxWidth:'180px'}}/>
+        <MultiSelect label="Toutes années" width="130px" value={fYear} onChange={setFYear} options={[2021,2022,2023,2024,2025,2026].map(function(y){return {value:String(y),label:String(y)};})}/>
+        <MultiSelect label="Tous mois" width="120px" value={fMonth} onChange={setFMonth} options={MONTHS.map(function(m,i){return {value:String(i+1),label:m};})}/>
+        <MultiSelect label="Tous conseillers" width="150px" value={fCons} onChange={setFCons} options={profiles.map(function(p){return {value:p.id,label:p.full_name};})}/>
+        <MultiSelect label="Tous types" width="130px" value={fType} onChange={setFType} options={ALL_TYPES.map(function(t){return {value:t,label:t};})}/>
+        <MultiSelect label="Tous dossiers" width="135px" value={fDoss} onChange={setFDoss} options={[{value:'Dossier complet',label:'Dossier complet'},{value:'En cours',label:'En cours'},{value:'Non vérifié',label:'Non vérifié'}]}/>
+        <MultiSelect label="Tous paiements" width="140px" value={fPay} onChange={setFPay} options={PAY_OPTS.map(function(o){return {value:o.value,label:o.label};})}/>
+        <MultiSelect label="Tous statuts" width="125px" value={fStat} onChange={setFStat} options={['ENCOURS','PAYE','CLOTURE','ANNULE'].map(function(s){return {value:s,label:s};})}/>
+        <div style={{marginLeft:'auto',display:'flex',gap:'8px'}}>
+          {(fCons.length||fType.length||fStat.length||fDoss.length||fPay.length||fYear.length||fMonth.length||fDup||search)
+            ?<button onClick={function(){setFCons([]);setFType([]);setFStat([]);setFDoss([]);setFPay([]);setFYear([]);setFMonth([]);setFDup(false);setSearch('');}} style={{fontSize:'12px',padding:'6px 12px',borderRadius:'8px',border:'1px solid #e5e7eb',background:'#fff',color:'#555'}}>✕ Supprimer les filtres</button>
+            :null}
           <button onClick={function(){setFDup(!fDup);}} style={{fontSize:'12px',padding:'6px 12px',background:fDup?'#fee2e2':'#fff',color:fDup?'#991b1b':'#555',border:fDup?'1px solid #fecaca':'1px solid #e5e7eb',fontWeight:fDup?600:400,borderRadius:'8px'}}>⚠ Doublons{fDup?' ✓':''}</button>
         </div>
       </div>
