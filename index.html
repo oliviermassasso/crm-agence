@@ -123,6 +123,8 @@ const TYPE_PJ_PA=['PJ','Ma PA'];
 const TYPE_SANTE_TNS=['Ma Santé TNS & Retraités'];
 
 function calcBaseCommission(contract) {
+  // Annulé = commission 0 dans tous les cas
+  if(contract.status==='ANNULE') return 0;
   // Commission manuelle = prioritaire
   if(contract.manual_commission!==null&&contract.manual_commission!==undefined) return contract.manual_commission;
   const g=GRILLE_2026[contract.contract_type];
