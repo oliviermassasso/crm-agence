@@ -931,6 +931,31 @@ function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,sort,setSort
     else seenNums[norm]=true;
   });
 
+  // Filtrage facetté : options disponibles selon les autres filtres actifs
+  function applyFilters(cs,excl){
+    return cs.filter(function(c){
+      if(excl!=='cons'&&fCons.length>0&&!fCons.includes(c.conseiller_id))return false;
+      if(excl!=='year'&&fYear.length>0&&(!c.emission_date||!fYear.includes(String(new Date(c.emission_date).getFullYear()))))return false;
+      if(excl!=='month'&&fMonth.length>0&&(!c.emission_date||!fMonth.includes(String(new Date(c.emission_date).getMonth()+1))))return false;
+      if(excl!=='dup'&&fDup&&(!c.contract_number||!dupNums.has(normNum(c.contract_number))))return false;
+      if(excl!=='type'&&fType.length>0&&!fType.includes(c.contract_type))return false;
+      if(excl!=='stat'&&fStat.length>0&&!fStat.includes(c.status))return false;
+      if(excl!=='doss'&&fDoss.length>0){const ds=docStatus(c.document_tracking);if(!fDoss.includes(ds.l))return false;}
+      if(excl!=='pay'&&fPay.length>0&&!fPay.includes((c.document_tracking&&c.document_tracking.payment_status)||'non_paye'))return false;
+      if(search&&!c.client_name.toLowerCase().includes(search.toLowerCase())&&!(c.contract_number||'').includes(search))return false;
+      return true;
+    });
+  }
+
+  // Options dynamiques par filtre
+  const availYears=[...new Set(applyFilters(contracts,'year').map(function(c){return c.emission_date?String(new Date(c.emission_date).getFullYear()):null;}).filter(Boolean))].sort();
+  const availMonths=[...new Set(applyFilters(contracts,'month').map(function(c){return c.emission_date?String(new Date(c.emission_date).getMonth()+1):null;}).filter(Boolean))].sort(function(a,b){return parseInt(a)-parseInt(b);});
+  const availCons=[...new Set(applyFilters(contracts,'cons').map(function(c){return c.conseiller_id;}).filter(Boolean))];
+  const availTypes=[...new Set(applyFilters(contracts,'type').map(function(c){return c.contract_type;}).filter(Boolean))].sort();
+  const availStats=[...new Set(applyFilters(contracts,'stat').map(function(c){return c.status;}).filter(Boolean))].sort();
+  const availDoss=[...new Set(applyFilters(contracts,'doss').map(function(c){return docStatus(c.document_tracking).l;}).filter(Boolean))].sort();
+  const availPay=[...new Set(applyFilters(contracts,'pay').map(function(c){return (c.document_tracking&&c.document_tracking.payment_status)||'non_paye';}).filter(Boolean))].sort();
+
   const list=contracts.filter(function(c){
     if(fCons.length>0&&!fCons.includes(c.conseiller_id))return false;
     if(fYear.length>0&&(!c.emission_date||!fYear.includes(String(new Date(c.emission_date).getFullYear()))))return false;
@@ -961,13 +986,13 @@ function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,sort,setSort
       </div>
       <div style={{display:'flex',gap:'8px',marginBottom:'14px',flexWrap:'wrap',alignItems:'center'}}>
         <input value={search} onChange={function(e){setSearch(e.target.value);}} placeholder="Client ou n° contrat…" style={{maxWidth:'180px'}}/>
-        <MultiSelect label="Toutes années" width="130px" value={fYear} onChange={setFYear} options={[2021,2022,2023,2024,2025,2026].map(function(y){return {value:String(y),label:String(y)};})}/>
-        <MultiSelect label="Tous mois" width="120px" value={fMonth} onChange={setFMonth} options={MONTHS.map(function(m,i){return {value:String(i+1),label:m};})}/>
-        <MultiSelect label="Tous conseillers" width="150px" value={fCons} onChange={setFCons} options={profiles.map(function(p){return {value:p.id,label:p.full_name};})}/>
-        <MultiSelect label="Tous types" width="130px" value={fType} onChange={setFType} options={ALL_TYPES.map(function(t){return {value:t,label:t};})}/>
-        <MultiSelect label="Tous dossiers" width="135px" value={fDoss} onChange={setFDoss} options={[{value:'Dossier complet',label:'Dossier complet'},{value:'En cours',label:'En cours'},{value:'Non vérifié',label:'Non vérifié'}]}/>
-        <MultiSelect label="Tous paiements" width="140px" value={fPay} onChange={setFPay} options={PAY_OPTS.map(function(o){return {value:o.value,label:o.label};})}/>
-        <MultiSelect label="Tous statuts" width="125px" value={fStat} onChange={setFStat} options={['ENCOURS','PAYE','CLOTURE','ANNULE'].map(function(s){return {value:s,label:s};})}/>
+        <MultiSelect label="Toutes années" width="130px" value={fYear} onChange={setFYear} options={availYears.map(function(y){return {value:y,label:y};})}/>
+        <MultiSelect label="Tous mois" width="120px" value={fMonth} onChange={setFMonth} options={availMonths.map(function(m){return {value:m,label:MONTHS[parseInt(m)-1]};})}/>
+        <MultiSelect label="Tous conseillers" width="150px" value={fCons} onChange={setFCons} options={availCons.map(function(id){const p=profiles.find(function(p){return p.id===id;});return {value:id,label:p?p.full_name:id};})}/>
+        <MultiSelect label="Tous types" width="130px" value={fType} onChange={setFType} options={availTypes.map(function(t){return {value:t,label:t};})}/>
+        <MultiSelect label="Tous dossiers" width="135px" value={fDoss} onChange={setFDoss} options={availDoss.map(function(d){return {value:d,label:d};})}/>
+        <MultiSelect label="Tous paiements" width="140px" value={fPay} onChange={setFPay} options={availPay.map(function(v){const o=PAY_OPTS.find(function(p){return p.value===v;});return {value:v,label:o?o.label:v};})}/>
+        <MultiSelect label="Tous statuts" width="125px" value={fStat} onChange={setFStat} options={availStats.map(function(s){return {value:s,label:s};})}/>
         <div style={{marginLeft:'auto',display:'flex',gap:'8px'}}>
           {(fCons.length||fType.length||fStat.length||fDoss.length||fPay.length||fYear.length||fMonth.length||fDup||search)
             ?<button onClick={function(){setFCons([]);setFType([]);setFStat([]);setFDoss([]);setFPay([]);setFYear([]);setFMonth([]);setFDup(false);setSearch('');}} style={{fontSize:'12px',padding:'6px 12px',borderRadius:'8px',border:'1px solid #e5e7eb',background:'#fff',color:'#555'}}>✕ Supprimer les filtres</button>
