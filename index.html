@@ -887,6 +887,19 @@ function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,sort,setSort
   const [fPay,setFPay]=useState('');
   const [search,setSearch]=useState('');
   function sortBy(col){setSort(function(s){return s.col===col?{col:col,asc:!s.asc}:{col:col,asc:true};});}
+
+  // Détecter les doublons AVANT le filtre
+  const normNum=function(n){return n?String(n).replace(/^0+|0+$/g,''):''};
+  const dupNums=new Set();
+  const seenNums={};
+  contracts.forEach(function(c){
+    if(!c.contract_number) return;
+    const norm=normNum(c.contract_number);
+    if(!norm) return;
+    if(seenNums[norm]) dupNums.add(norm);
+    else seenNums[norm]=true;
+  });
+
   const list=contracts.filter(function(c){
     if(fCons&&c.conseiller_id!==fCons)return false;
     if(fYear&&c.emission_date&&new Date(c.emission_date).getFullYear()!==parseInt(fYear))return false;
@@ -907,17 +920,6 @@ function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,sort,setSort
     if(va>vb)return sort.asc?1:-1;
     return 0;
   });
-  // Détecter les doublons de N° de contrat (ignorer les zéros)
-  const normNum=function(n){return n?String(n).replace(/^0+|0+$/g,''):''};
-  const dupNums=new Set();
-  const seenNums={};
-  contracts.forEach(function(c){
-    if(!c.contract_number) return;
-    const norm=normNum(c.contract_number);
-    if(!norm) return;
-    if(seenNums[norm]) dupNums.add(norm);
-    else seenNums[norm]=true;
-  });
 
   function SH(props){const on=sort.col===props.col;return <th onClick={function(){sortBy(props.col);}} style={{background:on?'#eff6ff':''}}>{props.children}{on?(sort.asc?' ↑':' ↓'):' ↕'}</th>;}
   return(
@@ -926,7 +928,7 @@ function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,sort,setSort
         <div><div style={{fontSize:'22px',fontWeight:600,marginBottom:'4px'}}>{profile.role==='conseiller'?'Mes dossiers':'Suivi des dossiers'}</div><div style={{fontSize:'13px',color:'#666'}}>{list.length} contrat{list.length!==1?'s':''}</div></div>
         <button className="bp" onClick={onNew}>+ Nouveau contrat</button>
       </div>
-      <div style={{display:'flex',gap:'8px',marginBottom:'14px',flexWrap:'wrap'}}>
+      <div style={{display:'flex',gap:'8px',marginBottom:'14px',flexWrap:'wrap',alignItems:'center'}}>
         <input value={search} onChange={function(e){setSearch(e.target.value);}} placeholder="Client ou n° contrat…" style={{maxWidth:'200px'}}/>
         <select value={fYear} onChange={function(e){setFYear(e.target.value);}} style={{maxWidth:'100px'}}>
           <option value="">Toutes années</option>
@@ -936,13 +938,15 @@ function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,sort,setSort
           <option value="">Tous mois</option>
           {MONTHS.map(function(m,i){return <option key={i} value={i+1}>{m}</option>;})}
         </select>
-        <button onClick={function(){setFDup(!fDup);}} style={{fontSize:'12px',padding:'6px 12px',background:fDup?'#fef9c3':'#fff',color:fDup?'#92400e':'#555',border:fDup?'1px solid #fde68a':'1px solid #e5e7eb',fontWeight:fDup?600:400}}>⚠ Doublons{fDup?' ✓':''}</button>
         <select value={fCons} onChange={function(e){setFCons(e.target.value);}} style={{maxWidth:'160px'}}><option value="">Tous conseillers</option>{profiles.map(function(p){return <option key={p.id} value={p.id}>{p.full_name}</option>;})}</select>
         <select value={fType} onChange={function(e){setFType(e.target.value);}} style={{maxWidth:'170px'}}><option value="">Tous types</option>{FAMILIES.map(function(f){return <optgroup key={f.name} label={f.name}>{f.types.map(function(t){return <option key={t} value={t}>{t}</option>;})}</optgroup>;})}</select>
         <select value={fDoss} onChange={function(e){setFDoss(e.target.value);}} style={{maxWidth:'155px'}}><option value="">Tous dossiers</option><option value="Dossier complet">Dossier complet</option><option value="En cours">En cours</option><option value="Non vérifié">Non vérifié</option></select>
         <select value={fPay} onChange={function(e){setFPay(e.target.value);}} style={{maxWidth:'155px'}}><option value="">Tous paiements</option>{PAY_OPTS.map(function(o){return <option key={o.value} value={o.value}>{o.label}</option>;})}</select>
         <select value={fStat} onChange={function(e){setFStat(e.target.value);}} style={{maxWidth:'140px'}}><option value="">Tous statuts</option><option value="ENCOURS">ENCOURS</option><option value="PAYE">PAYE</option><option value="CLOTURE">CLOTURE</option><option value="ANNULE">ANNULE</option></select>
         {(fCons||fType||fStat||fDoss||fPay||fYear||fMonth||fDup||search)&&<button onClick={function(){setFCons('');setFType('');setFStat('');setFDoss('');setFPay('');setFYear('');setFMonth('');setFDup(false);setSearch('');}} style={{fontSize:'12px'}}>✕ Effacer</button>}
+        <div style={{marginLeft:'auto'}}>
+          <button onClick={function(){setFDup(!fDup);}} style={{fontSize:'12px',padding:'6px 12px',background:fDup?'#fee2e2':'#fff',color:fDup?'#991b1b':'#555',border:fDup?'1px solid #fecaca':'1px solid #e5e7eb',fontWeight:fDup?600:400,borderRadius:'8px'}}>⚠ Doublons{fDup?' ✓':''}</button>
+        </div>
       </div>
       <div className="card" style={{overflow:'hidden'}}>
         {list.length===0?<div style={{padding:'48px',textAlign:'center',color:'#999',fontSize:'14px'}}>Aucun contrat</div>
