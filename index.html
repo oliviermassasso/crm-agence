@@ -855,7 +855,7 @@ function FormContrat({sb,profile,profiles,onSaved}){
             {!f.provenance&&<div style={{fontSize:'11px',marginTop:'4px',color:'#aaa'}}>Indiquez l'origine de ce contact</div>}
           </div>
         </div>
-        <div className="fg"><label>Code portefeuille</label><select value={f.code_portefeuille} onChange={function(e){u('code_portefeuille',e.target.value);}}><option value="">— Sélectionner —</option><option value="6025344">6025344 · Le Cannet</option><option value="6251044">6251044 · St Maximin</option><option value="6252044">6252044 · Lyon</option></select></div>
+        <div className="fg"><label>Code portefeuille *</label><select value={f.code_portefeuille} onChange={function(e){u('code_portefeuille',e.target.value);}}><option value="" disabled>— Sélectionner —</option><option value="6025344">6025344 · Le Cannet</option><option value="6251044">6251044 · St Maximin</option><option value="6252044">6252044 · Lyon</option></select></div>
         <div className="fg">
           <label>Prime annuelle TTC (€) *</label>
           <input type="number" min="0" step="0.01" value={f.annual_premium} onChange={function(e){u('annual_premium',e.target.value);}} placeholder="ex: 1 250"/>
