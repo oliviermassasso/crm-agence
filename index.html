@@ -534,7 +534,6 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh}){
         const pay=(payments[p.id]&&payments[p.id][month])||{};
         const isFrozen=!!pay.frozen;
 
-        // Si gelé, utiliser les valeurs stockées; sinon calcul live
         const displayBase=isFrozen?pay.base_com:comp.baseCom;
         const displayBonif=isFrozen?pay.bonifications:comp.bonif;
         const displayDecote=isFrozen?pay.decote_rate:comp.decote;
@@ -552,17 +551,18 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh}){
           const dt=c.document_tracking||{};
           if(!dt.eligible_since) return false;
           const es=new Date(dt.eligible_since);
-          // Ce mois
           if(es.getFullYear()===year&&es.getMonth()+1===month){
             if(cutoff&&es>cutoff) return false;
             return true;
           }
-          // Débordement mois précédent
           if(es.getFullYear()===prevY&&es.getMonth()+1===prevM){
             if(prevCutoff&&es>prevCutoff) return true;
           }
           return false;
         });
+
+        // N'afficher que les conseillers avec au moins une ligne client
+        if(displayContracts.length===0) return null;
 
         return(
           <div key={p.id} className="card" style={{marginBottom:'16px',overflow:'hidden'}}>
