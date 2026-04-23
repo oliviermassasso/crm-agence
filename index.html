@@ -716,7 +716,7 @@ function TableauBord({contracts,profiles}){
             <button onClick={function(){setMode('annee');}} style={{padding:'6px 14px',fontSize:'12.5px',border:'none',borderLeft:'1px solid #e5e7eb',borderRadius:0,background:mode==='annee'?'#1d4ed8':'#fff',color:mode==='annee'?'#fff':'#555'}}>Année</button>
           </div>
           {mode==='mois'&&<select value={month} onChange={function(e){setMonth(parseInt(e.target.value));}} style={{width:'auto',padding:'6px 10px'}}>{MONTHS.map(function(ml,i){return <option key={i} value={i+1}>{ml}</option>;})}</select>}
-          <select value={year} onChange={function(e){setYear(parseInt(e.target.value));}} style={{width:'auto',padding:'6px 10px'}}>{[2023,2024,2025,2026].map(function(y){return <option key={y} value={y}>{y}</option>;})}</select>
+          <select value={year} onChange={function(e){setYear(parseInt(e.target.value));}} style={{width:'auto',padding:'6px 10px'}}>{[2021,2022,2023,2024,2025,2026].map(function(y){return <option key={y} value={y}>{y}</option>;})}</select>
         </div>
       </div>
       <div style={{display:'flex',gap:'12px',marginBottom:'24px',flexWrap:'wrap'}}>
@@ -875,6 +875,9 @@ function FormContrat({sb,profile,profiles,onSaved}){
 /* ══ TABLEAU DOSSIERS ══ */
 function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,sort,setSort,onSelect,onNew}){
   const [fCons,setFCons]=useState('');
+  const [fYear,setFYear]=useState('');
+  const [fMonth,setFMonth]=useState('');
+  const [fDup,setFDup]=useState(false);
   const [fType,setFType]=useState('');
   const [fStat,setFStat]=useState('');
   const [fDoss,setFDoss]=useState('');
@@ -883,6 +886,9 @@ function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,sort,setSort
   function sortBy(col){setSort(function(s){return s.col===col?{col:col,asc:!s.asc}:{col:col,asc:true};});}
   const list=contracts.filter(function(c){
     if(fCons&&c.conseiller_id!==fCons)return false;
+    if(fYear&&c.emission_date&&new Date(c.emission_date).getFullYear()!==parseInt(fYear))return false;
+    if(fMonth&&c.emission_date&&(new Date(c.emission_date).getMonth()+1)!==parseInt(fMonth))return false;
+    if(fDup&&(!c.contract_number||!dupNums.has(normNum(c.contract_number))))return false;
     if(fType&&c.contract_type!==fType)return false;
     if(fStat&&c.status!==fStat)return false;
     if(fDoss){const ds=docStatus(c.document_tracking);if(ds.l!==fDoss)return false;}
@@ -919,12 +925,21 @@ function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,sort,setSort
       </div>
       <div style={{display:'flex',gap:'8px',marginBottom:'14px',flexWrap:'wrap'}}>
         <input value={search} onChange={function(e){setSearch(e.target.value);}} placeholder="Client ou n° contrat…" style={{maxWidth:'200px'}}/>
+        <select value={fYear} onChange={function(e){setFYear(e.target.value);}} style={{maxWidth:'100px'}}>
+          <option value="">Toutes années</option>
+          {[2021,2022,2023,2024,2025,2026].map(function(y){return <option key={y} value={y}>{y}</option>;})}
+        </select>
+        <select value={fMonth} onChange={function(e){setFMonth(e.target.value);}} style={{maxWidth:'110px'}}>
+          <option value="">Tous mois</option>
+          {MONTHS.map(function(m,i){return <option key={i} value={i+1}>{m}</option>;})}
+        </select>
+        <button onClick={function(){setFDup(!fDup);}} style={{fontSize:'12px',padding:'6px 12px',background:fDup?'#fef9c3':'#fff',color:fDup?'#92400e':'#555',border:fDup?'1px solid #fde68a':'1px solid #e5e7eb',fontWeight:fDup?600:400}}>⚠ Doublons{fDup?' ✓':''}</button>
         <select value={fCons} onChange={function(e){setFCons(e.target.value);}} style={{maxWidth:'160px'}}><option value="">Tous conseillers</option>{profiles.map(function(p){return <option key={p.id} value={p.id}>{p.full_name}</option>;})}</select>
         <select value={fType} onChange={function(e){setFType(e.target.value);}} style={{maxWidth:'170px'}}><option value="">Tous types</option>{FAMILIES.map(function(f){return <optgroup key={f.name} label={f.name}>{f.types.map(function(t){return <option key={t} value={t}>{t}</option>;})}</optgroup>;})}</select>
         <select value={fDoss} onChange={function(e){setFDoss(e.target.value);}} style={{maxWidth:'155px'}}><option value="">Tous dossiers</option><option value="Dossier complet">Dossier complet</option><option value="En cours">En cours</option><option value="Non vérifié">Non vérifié</option></select>
         <select value={fPay} onChange={function(e){setFPay(e.target.value);}} style={{maxWidth:'155px'}}><option value="">Tous paiements</option>{PAY_OPTS.map(function(o){return <option key={o.value} value={o.value}>{o.label}</option>;})}</select>
         <select value={fStat} onChange={function(e){setFStat(e.target.value);}} style={{maxWidth:'140px'}}><option value="">Tous statuts</option><option value="ENCOURS">ENCOURS</option><option value="PAYE">PAYE</option><option value="CLOTURE">CLOTURE</option><option value="ANNULE">ANNULE</option></select>
-        {(fCons||fType||fStat||fDoss||fPay||search)&&<button onClick={function(){setFCons('');setFType('');setFStat('');setFDoss('');setFPay('');setSearch('');}} style={{fontSize:'12px'}}>✕ Effacer</button>}
+        {(fCons||fType||fStat||fDoss||fPay||fYear||fMonth||fDup||search)&&<button onClick={function(){setFCons('');setFType('');setFStat('');setFDoss('');setFPay('');setFYear('');setFMonth('');setFDup(false);setSearch('');}} style={{fontSize:'12px'}}>✕ Effacer</button>}
       </div>
       <div className="card" style={{overflow:'hidden'}}>
         {list.length===0?<div style={{padding:'48px',textAlign:'center',color:'#999',fontSize:'14px'}}>Aucun contrat</div>
