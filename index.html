@@ -548,6 +548,7 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh}){
           ?new Date(payments[p.id][prevM].paid_at):null;
         const displayContracts=contracts.filter(function(c){
           if(c.conseiller_id!==p.id) return false;
+          if(c.status==='ANNULE') return false;
           const dt=c.document_tracking||{};
           if(!dt.eligible_since) return false;
           const es=new Date(dt.eligible_since);
@@ -1052,7 +1053,17 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
     onRefresh();
   }
   async function toggleAnnReq(){const v=!annReq;setAnnReq(v);await sb.from('contracts').update({annulation_requested:v}).eq('id',contract.id);onRefresh();}
-  async function toggleAnnule(v){setIsAnnule(v);await sb.from('contracts').update({status:v?'ANNULE':'ENCOURS'}).eq('id',contract.id);onRefresh();}
+  async function toggleAnnule(v){
+    setIsAnnule(v);
+    await sb.from('contracts').update({status:v?'ANNULE':'ENCOURS'}).eq('id',contract.id);
+    if(v){
+      // Annulé : effacer eligible_since + commission
+      await sb.from('document_tracking').update({eligible_since:null}).eq('contract_id',contract.id);
+      await sb.from('contracts').update({commission:0,manual_commission:null}).eq('id',contract.id);
+      setDt(function(p){return Object.assign({},p,{eligible_since:null});});
+    }
+    onRefresh();
+  }
   async function sendMsg(){if(!newMsg.trim())return;setSaving(true);await sb.from('contract_messages').insert({contract_id:contract.id,author_id:profile.id,author_name:profile.full_name,author_role:profile.role,message:newMsg.trim(),resolved_status:'pending'});setNewMsg('');await loadMsgs();setSaving(false);}
   async function setMsgStatus(id,status){await sb.from('contract_messages').update({resolved_status:status,is_resolved:status==='resolved'}).eq('id',id);await loadMsgs();}
   function TG(props){return <div className="cr"><span style={{fontSize:'13.5px',color:props.disabled?'#aaa':'#222'}}>{props.label}</span><label className="toggle"><input type="checkbox" checked={!!dt[props.field]} disabled={props.disabled||saving} onChange={function(e){updDt({[props.field]:e.target.checked});}}/><span className="slider" style={props.blackChecked&&dt[props.field]?{background:'#111'}:{}}></span></label></div>;}
