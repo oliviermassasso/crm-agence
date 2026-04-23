@@ -217,10 +217,9 @@ function calcMonthCommissions(contracts,profiles,year,month,paidAtMap) {
     // Bonifications exclues pour l'instant — traitées dans le module Salaires (Sprint 6)
     const bonif=0;
 
-    // Décote non-conformité
-    let decote=0;
-    if(tauxNC>0.15) decote=tauxNC;
-    const totalCom=Math.round(baseCom*(1-decote)*100)/100;
+    // Décote non-conformité exclue pour l'instant — traitée dans le module Salaires (Sprint 6)
+    const decote=0;
+    const totalCom=Math.round(baseCom*100)/100;
 
     results[p.id]={
       conseiller:p,
@@ -998,7 +997,7 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
   const [annReq,setAnnReq]=useState(contract.annulation_requested||false);
   const [isAnnule,setIsAnnule]=useState(contract.status==='ANNULE');
   const [editing,setEditing]=useState(false);
-  const [editF,setEditF]=useState({client_name:contract.client_name,emission_date:contract.emission_date,effect_date:contract.effect_date,provenance:contract.provenance||'',annual_premium:contract.annual_premium||0,commission:contract.commission||0,conseiller_id:contract.conseiller_id,contract_type:contract.contract_type,contract_number:contract.contract_number,code_portefeuille:contract.code_portefeuille||''});
+  const [editF,setEditF]=useState({client_name:contract.client_name,emission_date:contract.emission_date,effect_date:contract.effect_date,provenance:contract.provenance||'',annual_premium:contract.annual_premium||0,commission:calcBaseCommission(contract),conseiller_id:contract.conseiller_id,contract_type:contract.contract_type,contract_number:contract.contract_number,code_portefeuille:contract.code_portefeuille||''});
   const [messages,setMessages]=useState([]);
   const [newMsg,setNewMsg]=useState('');
   const [saving,setSaving]=useState(false);
@@ -1024,10 +1023,8 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
   }
   async function saveEdit(){
     setSaving(true);
-    // Si la commission a été modifiée manuellement, la marquer comme manuelle
-    const origCom=calcBaseCommission(Object.assign({},contract,{manual_commission:null}));
     const newCom=parseFloat(editF.commission)||0;
-    const isManual=Math.abs(newCom-origCom)>0.01;
+    // Toujours sauvegarder comme manuel si direction modifie
     await sb.from('contracts').update({
       client_name:toUpper(editF.client_name),
       emission_date:editF.emission_date,
@@ -1035,7 +1032,7 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
       provenance:editF.provenance,
       annual_premium:parseFloat(editF.annual_premium)||0,
       commission:newCom,
-      manual_commission:isManual?newCom:null,
+      manual_commission:newCom,
       conseiller_id:editF.conseiller_id,
       contract_type:editF.contract_type,
       contract_number:editF.contract_number,
