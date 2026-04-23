@@ -80,8 +80,7 @@ const GRILLE_2026={
   'Autres contrats AXA':{rate:0.03,fixed:false},
   'Ma PA':{rate:0.05,fixed:false},
   'Prévoyance Pro.':{rate:0.04,fixed:false},
-  'CAP Prévoyance Part.':{rate:0.05,fixed:false},
-  'CAP AVIZEN':{rate:0.05,fixed:false},
+  'Prévoyance Part.':{rate:0.05,fixed:false},
   'ARC':{rate:0.02,fixed:false},
   'ENTOURAGE':{rate:0.02,fixed:false},
   'ESSENCIEL':{rate:0.05,fixed:false},
@@ -249,7 +248,7 @@ function calcMonthCommissions(contracts,profiles,year,month,paidAtMap) {
 const FAMILIES=[
   {name:'IARD Particulier',color:'#1d4ed8',bg:'#dbeafe',types:['Auto/Moto','MRH','PJ','Caravane/Camping-car/Remorque','EDPM','Plaisance','Scolaire','Voyage']},
   {name:'Courtage',color:'#7c3aed',bg:'#ede9fe',types:['Courtage Auto/Moto','Courtage IARD Part','Courtage Prévoyance','Courtage Santé','Courtage IARD Pro']},
-  {name:'Prévoyance',color:'#0891b2',bg:'#cffafe',types:['Ma PA','Prévoyance Pro.','CAP Prévoyance Part.','CAP AVIZEN','ARC','ENTOURAGE','ESSENCIEL']},
+  {name:'Prévoyance',color:'#0891b2',bg:'#cffafe',types:['Ma PA','Prévoyance Pro.','Prévoyance Part.','ARC','ENTOURAGE','ESSENCIEL']},
   {name:'Santé',color:'#059669',bg:'#d1fae5',types:['Ma Santé TNS & Retraités','Ma Santé HORS TNS & Retraités','Santé AGIPI']},
   {name:'VTC',color:'#b45309',bg:'#fef3c7',types:['VTC']},
   {name:'Collectives',color:'#6366f1',bg:'#e0e7ff',types:['Collectives']},
@@ -305,14 +304,23 @@ function App(){
   const load=useCallback(async function(cl,p,selectedId){
     const ps=await cl.from('profiles').select('*').order('full_name');
     setProfiles(ps.data||[]);
-    let q=cl.from('contracts').select('*,document_tracking(*),conseiller:conseiller_id(id,full_name,role)');
-    if(p.role==='conseiller') q=q.eq('conseiller_id',p.id);
-    const cs=await q.order('emission_date',{ascending:true});
-    const newContracts=cs.data||[];
-    setContracts(newContracts);
-    // Mettre à jour le contrat sélectionné si ouvert
+
+    // Charger tous les contrats par pages de 1000
+    let allContracts=[];
+    let from=0;
+    const pageSize=1000;
+    while(true){
+      let q=cl.from('contracts').select('*,document_tracking(*),conseiller:conseiller_id(id,full_name,role)');
+      if(p.role==='conseiller') q=q.eq('conseiller_id',p.id);
+      const cs=await q.order('emission_date',{ascending:true}).range(from,from+pageSize-1);
+      const page=cs.data||[];
+      allContracts=allContracts.concat(page);
+      if(page.length<pageSize) break;
+      from+=pageSize;
+    }
+    setContracts(allContracts);
     if(selectedId){
-      const updated=newContracts.find(function(c){return c.id===selectedId;});
+      const updated=allContracts.find(function(c){return c.id===selectedId;});
       if(updated) setSelected(updated);
     }
     const msgs=await cl.from('contract_messages').select('contract_id,created_at').order('created_at',{ascending:false});
