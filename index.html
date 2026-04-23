@@ -793,7 +793,7 @@ function TableauBord({contracts,profiles}){
 
 /* ══ FORMULAIRE ══ */
 function FormContrat({sb,profile,profiles,onSaved}){
-  function mk(){return {client_name:'',contract_number:'',emission_date:today(),effect_date:'',contract_type:ALL_TYPES[0],provenance:PROVS[0],annual_premium:'',comments:'',conseiller_id:profile.id};}
+  function mk(){return {client_name:'',contract_number:'',emission_date:today(),effect_date:'',contract_type:'',provenance:'',annual_premium:'',comments:'',code_portefeuille:'',conseiller_id:profile.id};}
   const [f,setF]=useState(mk());
   const [saving,setSaving]=useState(false);
   const [err,setErr]=useState('');
@@ -805,11 +805,14 @@ function FormContrat({sb,profile,profiles,onSaved}){
     if(!f.contract_number.trim()){setErr('Le numéro de contrat est obligatoire.');return;}
     if(!f.emission_date){setErr("La date d'émission est obligatoire.");return;}
     if(!f.effect_date){setErr("La date d'effet est obligatoire.");return;}
+    if(!f.contract_type){setErr('Le type de contrat est obligatoire.');return;}
+    if(!f.provenance){setErr('La provenance est obligatoire.');return;}
+    if(!f.code_portefeuille){setErr('Le code portefeuille est obligatoire.');return;}
     if(!f.annual_premium||parseFloat(f.annual_premium)<=0){setErr('La prime annuelle est obligatoire.');return;}
     setSaving(true);setErr('');
     const g=GRILLE_2026[f.contract_type];
     const autocom=g?(g.fixed?g.rate:Math.round((parseFloat(f.annual_premium)||0)*g.rate*100)/100):0;
-    const res=await sb.from('contracts').insert({conseiller_id:f.conseiller_id||profile.id,client_name:toUpper(f.client_name.trim()),contract_number:f.contract_number.trim(),emission_date:f.emission_date,effect_date:f.effect_date,contract_type:f.contract_type,provenance:f.provenance,annual_premium:parseFloat(f.annual_premium)||0,commission:autocom,comments:f.comments});
+    const res=await sb.from('contracts').insert({conseiller_id:f.conseiller_id||profile.id,client_name:toUpper(f.client_name.trim()),contract_number:f.contract_number.trim(),emission_date:f.emission_date,effect_date:f.effect_date,contract_type:f.contract_type,provenance:f.provenance,annual_premium:parseFloat(f.annual_premium)||0,commission:autocom,comments:f.comments,code_portefeuille:f.code_portefeuille||null});
     if(res.error){setErr('Erreur : '+res.error.message);setSaving(false);return;}
     onSaved();
   }
@@ -833,14 +836,26 @@ function FormContrat({sb,profile,profiles,onSaved}){
         </div>
         <div className="fg2">
           <div className="fg">
-            <label>Type de contrat</label>
+            <label>Type de contrat *</label>
             <select value={f.contract_type} onChange={function(e){u('contract_type',e.target.value);}}>
+              <option value="" disabled>Sélectionner un type…</option>
               {FAMILIES.map(function(fam){return <optgroup key={fam.name} label={fam.name}>{fam.types.map(function(t){return <option key={t} value={t}>{t}</option>;})}</optgroup>;})}
             </select>
-            {fam&&<div style={{fontSize:'11px',marginTop:'4px',color:fam.color,fontWeight:500}}>Famille : {fam.name}</div>}
+            {fam
+              ? <div style={{fontSize:'11px',marginTop:'4px',color:fam.color,fontWeight:500}}>Famille : {fam.name}</div>
+              : <div style={{fontSize:'11px',marginTop:'4px',color:'#aaa'}}>Sélectionnez le type de produit souscrit</div>
+            }
           </div>
-          <div className="fg"><label>Provenance</label><select value={f.provenance} onChange={function(e){u('provenance',e.target.value);}}>{PROVS.map(function(p){return <option key={p} value={p}>{p}</option>;})}</select></div>
+          <div className="fg">
+            <label>Provenance *</label>
+            <select value={f.provenance} onChange={function(e){u('provenance',e.target.value);}}>
+              <option value="" disabled>Sélectionner une provenance…</option>
+              {PROVS.map(function(p){return <option key={p} value={p}>{p}</option>;})}
+            </select>
+            {!f.provenance&&<div style={{fontSize:'11px',marginTop:'4px',color:'#aaa'}}>Indiquez l'origine de ce contact</div>}
+          </div>
         </div>
+        <div className="fg"><label>Code portefeuille</label><select value={f.code_portefeuille} onChange={function(e){u('code_portefeuille',e.target.value);}}><option value="">— Sélectionner —</option><option value="6025344">6025344 · Le Cannet</option><option value="6251044">6251044 · St Maximin</option><option value="6252044">6252044 · Lyon</option></select></div>
         <div className="fg">
           <label>Prime annuelle TTC (€) *</label>
           <input type="number" min="0" step="0.01" value={f.annual_premium} onChange={function(e){u('annual_premium',e.target.value);}} placeholder="ex: 1 250"/>
@@ -887,6 +902,18 @@ function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,sort,setSort
     if(va>vb)return sort.asc?1:-1;
     return 0;
   });
+  // Détecter les doublons de N° de contrat (ignorer les zéros)
+  const normNum=function(n){return n?String(n).replace(/^0+|0+$/g,''):''};
+  const dupNums=new Set();
+  const seenNums={};
+  contracts.forEach(function(c){
+    if(!c.contract_number) return;
+    const norm=normNum(c.contract_number);
+    if(!norm) return;
+    if(seenNums[norm]) dupNums.add(norm);
+    else seenNums[norm]=true;
+  });
+
   function SH(props){const on=sort.col===props.col;return <th onClick={function(){sortBy(props.col);}} style={{background:on?'#eff6ff':''}}>{props.children}{on?(sort.asc?' ↑':' ↓'):' ↕'}</th>;}
   return(
     <div style={{padding:'28px 32px'}}>
@@ -921,12 +948,18 @@ function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,sort,setSort
             const lastRead=reads[c.id];
             const hasUnread=lastMsg&&(!lastRead||new Date(lastMsg)>new Date(lastRead));
             const rowBg=annOk?'#374151':annReq?'#d1d5db':c.status==='PAYE'?'#f0fdf4':hasProb?'#fff5f5':'';
+            const isDup=c.contract_number&&dupNums.has(normNum(c.contract_number));
             const textColor=annOk?'#f3f4f6':annReq?'#1f2937':'#333';
             const mutedColor=annOk?'#9ca3af':annReq?'#4b5563':c.status==='PAYE'?'#166534':'#666';
             return <tr key={c.id} onClick={function(){onSelect(c);}} style={{cursor:'pointer',background:rowBg,color:textColor}}>
               <td style={{color:mutedColor,fontSize:'12.5px'}}>{c.conseiller&&c.conseiller.full_name?c.conseiller.full_name:'—'}</td>
               <td style={{fontWeight:500,color:textColor}}><div style={{display:'flex',alignItems:'center',gap:'6px'}}>{c.client_name}{hasUnread&&<span className="env-anim" title="Nouveau message" style={{fontSize:'13px',color:'#f59e0b'}}>✉</span>}</div></td>
-              <td style={{color:mutedColor,fontFamily:'monospace',fontSize:'11.5px'}}>{c.contract_number}</td>
+              <td style={{color:mutedColor,fontFamily:'monospace',fontSize:'11.5px'}}>
+                {isDup
+                  ? <span style={{background:'#fef9c3',color:'#92400e',border:'1px solid #fde68a',borderRadius:'4px',padding:'1px 5px',fontWeight:600}} title="N° en doublon">⚠ {c.contract_number}</span>
+                  : c.contract_number
+                }
+              </td>
               <td style={{color:mutedColor,whiteSpace:'nowrap'}}>{fdate(c.emission_date)}</td>
               <td style={{color:mutedColor,whiteSpace:'nowrap'}}>{fdate(c.effect_date)}</td>
               <td>{fam?<span className="badge" style={{background:annOk||annReq?'#4b5563':fam.bg,color:annOk||annReq?'#d1d5db':fam.color}}>{c.contract_type}</span>:<span className="badge" style={{background:'#f3f4f6',color:'#374151'}}>{c.contract_type}</span>}</td>
@@ -953,7 +986,7 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
   const [annReq,setAnnReq]=useState(contract.annulation_requested||false);
   const [isAnnule,setIsAnnule]=useState(contract.status==='ANNULE');
   const [editing,setEditing]=useState(false);
-  const [editF,setEditF]=useState({client_name:contract.client_name,emission_date:contract.emission_date,effect_date:contract.effect_date,provenance:contract.provenance||'',annual_premium:contract.annual_premium||0,commission:contract.commission||0,conseiller_id:contract.conseiller_id,contract_type:contract.contract_type,contract_number:contract.contract_number});
+  const [editF,setEditF]=useState({client_name:contract.client_name,emission_date:contract.emission_date,effect_date:contract.effect_date,provenance:contract.provenance||'',annual_premium:contract.annual_premium||0,commission:contract.commission||0,conseiller_id:contract.conseiller_id,contract_type:contract.contract_type,contract_number:contract.contract_number,code_portefeuille:contract.code_portefeuille||''});
   const [messages,setMessages]=useState([]);
   const [newMsg,setNewMsg]=useState('');
   const [saving,setSaving]=useState(false);
@@ -993,7 +1026,8 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
       manual_commission:isManual?newCom:null,
       conseiller_id:editF.conseiller_id,
       contract_type:editF.contract_type,
-      contract_number:editF.contract_number
+      contract_number:editF.contract_number,
+      code_portefeuille:editF.code_portefeuille||null,
     }).eq('id',contract.id);
     setEditing(false);onRefresh();setSaving(false);
   }
@@ -1047,6 +1081,7 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
                 </div>
                 <div className="fg"><label>Type de contrat</label><select value={editF.contract_type} onChange={function(e){eu('contract_type',e.target.value);}}>{FAMILIES.map(function(f){return <optgroup key={f.name} label={f.name}>{f.types.map(function(t){return <option key={t} value={t}>{t}</option>;})}</optgroup>;})}</select></div>
                 <div className="fg"><label>Provenance</label><select value={editF.provenance} onChange={function(e){eu('provenance',e.target.value);}}>{PROVS.map(function(p){return <option key={p} value={p}>{p}</option>;})}</select></div>
+                <div className="fg"><label>Code portefeuille</label><select value={editF.code_portefeuille} onChange={function(e){eu('code_portefeuille',e.target.value);}}><option value="">— Sélectionner —</option><option value="6025344">6025344 · Le Cannet</option><option value="6251044">6251044 · St Maximin</option><option value="6252044">6252044 · Lyon</option></select></div>
                 <div className="fg2">
                   <div className="fg"><label>Prime annuelle (€)</label><input type="number" value={editF.annual_premium} onChange={function(e){eu('annual_premium',e.target.value);}}/></div>
                   <div className="fg"><label>Commission (€)</label><input type="number" value={editF.commission} onChange={function(e){eu('commission',e.target.value);}}/></div>
@@ -1066,6 +1101,18 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
                 <IR label="Prime annuelle" value={feur0(contract.annual_premium)}/>
                 {!isCollab&&<IR label="Commission calculée" value={feur(calcBaseCommission(contract))}/>}
                 {contract.comments&&<IR label="Commentaire" value={contract.comments}/>}
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'9px 0',fontSize:'13.5px'}}>
+                  <span style={{color:'#666'}}>Code portefeuille</span>
+                  {canDir
+                    ? <select value={editF.code_portefeuille} onChange={function(e){eu('code_portefeuille',e.target.value);sb.from('contracts').update({code_portefeuille:e.target.value||null}).eq('id',contract.id).then(function(){});}} style={{width:'auto',padding:'4px 8px',fontSize:'13px'}}>
+                        <option value="">— Non défini —</option>
+                        <option value="6025344">6025344 · Le Cannet</option>
+                        <option value="6251044">6251044 · St Maximin</option>
+                        <option value="6252044">6252044 · Lyon</option>
+                      </select>
+                    : <span style={{fontWeight:500}}>{contract.code_portefeuille||'—'}</span>
+                  }
+                </div>
               </div>
             )}
           </div>
