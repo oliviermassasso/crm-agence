@@ -822,7 +822,7 @@ function FormContrat({sb,profile,profiles,onSaved}){
       <div className="card" style={{padding:'28px'}}>
         {isDir&&<div className="fg"><label>Conseiller *</label><select value={f.conseiller_id} onChange={function(e){u('conseiller_id',e.target.value);}}>{profiles.map(function(p){return <option key={p.id} value={p.id}>{p.full_name} ({RL[p.role]})</option>;})}</select></div>}
         <div className="fg2">
-          <div className="fg"><label>Nom / Raison sociale *</label><input value={f.client_name} onChange={function(e){u('client_name',e.target.value);}} onBlur={function(e){u('client_name',toUpper(e.target.value));}} placeholder="DUPONT JEAN"/></div>
+          <div className="fg"><label>Nom prénom / Raison sociale *</label><input value={f.client_name} onChange={function(e){u('client_name',e.target.value);}} onBlur={function(e){u('client_name',toUpper(e.target.value));}} placeholder="DUPONT JEAN"/></div>
           <div className="fg">
             <label style={{display:'flex',alignItems:'center',gap:'6px'}}>N° contrat *
               <div className="tip-wrap"><span style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:'15px',height:'15px',borderRadius:'50%',background:'#e5e7eb',color:'#555',fontSize:'10px',fontWeight:700,cursor:'help',flexShrink:0}}>?</span><span className="tip">Sans n° de contrat, indiquez la nature : "Courtage", "Banque", etc.</span></div>
@@ -838,21 +838,17 @@ function FormContrat({sb,profile,profiles,onSaved}){
           <div className="fg">
             <label>Type de contrat *</label>
             <select value={f.contract_type} onChange={function(e){u('contract_type',e.target.value);}}>
-              <option value="" disabled>Sélectionner un type…</option>
+              <option value="" disabled>Ex : Auto/Moto, MRH, Santé…</option>
               {FAMILIES.map(function(fam){return <optgroup key={fam.name} label={fam.name}>{fam.types.map(function(t){return <option key={t} value={t}>{t}</option>;})}</optgroup>;})}
             </select>
-            {fam
-              ? <div style={{fontSize:'11px',marginTop:'4px',color:fam.color,fontWeight:500}}>Famille : {fam.name}</div>
-              : <div style={{fontSize:'11px',marginTop:'4px',color:'#aaa'}}>Sélectionnez le type de produit souscrit</div>
-            }
+            {fam&&<div style={{fontSize:'11px',marginTop:'4px',color:fam.color,fontWeight:500}}>Famille : {fam.name}</div>}
           </div>
           <div className="fg">
             <label>Provenance *</label>
             <select value={f.provenance} onChange={function(e){u('provenance',e.target.value);}}>
-              <option value="" disabled>Sélectionner une provenance…</option>
+              <option value="" disabled>Ex : Rebond, Reco, Leads…</option>
               {PROVS.map(function(p){return <option key={p} value={p}>{p}</option>;})}
             </select>
-            {!f.provenance&&<div style={{fontSize:'11px',marginTop:'4px',color:'#aaa'}}>Indiquez l'origine de ce contact</div>}
           </div>
         </div>
         <div className="fg"><label>Code portefeuille *</label><select value={f.code_portefeuille} onChange={function(e){u('code_portefeuille',e.target.value);}}><option value="" disabled>— Sélectionner —</option><option value="6025344">6025344 · Le Cannet</option><option value="6251044">6251044 · St Maximin</option><option value="6252044">6252044 · Lyon</option></select></div>
