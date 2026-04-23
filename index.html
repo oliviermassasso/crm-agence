@@ -214,31 +214,19 @@ function calcMonthCommissions(contracts,profiles,year,month,paidAtMap) {
     const caSanteTns=signed.filter(function(c){return TYPE_SANTE_TNS.includes(c.contract_type);}).reduce(function(s,c){return s+(c.annual_premium||0);},0);
     const nbSigned=signed.length;
 
-    let bonif=0;
-    // CA AN AXA (auto+MRH+PJ)
-    if(caIardAxa>=20000) bonif+=250;
-    else if(caIardAxa>=15000) bonif+=120;
-    // CA AN AXA MRH
-    if(caMrh>=3000) bonif+=50;
-    // CA AN AXA PJ+PA
-    if(caPjPa>=1500) bonif+=50;
-    // CA AN SANTE TNS & Senior
-    if(caSanteTns>=20000) bonif+=300;
-    else if(caSanteTns>=15000) bonif+=150;
-    else if(caSanteTns>=5000) bonif+=50;
-    // Nb AN >= 40
-    if(nbSigned>=40) bonif+=100;
+    // Bonifications exclues pour l'instant — traitées dans le module Salaires (Sprint 6)
+    const bonif=0;
 
     // Décote non-conformité
     let decote=0;
     if(tauxNC>0.15) decote=tauxNC;
-    const totalCom=Math.round((baseCom+bonif)*(1-decote)*100)/100;
+    const totalCom=Math.round(baseCom*(1-decote)*100)/100;
 
     results[p.id]={
       conseiller:p,
       contracts:mine,
       baseCom:Math.round(baseCom*100)/100,
-      bonif,
+      bonif:0,
       tauxNC:Math.round(tauxNC*10000)/100,
       decote:Math.round(decote*10000)/100,
       totalCom,
@@ -425,8 +413,10 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh}){
   const [selCons,setSelCons]=useState(profile.role==='conseiller'?profile.id:'');
   const [payments,setPayments]=useState({});
   const [saving,setSaving]=useState(false);
+  const [checked,setChecked]=useState({});
   const canDir=profile.role==='direction';
   const isCollab=profile.role==='conseiller';
+  function toggleCheck(id){setChecked(function(p){return Object.assign({},p,{[id]:!p[id]});});}
 
   const bsLabel=MONTHS[month-1]+' '+year;
 
@@ -577,7 +567,6 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh}){
               <div style={{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}}>
                 {hasDecote&&<span className="badge" style={{background:'#fee2e2',color:'#991b1b'}}>⚠ Décote NC {displayDecote.toFixed?displayDecote.toFixed(1):displayDecote}%</span>}
                 <span style={{fontSize:'13px',color:'#666'}}>Base : {feur(displayBase)}</span>
-                {displayBonif>0&&<span style={{fontSize:'13px',color:'#059669'}}>+ Bonif : {feur(displayBonif)}</span>}
                 <span style={{fontSize:'16px',fontWeight:700,color:'#1d4ed8'}}>= {feur(displayTotal)}</span>
               </div>
             </div>
@@ -585,7 +574,7 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh}){
             <div style={{overflowX:'auto'}}>
               <table>
                 <thead><tr>
-                  <th>Client</th><th>Type</th><th>Prime annuelle</th><th>Taux / Fixe</th><th>Commission</th><th>Mono</th><th>Éligible depuis</th>
+                  <th style={{width:'32px'}}></th><th>Client</th><th>Type</th><th>Prime annuelle</th><th>Taux / Fixe</th><th>Commission</th><th>Mono</th><th>Éligible depuis</th>
                 </tr></thead>
                 <tbody>
                   {displayContracts.length===0
@@ -595,14 +584,19 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh}){
                       const com=calcBaseCommission(c);
                       const mt=c.mono_type||'';
                       return(
-                        <tr key={c.id} onClick={function(){onSelect(c);}} style={{cursor:'pointer'}}>
-                          <td style={{fontWeight:500}}>{c.client_name}</td>
-                          <td><span className="badge" style={{background:'#f3f4f6',color:'#374151',fontSize:'10.5px'}}>{c.contract_type}</span></td>
-                          <td>{feur0(c.annual_premium)}</td>
-                          <td style={{color:'#555',fontSize:'12px'}}>{g?(g.fixed?g.rate+'€ fixe':parseFloat((g.rate*100).toFixed(2))+'%'):'—'}</td>
-                          <td style={{fontWeight:600,color:'#1d4ed8'}}>{feur(com)}</td>
-                          <td><span style={{fontSize:'12px',color:'#666'}}>{mt?MONO_OPTS.find(function(o){return o.value===mt;})?MONO_OPTS.find(function(o){return o.value===mt;}).label.split(' ')[0]:mt:'—'}</span></td>
-                          <td style={{fontSize:'12px',color:'#888'}}>{c.document_tracking&&c.document_tracking.eligible_since?fdate(c.document_tracking.eligible_since):'—'}</td>
+                        <tr key={c.id} style={{cursor:'pointer',background:checked[c.id]?'#f0fdf4':''}}>
+                          <td onClick={function(e){e.stopPropagation();toggleCheck(c.id);}} style={{textAlign:'center',cursor:'pointer'}}>
+                            <span style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:'18px',height:'18px',borderRadius:'4px',border:'1.5px solid '+(checked[c.id]?'#16a34a':'#d1d5db'),background:checked[c.id]?'#16a34a':'#fff',color:'#fff',fontSize:'11px',fontWeight:700,transition:'all 0.15s'}}>
+                              {checked[c.id]?'✓':''}
+                            </span>
+                          </td>
+                          <td style={{fontWeight:500}} onClick={function(){onSelect(c);}}>{c.client_name}</td>
+                          <td onClick={function(){onSelect(c);}}><span className="badge" style={{background:'#f3f4f6',color:'#374151',fontSize:'10.5px'}}>{c.contract_type}</span></td>
+                          <td onClick={function(){onSelect(c);}}>{feur0(c.annual_premium)}</td>
+                          <td onClick={function(){onSelect(c);}} style={{color:'#555',fontSize:'12px'}}>{g?(g.fixed?g.rate+'€ fixe':parseFloat((g.rate*100).toFixed(2))+'%'):'—'}</td>
+                          <td onClick={function(){onSelect(c);}} style={{fontWeight:600,color:'#1d4ed8'}}>{feur(com)}</td>
+                          <td onClick={function(){onSelect(c);}}><span style={{fontSize:'12px',color:'#666'}}>{mt?MONO_OPTS.find(function(o){return o.value===mt;})?MONO_OPTS.find(function(o){return o.value===mt;}).label.split(' ')[0]:mt:'—'}</span></td>
+                          <td onClick={function(){onSelect(c);}} style={{fontSize:'12px',color:'#888'}}>{c.document_tracking&&c.document_tracking.eligible_since?fdate(c.document_tracking.eligible_since):'—'}</td>
                         </tr>
                       );
                     })
