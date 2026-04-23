@@ -524,7 +524,7 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh}){
             {MONTHS.map(function(ml,i){return <option key={i} value={i+1}>{ml}</option>;})}
           </select>
           <select value={year} onChange={function(e){setYear(parseInt(e.target.value));}} style={{width:'auto',padding:'6px 10px'}}>
-            {[2024,2025,2026].map(function(y){return <option key={y} value={y}>{y}</option>;})}
+            {[2021,2022,2023,2024,2025,2026].map(function(y){return <option key={y} value={y}>{y}</option>;})}
           </select>
         </div>
       </div>
