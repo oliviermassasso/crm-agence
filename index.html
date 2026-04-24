@@ -543,8 +543,8 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh}){
   }
 
   return(
-    <div style={{padding:'28px 32px',maxWidth:'1000px'}}>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'22px',flexWrap:'wrap',gap:'12px'}}>
+    <div style={{padding:'0',maxWidth:'1000px'}}>
+      <div style={{position:'sticky',top:0,zIndex:10,background:'#f9fafb',padding:'20px 32px 14px',borderBottom:'1px solid #e5e7eb',marginBottom:'22px',display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:'12px'}}>
         <div>
           <div style={{fontSize:'22px',fontWeight:600,marginBottom:'2px'}}>{isCollab?'Mes commissions':'Commissions'}</div>
           <div style={{fontSize:'13px',color:'#666'}}>Grille 2026 · {MONTHS[month-1]} {year}</div>
@@ -565,6 +565,7 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh}){
           </select>
         </div>
       </div>
+      <div style={{padding:'0 32px 28px'}}>
 
       {filtered.map(function(p){
         const comp=computed[p.id]||{baseCom:0,bonif:0,tauxNC:0,decote:0,totalCom:0,contracts:[]};
@@ -700,6 +701,7 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh}){
           </div>
         );
       })}
+      </div>
     </div>
   );
 }
