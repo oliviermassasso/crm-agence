@@ -1127,15 +1127,21 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
   async function updDt(u){
     setSaving(true);
     const newDt=Object.assign({},dt,u);
-    // Calcul eligible_since
     const wasEligible=isEligibleForCommission({status:contract.status,document_tracking:dt});
     const fakeC={status:contract.status,document_tracking:newDt};
     const nowEligible=isEligibleForCommission(fakeC);
-    if(nowEligible&&!wasEligible) newDt.eligible_since=new Date().toISOString();
-    if(!nowEligible&&wasEligible) newDt.eligible_since=null;
     const payload=Object.assign({},u,{updated_at:new Date().toISOString()});
-    if(nowEligible&&!wasEligible) payload.eligible_since=newDt.eligible_since;
-    if(!nowEligible&&wasEligible) payload.eligible_since=null;
+    // Ne mettre eligible_since que si pas encore défini et vient de devenir éligible
+    if(nowEligible&&!wasEligible&&!dt.eligible_since){
+      const ts=new Date().toISOString();
+      newDt.eligible_since=ts;
+      payload.eligible_since=ts;
+    }
+    // Effacer eligible_since seulement si on repasse non éligible
+    if(!nowEligible&&wasEligible){
+      newDt.eligible_since=null;
+      payload.eligible_since=null;
+    }
     await sb.from('document_tracking').update(payload).eq('contract_id',contract.id);
     setDt(newDt);onRefresh();setSaving(false);
   }
