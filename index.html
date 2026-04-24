@@ -1225,8 +1225,21 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
           </div>
           <div style={{display:'flex',gap:'6px',alignItems:'center'}}>
             {isLocked&&canDir&&<button onClick={async function(){
-              if(!window.confirm('Déverrouiller ce dossier ? Il repassera en ENCOURS.')) return;
+              if(!window.confirm('Déverrouiller ce dossier ? Il repassera en ENCOURS et pourra être re-validé.')) return;
+              // Repasser en ENCOURS
               await sb.from('contracts').update({status:'ENCOURS'}).eq('id',contract.id);
+              // Trouver le paiement qui contient ce contrat et le mettre à jour
+              const pmRes=await sb.from('commission_payments').select('id,frozen_contract_ids').contains('frozen_contract_ids',[contract.id]);
+              if(pmRes.data&&pmRes.data.length>0){
+                const pm=pmRes.data[0];
+                const newIds=(pm.frozen_contract_ids||[]).filter(function(id){return id!==contract.id;});
+                if(newIds.length===0){
+                  // Plus aucun contrat gelé → dégeler complètement
+                  await sb.from('commission_payments').update({frozen:false,paid:false,frozen_contract_ids:null,paid_at:null}).eq('id',pm.id);
+                } else {
+                  await sb.from('commission_payments').update({frozen_contract_ids:newIds}).eq('id',pm.id);
+                }
+              }
               onRefresh();
             }} style={{fontSize:'11.5px',padding:'4px 10px',color:'#92400e',border:'1px solid #fde68a',background:'#fef9c3',borderRadius:'6px'}}>🔓 Déverrouiller</button>}
             {canDirEdit&&!editing&&<button onClick={function(){
