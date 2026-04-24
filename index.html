@@ -587,7 +587,10 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh}){
         const prevY=month===1?year-1:year;
         const prevCutoff=payments[p.id]&&payments[p.id][prevM]&&payments[p.id][prevM].paid_at
           ?new Date(payments[p.id][prevM].paid_at):null;
-        const displayContracts=contracts.filter(function(c){
+        const displayContracts=isFrozen&&pay.frozen_contract_ids&&pay.frozen_contract_ids.length>0
+          // Gelé : afficher les contrats du snapshot (y compris PAYE)
+          ? contracts.filter(function(c){return pay.frozen_contract_ids.includes(c.id);})
+          : contracts.filter(function(c){
           if(c.conseiller_id!==p.id) return false;
           if(c.status==='ANNULE') return false;
           const dt=c.document_tracking||{};
@@ -603,7 +606,6 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh}){
           return false;
         });
 
-        // Filtre recherche : indépendant du mois/année — cherche dans tous les contrats éligibles du conseiller
         const searchContracts=comSearch
           ? contracts.filter(function(c){
               if(c.conseiller_id!==p.id) return false;
@@ -616,8 +618,8 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh}){
           : displayContracts;
         const filteredContracts=comSearch?searchContracts:displayContracts;
 
-        // N'afficher que les conseillers avec au moins une ligne client
-        if(filteredContracts.length===0) return null;
+        // N'afficher que les conseillers avec au moins une ligne client OU un paiement gelé ce mois
+        if(filteredContracts.length===0&&!isFrozen) return null;
 
         return(
           <div key={p.id} className="card" style={{marginBottom:'16px',overflow:'hidden'}}>
