@@ -768,6 +768,7 @@ function TableauBord({contracts,profiles,profile}){
   const [year,setYear]=useState(now.getFullYear());
   const [month,setMonth]=useState(now.getMonth()+1);
   const [mode,setMode]=useState('mois');
+  const [filterCons,setFilterCons]=useState('');
   const isDir=['direction','manager'].includes(profile.role);
   function inPeriod(c,y,m){
     if(!c.emission_date)return false;
@@ -778,7 +779,9 @@ function TableauBord({contracts,profiles,profile}){
 
   // Filtrer selon le rôle
   const allActive=contracts.filter(function(c){return c.status!=='ANNULE';});
-  const visibleActive=isDir?allActive:allActive.filter(function(c){return c.conseiller_id===profile.id;});
+  const visibleActive=(isDir
+    ? (filterCons?allActive.filter(function(c){return c.conseiller_id===filterCons;}):allActive)
+    : allActive.filter(function(c){return c.conseiller_id===profile.id;}));
 
   const cur=visibleActive.filter(function(c){return inPeriod(c,year,month);});
   const prevY=mode==='mois'?(month===1?year-1:year):year-1;
@@ -856,6 +859,10 @@ function TableauBord({contracts,profiles,profile}){
           </div>
           {mode==='mois'&&<select value={month} onChange={function(e){setMonth(parseInt(e.target.value));}} style={{width:'auto',padding:'6px 10px'}}>{MONTHS.map(function(ml,i){return <option key={i} value={i+1}>{ml}</option>;})}</select>}
           <select value={year} onChange={function(e){setYear(parseInt(e.target.value));}} style={{width:'auto',padding:'6px 10px'}}>{[2021,2022,2023,2024,2025,2026].map(function(y){return <option key={y} value={y}>{y}</option>;})}</select>
+          {isDir&&<select value={filterCons} onChange={function(e){setFilterCons(e.target.value);}} style={{width:'auto',padding:'6px 10px'}}>
+            <option value="">Tous les conseillers</option>
+            {profiles.filter(function(p){return p.role!=='direction';}).map(function(p){return <option key={p.id} value={p.id}>{p.full_name}</option>;})}
+          </select>}
         </div>
       </div>
 
