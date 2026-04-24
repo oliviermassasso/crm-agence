@@ -620,6 +620,7 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh}){
 
         // N'afficher que les conseillers avec au moins une ligne client OU un paiement gelé ce mois
         if(filteredContracts.length===0&&!isFrozen) return null;
+        if(comSearch&&filteredContracts.length===0) return null;
 
         return(
           <div key={p.id} className="card" style={{marginBottom:'16px',overflow:'hidden'}}>
