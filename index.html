@@ -457,7 +457,7 @@ function App(){
       <div style={{flex:1,overflow:'auto',background:'#f9fafb'}}>
         {active==='saisir-contrat'&&<FormContrat sb={sb} profile={profile} profiles={profiles} onSaved={function(){refresh();setActive(profile.role==='conseiller'?'mes-dossiers':'suivi-dossiers');}}/>}
         {(active==='suivi-dossiers'||active==='mes-dossiers')&&<SuiviDossiers contracts={contracts} profile={profile} profiles={profiles} reads={reads} lastMsgMap={lastMsgMap} sort={sort} setSort={setSortP} fCons={fCons} setFCons={setFConsP} fYear={fYear} setFYear={setFYearP} fMonth={fMonth} setFMonth={setFMonthP} fType={fType} setFType={setFTypeP} fStat={fStat} setFStat={setFStatP} fDoss={fDoss} setFDoss={setFDossP} fPay={fPay} setFPay={setFPayP} fDup={fDup} setFDup={setFDupP} search={search} setSearch={setSearch} selectedId={lastSelectedId} onSelect={function(c){setSelected(c);setLastSelectedId(c.id);markRead(c.id);}} onNew={function(){setActive('saisir-contrat');}}/>}
-        {active==='tableau-bord'&&<TableauBord contracts={contracts} profiles={profiles}/>}
+        {active==='tableau-bord'&&<TableauBord contracts={contracts} profiles={profiles} profile={profile}/>}
         {(active==='commissions'||active==='mes-commissions')&&<Commissions contracts={contracts} profiles={profiles} profile={profile} sb={sb} onSelect={function(c){setSelected(c);markRead(c.id);}} onRefresh={refresh} year={comYear} setYear={setComYearP} month={comMonth} setMonth={setComMonthP} selCons={comSelCons} setSelCons={setComSelConsP} comSearch={comSearch} setComSearch={setComSearch}/>}
         {!['saisir-contrat','suivi-dossiers','mes-dossiers','tableau-bord','commissions','mes-commissions'].includes(active)&&<Placeholder nav={nav} active={active}/>}
       </div>
@@ -731,44 +731,104 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh,year,setY
 }
 
 /* ══ TABLEAU DE BORD ══ */
-function TableauBord({contracts,profiles}){
+// Objectifs annuels 2026 par famille
+const OBJECTIFS_2026={
+  'IARD Particulier':45000,
+  'Prévoyance':3750,
+  'Santé':15000,
+  'IARD Pro & Entreprise':4250,
+  'Crédits AXA':10000,
+};
+
+function Jauge({ca,objectif,label,color}){
+  const [hover,setHover]=useState(false);
+  const pct=objectif>0?Math.min(ca/objectif*100,100):0;
+  const pctReal=objectif>0?Math.round(ca/objectif*100):null;
+  return(
+    <div style={{marginBottom:'12px'}}>
+      <div style={{display:'flex',justifyContent:'space-between',fontSize:'12px',marginBottom:'4px'}}>
+        <span style={{color:color,fontWeight:500}}>{label}</span>
+        <span style={{fontWeight:600}}>{feur0(ca)}{objectif>0&&<span style={{color:'#aaa',fontWeight:400}}> / {feur0(objectif)}</span>}</span>
+      </div>
+      <div style={{position:'relative',height:'8px',background:'#f3f4f6',borderRadius:'4px',overflow:'visible',cursor:'default'}}
+        onMouseEnter={function(){setHover(true);}} onMouseLeave={function(){setHover(false);}}>
+        <div style={{height:'100%',width:pct+'%',background:pct>=100?'#059669':color,borderRadius:'4px',transition:'width 0.4s'}}/>
+        {hover&&objectif>0&&(
+          <div style={{position:'absolute',top:'-30px',left:Math.min(pct,90)+'%',transform:'translateX(-50%)',background:'#1f2937',color:'#fff',fontSize:'11px',padding:'3px 8px',borderRadius:'5px',whiteSpace:'nowrap',zIndex:10,pointerEvents:'none'}}>
+            {pctReal}% réalisé
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TableauBord({contracts,profiles,profile}){
   const now=new Date();
   const [year,setYear]=useState(now.getFullYear());
   const [month,setMonth]=useState(now.getMonth()+1);
   const [mode,setMode]=useState('mois');
+  const isDir=['direction','manager'].includes(profile.role);
   function inPeriod(c,y,m){
     if(!c.emission_date)return false;
     const d=new Date(c.emission_date);
     if(mode==='mois') return d.getFullYear()===y&&d.getMonth()+1===m;
     return d.getFullYear()===y;
   }
-  const active=contracts.filter(function(c){return c.status!=='ANNULE';});
-  const cur=active.filter(function(c){return inPeriod(c,year,month);});
+
+  // Filtrer selon le rôle
+  const allActive=contracts.filter(function(c){return c.status!=='ANNULE';});
+  const visibleActive=isDir?allActive:allActive.filter(function(c){return c.conseiller_id===profile.id;});
+
+  const cur=visibleActive.filter(function(c){return inPeriod(c,year,month);});
   const prevY=mode==='mois'?(month===1?year-1:year):year-1;
   const prevM=mode==='mois'?(month===1?12:month-1):month;
-  const prev=active.filter(function(c){return inPeriod(c,prevY,prevM);});
+  const prev=visibleActive.filter(function(c){return inPeriod(c,prevY,prevM);});
+
   const ca=sumCA(cur),caPrev=sumCA(prev);
   const evoCa=caPrev>0?((ca-caPrev)/caPrev*100):null;
   const nb=cur.length,nbPrev=prev.length;
   const evoNb=nbPrev>0?((nb-nbPrev)/nbPrev*100):null;
+
+  // Objectif de la période
+  function getObjPeriod(annualObj){
+    if(!annualObj) return 0;
+    return mode==='mois'?Math.round(annualObj/12):annualObj;
+  }
+
+  // CA par famille
   const caByFamily=FAMILIES.map(function(f){
     const s=cur.filter(function(c){return f.types.includes(c.contract_type);}).reduce(function(a,c){return a+(c.annual_premium||0);},0);
-    return {name:f.name,color:f.color,bg:f.bg,ca:s};
-  }).filter(function(f){return f.ca>0;}).sort(function(a,b){return b.ca-a.ca;});
-  const maxFam=caByFamily.length>0?caByFamily[0].ca:1;
+    const obj=getObjPeriod(OBJECTIFS_2026[f.name]);
+    return {name:f.name,color:f.color,bg:f.bg,ca:s,obj:obj};
+  }).filter(function(f){return f.ca>0||f.obj>0;}).sort(function(a,b){return b.ca-a.ca;});
+
+  // CA par provenance
+  const provMap={};
+  cur.forEach(function(c){
+    const p=c.provenance||'Non renseigné';
+    provMap[p]=(provMap[p]||0)+(c.annual_premium||0);
+  });
+  const caByProv=Object.entries(provMap).sort(function(a,b){return b[1]-a[1];});
+  const maxProv=caByProv.length>0?caByProv[0][1]:1;
+
+  // Graphique mensuel
   const monthlyData=MONTHS.map(function(ml,i){
-    const c=active.filter(function(c){const d=new Date(c.emission_date);return d.getFullYear()===year&&d.getMonth()===i;});
-    const p=active.filter(function(c){const d=new Date(c.emission_date);return d.getFullYear()===year-1&&d.getMonth()===i;});
+    const c=visibleActive.filter(function(c){const d=new Date(c.emission_date);return d.getFullYear()===year&&d.getMonth()===i;});
+    const p=visibleActive.filter(function(c){const d=new Date(c.emission_date);return d.getFullYear()===year-1&&d.getMonth()===i;});
     return {m:ml,cur:sumCA(c),prev:sumCA(p)};
   });
   const maxM=Math.max.apply(null,monthlyData.map(function(d){return Math.max(d.cur,d.prev);}));
   const maxMV=maxM>0?maxM:1;
+
+  // Classement conseillers
   const conseillers=profiles.filter(function(p){return p.role==='conseiller'||p.role==='manager';});
-  const rankData=conseillers.map(function(p){
+  const rankData=(isDir?conseillers:[profiles.find(function(p){return p.id===profile.id;})||profile]).map(function(p){
     const mine=cur.filter(function(c){return c.conseiller_id===p.id;});
     const prevMine=prev.filter(function(c){return c.conseiller_id===p.id;});
     return {id:p.id,name:p.full_name,ca:sumCA(mine),nb:mine.length,caPrev:sumCA(prevMine),nbPrev:prevMine.length};
-  }).sort(function(a,b){return b.ca-a.ca;});
+  }).filter(function(r){return r.ca>0||r.nb>0;}).sort(function(a,b){return b.ca-a.ca;});
+
   function Evo(props){
     const v=props.val;
     if(v===null)return React.createElement('span',{style:{color:'#aaa',fontSize:'11px'}},'—');
@@ -781,10 +841,14 @@ function TableauBord({contracts,profiles}){
       <Evo val={props.evo}/>
     </div>;
   }
+
+  const labelPeriode=mode==='mois'?MONTHS[month-1]+' '+year:'Année '+year;
+
   return(
-    <div style={{padding:'28px 32px',maxWidth:'960px'}}>
+    <div style={{padding:'28px 32px',maxWidth:'1100px'}}>
+      {/* Header */}
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'22px',flexWrap:'wrap',gap:'12px'}}>
-        <div><div style={{fontSize:'22px',fontWeight:600,marginBottom:'2px'}}>Tableau de bord</div><div style={{fontSize:'13px',color:'#666'}}>{mode==='mois'?MONTHS[month-1]+' '+year:'Année '+year}</div></div>
+        <div><div style={{fontSize:'22px',fontWeight:600,marginBottom:'2px'}}>Tableau de bord</div><div style={{fontSize:'13px',color:'#666'}}>{labelPeriode}</div></div>
         <div style={{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}}>
           <div style={{display:'flex',border:'1px solid #e5e7eb',borderRadius:'8px',overflow:'hidden'}}>
             <button onClick={function(){setMode('mois');}} style={{padding:'6px 14px',fontSize:'12.5px',border:'none',borderRadius:0,background:mode==='mois'?'#1d4ed8':'#fff',color:mode==='mois'?'#fff':'#555'}}>Mois</button>
@@ -794,22 +858,26 @@ function TableauBord({contracts,profiles}){
           <select value={year} onChange={function(e){setYear(parseInt(e.target.value));}} style={{width:'auto',padding:'6px 10px'}}>{[2021,2022,2023,2024,2025,2026].map(function(y){return <option key={y} value={y}>{y}</option>;})}</select>
         </div>
       </div>
-      <div style={{display:'flex',gap:'12px',marginBottom:'24px',flexWrap:'wrap'}}>
+
+      {/* KPIs */}
+      <div style={{display:'flex',gap:'12px',marginBottom:'20px',flexWrap:'wrap'}}>
         <KPI label="CA période" value={feur0(ca)} evo={evoCa}/>
         <KPI label="Nb contrats" value={nb} evo={evoNb}/>
         <KPI label="Panier moyen" value={nb>0?feur0(Math.round(ca/nb)):'—'} evo={null}/>
-        <KPI label="Écart vs préc." value={feur0(ca-caPrev)} evo={evoCa}/>
+        <KPI label="Écart vs N-1" value={evoCa!==null?(evoCa>=0?'+':'')+evoCa.toFixed(1)+'%':'—'} evo={evoCa}/>
       </div>
+
+      {/* Jauges objectifs + CA mensuel */}
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'16px',marginBottom:'16px'}}>
         <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px'}}>
-          <div style={{fontSize:'13px',fontWeight:600,marginBottom:'14px'}}>CA par famille</div>
-          {caByFamily.length===0?<div style={{color:'#aaa',fontSize:'13px',textAlign:'center',padding:'20px 0'}}>Aucune donnée</div>:caByFamily.map(function(f){return(
-            <div key={f.name} style={{marginBottom:'10px'}}>
-              <div style={{display:'flex',justifyContent:'space-between',fontSize:'12px',marginBottom:'3px'}}><span style={{color:f.color,fontWeight:500}}>{f.name}</span><span style={{fontWeight:600}}>{feur0(f.ca)}</span></div>
-              <div style={{height:'6px',background:'#f3f4f6',borderRadius:'3px'}}><div style={{height:'100%',width:(f.ca/maxFam*100)+'%',background:f.color,borderRadius:'3px'}}/></div>
-            </div>
-          );})}
+          <div style={{fontSize:'13px',fontWeight:600,marginBottom:'4px'}}>Objectifs {mode==='mois'?'mensuels (1/12)':'annuels'} {year}</div>
+          <div style={{fontSize:'11px',color:'#aaa',marginBottom:'14px'}}>Survol → % réalisé</div>
+          {caByFamily.length===0
+            ?<div style={{color:'#aaa',fontSize:'13px',textAlign:'center',padding:'20px 0'}}>Aucune donnée</div>
+            :caByFamily.map(function(f){return <Jauge key={f.name} label={f.name} ca={f.ca} objectif={f.obj} color={f.color}/>;})
+          }
         </div>
+
         <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px'}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'14px'}}>
             <div style={{fontSize:'13px',fontWeight:600}}>CA mensuel {year}</div>
@@ -831,11 +899,29 @@ function TableauBord({contracts,profiles}){
           </div>
         </div>
       </div>
-      <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px'}}>
-        <div style={{fontSize:'13px',fontWeight:600,marginBottom:'14px'}}>Classement conseillers</div>
-        {rankData.filter(function(r){return r.ca>0||r.nb>0;}).length===0
-          ?<div style={{color:'#aaa',fontSize:'13px',textAlign:'center',padding:'20px 0'}}>Aucune donnée</div>
-          :<table style={{width:'100%',borderCollapse:'collapse',fontSize:'13px'}}>
+
+      {/* CA par provenance */}
+      {isDir&&caByProv.length>0&&(
+        <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px',marginBottom:'16px'}}>
+          <div style={{fontSize:'13px',fontWeight:600,marginBottom:'14px'}}>CA par provenance</div>
+          {caByProv.map(function(e){return(
+            <div key={e[0]} style={{marginBottom:'10px'}}>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:'12px',marginBottom:'3px'}}>
+                <span style={{color:'#555'}}>{e[0]}</span><span style={{fontWeight:600}}>{feur0(e[1])}</span>
+              </div>
+              <div style={{height:'6px',background:'#f3f4f6',borderRadius:'3px'}}>
+                <div style={{height:'100%',width:(e[1]/maxProv*100)+'%',background:'#6366f1',borderRadius:'3px'}}/>
+              </div>
+            </div>
+          );})}
+        </div>
+      )}
+
+      {/* Classement conseillers */}
+      {isDir&&rankData.length>0&&(
+        <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px'}}>
+          <div style={{fontSize:'13px',fontWeight:600,marginBottom:'14px'}}>Classement conseillers</div>
+          <table style={{width:'100%',borderCollapse:'collapse',fontSize:'13px'}}>
             <thead><tr style={{borderBottom:'1px solid #f3f4f6'}}>
               <th style={{padding:'8px 10px',textAlign:'left',fontSize:'11px',color:'#888',fontWeight:600,textTransform:'uppercase'}}>#</th>
               <th style={{padding:'8px 10px',textAlign:'left',fontSize:'11px',color:'#888',fontWeight:600,textTransform:'uppercase'}}>Conseiller</th>
@@ -860,11 +946,24 @@ function TableauBord({contracts,profiles}){
               })}
             </tbody>
           </table>
-        }
-      </div>
+        </div>
+      )}
+
+      {/* Vue conseiller : ses propres chiffres */}
+      {!isDir&&(
+        <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px'}}>
+          <div style={{fontSize:'13px',fontWeight:600,marginBottom:'14px'}}>Mes ventes</div>
+          <div style={{display:'flex',gap:'12px',flexWrap:'wrap'}}>
+            <KPI label="Mon CA" value={feur0(ca)} evo={evoCa}/>
+            <KPI label="Mes contrats" value={nb} evo={evoNb}/>
+            <KPI label="Mon panier moyen" value={nb>0?feur0(Math.round(ca/nb)):'—'} evo={null}/>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
 
 /* ══ FORMULAIRE ══ */
 function FormContrat({sb,profile,profiles,onSaved}){
