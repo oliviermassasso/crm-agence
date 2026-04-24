@@ -987,49 +987,52 @@ function TableauBord({contracts,profiles,profile}){
         </div>
       )}
 
-      {/* Classement conseillers */}
-      {isDir&&rankData.length>0&&(
-        <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px'}}>
-          <div style={{fontSize:'13px',fontWeight:600,marginBottom:'14px'}}>Classement conseillers</div>
-          <table style={{width:'100%',borderCollapse:'collapse',fontSize:'13px'}}>
-            <thead><tr style={{borderBottom:'1px solid #f3f4f6'}}>
-              <th style={{padding:'8px 10px',textAlign:'left',fontSize:'11px',color:'#888',fontWeight:600,textTransform:'uppercase'}}>#</th>
-              <th style={{padding:'8px 10px',textAlign:'left',fontSize:'11px',color:'#888',fontWeight:600,textTransform:'uppercase'}}>Conseiller</th>
-              <th style={{padding:'8px 10px',textAlign:'right',fontSize:'11px',color:'#888',fontWeight:600,textTransform:'uppercase'}}>CA</th>
-              <th style={{padding:'8px 10px',textAlign:'right',fontSize:'11px',color:'#888',fontWeight:600,textTransform:'uppercase'}}>vs N-1</th>
-              <th style={{padding:'8px 10px',textAlign:'right',fontSize:'11px',color:'#888',fontWeight:600,textTransform:'uppercase'}}>Contrats</th>
-              <th style={{padding:'8px 10px',textAlign:'right',fontSize:'11px',color:'#888',fontWeight:600,textTransform:'uppercase'}}>vs N-1</th>
-            </tr></thead>
-            <tbody>
-              {rankData.map(function(r,i){
-                const eCA=r.caPrev>0?((r.ca-r.caPrev)/r.caPrev*100):null;
-                const eNB=r.nbPrev>0?((r.nb-r.nbPrev)/r.nbPrev*100):null;
-                const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':(i+1)+'';
-                return <tr key={r.id} style={{borderBottom:'1px solid #f9fafb'}}>
-                  <td style={{padding:'9px 10px',color:'#999',fontSize:'12px'}}>{medal}</td>
-                  <td style={{padding:'9px 10px',fontWeight:500}}>{r.name}</td>
-                  <td style={{padding:'9px 10px',textAlign:'right',fontWeight:600}}>{feur0(r.ca)}</td>
-                  <td style={{padding:'9px 10px',textAlign:'right'}}>{eCA===null?<span style={{color:'#aaa'}}>—</span>:<span style={{color:eCA>=0?'#059669':'#dc2626',fontWeight:600,fontSize:'12px'}}>{eCA>=0?'▲ ':'▼ '}{Math.abs(eCA).toFixed(1)}%</span>}</td>
-                  <td style={{padding:'9px 10px',textAlign:'right'}}>{r.nb}</td>
-                  <td style={{padding:'9px 10px',textAlign:'right'}}>{eNB===null?<span style={{color:'#aaa'}}>—</span>:<span style={{color:eNB>=0?'#059669':'#dc2626',fontWeight:600,fontSize:'12px'}}>{eNB>=0?'▲ ':'▼ '}{Math.abs(eNB).toFixed(1)}%</span>}</td>
-                </tr>;
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {/* Classement conseillers — visible par tous */}
 
-      {/* Vue conseiller : ses propres chiffres */}
-      {!isDir&&(
-        <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px'}}>
-          <div style={{fontSize:'13px',fontWeight:600,marginBottom:'14px'}}>Mes ventes</div>
-          <div style={{display:'flex',gap:'12px',flexWrap:'wrap'}}>
-            <KPI label="Mon CA" value={feur0(ca)} evo={evoCa}/>
-            <KPI label="Mes contrats" value={nb} evo={evoNb}/>
-            <KPI label="Mon panier moyen" value={nb>0?feur0(Math.round(ca/nb)):'—'} evo={null}/>
+      {/* Classement conseillers — visible par tous */}
+      {(()=>{
+        const allConseillers=profiles.filter(function(p){return p.role==='conseiller'||p.role==='manager';});
+        const allActive2=contracts.filter(function(c){return c.status!=='ANNULE';});
+        const rankAll=allConseillers.map(function(p){
+          const mine=allActive2.filter(function(c){return c.conseiller_id===p.id&&inPeriod(c,year,month)&&!isComplementaire(c);});
+          const prevMine=allActive2.filter(function(c){return c.conseiller_id===p.id&&inPeriod(c,prevY,prevM)&&!isComplementaire(c);});
+          return {id:p.id,name:p.full_name,ca:sumCA(mine),nb:mine.length,caPrev:sumCA(prevMine),nbPrev:prevMine.length};
+        }).filter(function(r){return r.ca>0||r.nb>0;}).sort(function(a,b){return b.ca-a.ca;});
+        if(rankAll.length===0) return null;
+        return(
+          <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px',marginBottom:'16px'}}>
+            <div style={{fontSize:'13px',fontWeight:600,marginBottom:'14px'}}>Classement conseillers</div>
+            <table style={{width:'100%',borderCollapse:'collapse',fontSize:'13px'}}>
+              <thead><tr style={{borderBottom:'1px solid #f3f4f6'}}>
+                <th style={{padding:'8px 10px',textAlign:'left',fontSize:'11px',color:'#888',fontWeight:600,textTransform:'uppercase'}}>#</th>
+                <th style={{padding:'8px 10px',textAlign:'left',fontSize:'11px',color:'#888',fontWeight:600,textTransform:'uppercase'}}>Conseiller</th>
+                <th style={{padding:'8px 10px',textAlign:'right',fontSize:'11px',color:'#888',fontWeight:600,textTransform:'uppercase'}}>CA</th>
+                <th style={{padding:'8px 10px',textAlign:'right',fontSize:'11px',color:'#888',fontWeight:600,textTransform:'uppercase'}}>vs N-1</th>
+                <th style={{padding:'8px 10px',textAlign:'right',fontSize:'11px',color:'#888',fontWeight:600,textTransform:'uppercase'}}>Contrats</th>
+                <th style={{padding:'8px 10px',textAlign:'right',fontSize:'11px',color:'#888',fontWeight:600,textTransform:'uppercase'}}>vs N-1</th>
+              </tr></thead>
+              <tbody>
+                {rankAll.map(function(r,i){
+                  const eCA=r.caPrev>0?((r.ca-r.caPrev)/r.caPrev*100):null;
+                  const eNB=r.nbPrev>0?((r.nb-r.nbPrev)/r.nbPrev*100):null;
+                  const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':(i+1)+'';
+                  const isMe=r.id===profile.id;
+                  return <tr key={r.id} style={{borderBottom:'1px solid #f9fafb',background:isMe?'#eff6ff':'',fontWeight:isMe?600:400}}>
+                    <td style={{padding:'9px 10px',color:'#999',fontSize:'12px'}}>{medal}</td>
+                    <td style={{padding:'9px 10px'}}>
+                      {r.name}{isMe&&<span style={{marginLeft:'6px',fontSize:'10.5px',color:'#1d4ed8',background:'#dbeafe',padding:'1px 6px',borderRadius:'100px'}}>moi</span>}
+                    </td>
+                    <td style={{padding:'9px 10px',textAlign:'right'}}>{feur0(r.ca)}</td>
+                    <td style={{padding:'9px 10px',textAlign:'right'}}>{eCA===null?<span style={{color:'#aaa'}}>—</span>:<span style={{color:eCA>=0?'#059669':'#dc2626',fontWeight:600,fontSize:'12px'}}>{eCA>=0?'▲ ':'▼ '}{Math.abs(eCA).toFixed(1)}%</span>}</td>
+                    <td style={{padding:'9px 10px',textAlign:'right'}}>{r.nb}</td>
+                    <td style={{padding:'9px 10px',textAlign:'right'}}>{eNB===null?<span style={{color:'#aaa'}}>—</span>:<span style={{color:eNB>=0?'#059669':'#dc2626',fontWeight:600,fontSize:'12px'}}>{eNB>=0?'▲ ':'▼ '}{Math.abs(eNB).toFixed(1)}%</span>}</td>
+                  </tr>;
+                })}
+              </tbody>
+            </table>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
