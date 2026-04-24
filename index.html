@@ -1058,6 +1058,7 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
   const [monoType,setMonoType]=useState(contract.mono_type||'');
   const [annReq,setAnnReq]=useState(contract.annulation_requested||false);
   const [isAnnule,setIsAnnule]=useState(contract.status==='ANNULE');
+  const [codePortefeuille,setCodePortefeuille]=useState(contract.code_portefeuille||'');
   const isPaye=contract.status==='PAYE';
   const [payInfo,setPayInfo]=useState(null);
 
@@ -1212,7 +1213,11 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'9px 0',fontSize:'13.5px'}}>
                   <span style={{color:'#666'}}>Code portefeuille</span>
                   {canDir
-                    ? <select value={contract.code_portefeuille||''} onChange={function(e){sb.from('contracts').update({code_portefeuille:e.target.value||null}).eq('id',contract.id).then(function(){onRefresh();});}} style={{width:'auto',padding:'4px 8px',fontSize:'13px'}}>
+                    ? <select value={codePortefeuille} onChange={function(e){
+                        const val=e.target.value;
+                        setCodePortefeuille(val);
+                        sb.from('contracts').update({code_portefeuille:val||null}).eq('id',contract.id).then(function(){onRefresh();});
+                      }} style={{width:'auto',padding:'4px 8px',fontSize:'13px'}}>
                         <option value="">— Non défini —</option>
                         <option value="6025344">6025344 · Le Cannet</option>
                         <option value="6251044">6251044 · St Maximin</option>
