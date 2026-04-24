@@ -378,6 +378,21 @@ function App(){
       if(page.length<pageSize) break;
       from+=pageSize;
     }
+    // Pour le classement : charger les données légères de tous les conseillers
+    if(p.role==='conseiller'){
+      let rankContracts=[];
+      let rf=0;
+      while(true){
+        const rc=await cl.from('contracts').select('id,conseiller_id,emission_date,annual_premium,contract_type,status').order('emission_date',{ascending:true}).range(rf,rf+pageSize-1);
+        const rpage=rc.data||[];
+        rankContracts=rankContracts.concat(rpage);
+        if(rpage.length<pageSize) break;
+        rf+=pageSize;
+      }
+      // Fusionner : garder les données complètes du conseiller + données légères des autres
+      const otherContracts=rankContracts.filter(function(c){return c.conseiller_id!==p.id;});
+      allContracts=allContracts.concat(otherContracts);
+    }
     setContracts(allContracts);
     if(selectedId){
       const updated=allContracts.find(function(c){return c.id===selectedId;});
