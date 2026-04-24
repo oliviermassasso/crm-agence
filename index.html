@@ -1359,7 +1359,7 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
   const canDir=profile.role==='direction';
   const isLocked=isPaye; // Tout gelé quand PAYE
   const canPieces=!isLocked&&['manager','direction'].includes(profile.role);
-  const canDirEdit=!isLocked&&canDir; // Direction ne peut modifier que si non gelé
+  const canDirEdit=canDir; // Direction peut toujours ouvrir le mode édition
   const isCollab=profile.role==='conseiller';
   const loadMsgs=useCallback(async function(){const res=await sb.from('contract_messages').select('*').eq('contract_id',contract.id).order('created_at',{ascending:true});setMessages(res.data||[]);},[sb,contract.id]);
   useEffect(function(){loadMsgs();},[loadMsgs]);
@@ -1388,19 +1388,23 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
     setSaving(true);setSaveErr('');
     const rawCom=String(editF.commission).trim();
     const newCom=rawCom===''?0:(isNaN(parseFloat(rawCom))?0:parseFloat(rawCom));
-    const res=await sb.from('contracts').update({
+    const updateData={
       client_name:toUpper(editF.client_name),
       emission_date:editF.emission_date,
       effect_date:editF.effect_date,
       provenance:editF.provenance,
-      annual_premium:parseFloat(editF.annual_premium)||0,
-      commission:newCom,
-      manual_commission:newCom,
       conseiller_id:editF.conseiller_id,
       contract_type:editF.contract_type,
       contract_number:editF.contract_number,
       code_portefeuille:editF.code_portefeuille||null,
-    }).eq('id',contract.id);
+    };
+    // Champs financiers : seulement si non gelé
+    if(!isLocked){
+      updateData.annual_premium=parseFloat(editF.annual_premium)||0;
+      updateData.commission=newCom;
+      updateData.manual_commission=newCom;
+    }
+    const res=await sb.from('contracts').update(updateData).eq('id',contract.id);
     if(res.error){setSaveErr('Erreur : '+res.error.message);setSaving(false);return;}
     setEditing(false);onRefresh();setSaving(false);
   }
@@ -1484,8 +1488,8 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
                 <div className="fg"><label>Provenance</label><select value={editF.provenance} onChange={function(e){eu('provenance',e.target.value);}}>{PROVS.map(function(p){return <option key={p} value={p}>{p}</option>;})}</select></div>
                 <div className="fg"><label>Code portefeuille</label><select value={editF.code_portefeuille} onChange={function(e){eu('code_portefeuille',e.target.value);}}><option value="">— Sélectionner —</option><option value="6025344">6025344 · Le Cannet</option><option value="6251044">6251044 · St Maximin</option><option value="6252044">6252044 · Lyon</option></select></div>
                 <div className="fg2">
-                  <div className="fg"><label>Prime annuelle (€)</label><input type="number" value={editF.annual_premium} onChange={function(e){eu('annual_premium',e.target.value);}}/></div>
-                  <div className="fg"><label>Commission (€)</label><input type="number" value={editF.commission} onChange={function(e){eu('commission',e.target.value);}}/></div>
+                  <div className="fg"><label>Prime annuelle (€){isLocked&&<span style={{color:'#aaa',fontSize:'11px',marginLeft:'6px'}}>— verrouillé</span>}</label><input type="number" value={editF.annual_premium} disabled={isLocked} onChange={function(e){eu('annual_premium',e.target.value);}} style={{background:isLocked?'#f9fafb':'',color:isLocked?'#aaa':''}}/></div>
+                  <div className="fg"><label>Commission (€){isLocked&&<span style={{color:'#aaa',fontSize:'11px',marginLeft:'6px'}}>— verrouillé</span>}</label><input type="number" value={editF.commission} disabled={isLocked} onChange={function(e){eu('commission',e.target.value);}} style={{background:isLocked?'#f9fafb':'',color:isLocked?'#aaa':''}}/></div>
                 </div>
                 <div style={{display:'flex',gap:'8px',justifyContent:'flex-end'}}>
                   {saveErr&&<div style={{color:'#b91c1c',fontSize:'12px',alignSelf:'center'}}>{saveErr}</div>}
