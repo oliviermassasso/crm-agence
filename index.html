@@ -1072,11 +1072,6 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
   const [editing,setEditing]=useState(false);
   const [editF,setEditF]=useState({client_name:contract.client_name,emission_date:contract.emission_date,effect_date:contract.effect_date,provenance:contract.provenance||'',annual_premium:contract.annual_premium||0,commission:calcBaseCommission(contract),conseiller_id:contract.conseiller_id,contract_type:contract.contract_type,contract_number:contract.contract_number,code_portefeuille:contract.code_portefeuille||''});
   const [saveErr,setSaveErr]=useState('');
-
-  // Mettre à jour editF quand contract change (après refresh)
-  useEffect(function(){
-    if(!editing) setEditF({client_name:contract.client_name,emission_date:contract.emission_date,effect_date:contract.effect_date,provenance:contract.provenance||'',annual_premium:contract.annual_premium||0,commission:calcBaseCommission(contract),conseiller_id:contract.conseiller_id,contract_type:contract.contract_type,contract_number:contract.contract_number,code_portefeuille:contract.code_portefeuille||''});
-  },[contract]);
   const [messages,setMessages]=useState([]);
   const [newMsg,setNewMsg]=useState('');
   const [saving,setSaving]=useState(false);
@@ -1172,7 +1167,10 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
             </div>
           </div>
           <div style={{display:'flex',gap:'6px'}}>
-            {canDir&&!editing&&<button onClick={function(){setEditing(true);}} style={{fontSize:'12px',padding:'5px 10px'}}>✏️ Modifier</button>}
+            {canDir&&!editing&&<button onClick={function(){
+              setEditF({client_name:contract.client_name,emission_date:contract.emission_date,effect_date:contract.effect_date,provenance:contract.provenance||'',annual_premium:contract.annual_premium||0,commission:calcBaseCommission(contract),conseiller_id:contract.conseiller_id,contract_type:contract.contract_type,contract_number:contract.contract_number,code_portefeuille:contract.code_portefeuille||''});
+              setEditing(true);
+            }} style={{fontSize:'12px',padding:'5px 10px'}}>✏️ Modifier</button>}
             <button onClick={onClose} style={{padding:'6px 10px',fontSize:'13px'}}>✕</button>
           </div>
         </div>
@@ -1214,7 +1212,7 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'9px 0',fontSize:'13.5px'}}>
                   <span style={{color:'#666'}}>Code portefeuille</span>
                   {canDir
-                    ? <select value={editF.code_portefeuille} onChange={function(e){eu('code_portefeuille',e.target.value);sb.from('contracts').update({code_portefeuille:e.target.value||null}).eq('id',contract.id).then(function(){});}} style={{width:'auto',padding:'4px 8px',fontSize:'13px'}}>
+                    ? <select value={contract.code_portefeuille||''} onChange={function(e){sb.from('contracts').update({code_portefeuille:e.target.value||null}).eq('id',contract.id).then(function(){onRefresh();});}} style={{width:'auto',padding:'4px 8px',fontSize:'13px'}}>
                         <option value="">— Non défini —</option>
                         <option value="6025344">6025344 · Le Cannet</option>
                         <option value="6251044">6251044 · St Maximin</option>
