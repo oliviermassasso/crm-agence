@@ -993,7 +993,6 @@ function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,sort,setSort
       if(excl!=='stat'&&fStat.length>0&&!fStat.includes(c.status))return false;
       if(excl!=='doss'&&fDoss.length>0){const ds=docStatus(c.document_tracking);if(!fDoss.includes(ds.l))return false;}
       if(excl!=='pay'&&fPay.length>0&&!fPay.includes((c.document_tracking&&c.document_tracking.payment_status)||'non_paye'))return false;
-      if(search&&!c.client_name.toLowerCase().includes(search.toLowerCase())&&!(c.contract_number||'').includes(search))return false;
       return true;
     });
   }
@@ -1007,7 +1006,17 @@ function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,sort,setSort
   const availDoss=[...new Set(applyFilters(contracts,'doss').map(function(c){return docStatus(c.document_tracking).l;}).filter(Boolean))].sort();
   const availPay=[...new Set(applyFilters(contracts,'pay').map(function(c){return (c.document_tracking&&c.document_tracking.payment_status)||'non_paye';}).filter(Boolean))].sort();
 
+  // Recherche indépendante : cherche dans tous les contrats sans tenir compte des filtres
+  const searchMatches=search
+    ? new Set(contracts.filter(function(c){
+        const q=search.toLowerCase();
+        return c.client_name.toLowerCase().includes(q)||(c.contract_number||'').toLowerCase().includes(q);
+      }).map(function(c){return c.id;}))
+    : null;
+
   const list=contracts.filter(function(c){
+    // Si recherche active : inclure si match, ignorer les autres filtres
+    if(searchMatches) return searchMatches.has(c.id);
     if(fCons.length>0&&!fCons.includes(c.conseiller_id))return false;
     if(fYear.length>0&&(!c.emission_date||!fYear.includes(String(new Date(c.emission_date).getFullYear()))))return false;
     if(fMonth.length>0&&(!c.emission_date||!fMonth.includes(String(new Date(c.emission_date).getMonth()+1))))return false;
@@ -1016,7 +1025,6 @@ function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,sort,setSort
     if(fStat.length>0&&!fStat.includes(c.status))return false;
     if(fDoss.length>0){const ds=docStatus(c.document_tracking);if(!fDoss.includes(ds.l))return false;}
     if(fPay.length>0&&!fPay.includes((c.document_tracking&&c.document_tracking.payment_status)||'non_paye'))return false;
-    if(search&&!c.client_name.toLowerCase().includes(search.toLowerCase())&&!(c.contract_number||'').includes(search))return false;
     return true;
   }).sort(function(a,b){
     let va=a[sort.col],vb=b[sort.col];
