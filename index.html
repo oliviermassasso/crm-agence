@@ -1234,7 +1234,7 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
         <div style={{flex:1,overflowY:'auto',padding:'20px'}}>
           {isLocked&&(
             <div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:'8px',padding:'10px 14px',marginBottom:'16px',display:'flex',alignItems:'center',gap:'8px',fontSize:'13px',color:'#065f46'}}>
-              🔒 Dossier verrouillé — commission validée {payInfo&&payInfo.bs_month?'· BS '+payInfo.bs_month:''}. {canDir?'Cliquez "Déverrouiller" pour modifier.':'Modification impossible.'}
+              🔒 Dossier verrouillé — commission validée {payInfo&&payInfo.bs_month?'· BS '+payInfo.bs_month:''}. Modification impossible.
             </div>
           )}
           <div style={{marginBottom:'20px'}}>
