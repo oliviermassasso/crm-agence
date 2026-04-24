@@ -1213,17 +1213,8 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'9px 0',fontSize:'13.5px'}}>
                   <span style={{color:'#666'}}>Code portefeuille</span>
                   {canDir
-                    ? <select value={codePortefeuille} onChange={function(e){
-                        const val=e.target.value;
-                        setCodePortefeuille(val);
-                        sb.from('contracts').update({code_portefeuille:val||null}).eq('id',contract.id).then(function(){onRefresh();});
-                      }} style={{width:'auto',padding:'4px 8px',fontSize:'13px'}}>
-                        <option value="">— Non défini —</option>
-                        <option value="6025344">6025344 · Le Cannet</option>
-                        <option value="6251044">6251044 · St Maximin</option>
-                        <option value="6252044">6252044 · Lyon</option>
-                      </select>
-                    : <span style={{fontWeight:500}}>{contract.code_portefeuille||'—'}</span>
+                  ? <span style={{fontWeight:500}}>{codePortefeuille?({'6025344':'6025344 · Le Cannet','6251044':'6251044 · St Maximin','6252044':'6252044 · Lyon'}[codePortefeuille]||codePortefeuille):'—'}</span>
+                  : <span style={{fontWeight:500}}>{contract.code_portefeuille||'—'}</span>
                   }
                 </div>
               </div>
