@@ -1105,10 +1105,13 @@ function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,sort,setSort
               <td style={{color:mutedColor,fontSize:'12.5px'}}>{c.conseiller&&c.conseiller.full_name?c.conseiller.full_name:'—'}</td>
               <td style={{fontWeight:500,color:textColor}}><div style={{display:'flex',alignItems:'center',gap:'6px'}}>{c.client_name}{hasUnread&&<span className="env-anim" title="Nouveau message" style={{fontSize:'13px',color:'#f59e0b'}}>✉</span>}</div></td>
               <td style={{color:mutedColor,fontFamily:'monospace',fontSize:'11.5px'}}>
-                {isDup
-                  ? <span style={{background:'#fef9c3',color:'#92400e',border:'1px solid #fde68a',borderRadius:'4px',padding:'1px 5px',fontWeight:600}} title="N° en doublon">⚠ {c.contract_number}</span>
-                  : c.contract_number
-                }
+                <div style={{display:'flex',alignItems:'center',gap:'5px'}}>
+                  {isDup
+                    ? <span style={{background:'#fef9c3',color:'#92400e',border:'1px solid #fde68a',borderRadius:'4px',padding:'1px 5px',fontWeight:600}} title="N° en doublon">⚠ {c.contract_number}</span>
+                    : c.contract_number
+                  }
+                  {c.contract_number&&<CopyBtn text={c.contract_number}/>}
+                </div>
               </td>
               <td style={{color:mutedColor,whiteSpace:'nowrap'}}>{fdate(c.emission_date)}</td>
               <td style={{color:mutedColor,whiteSpace:'nowrap'}}>{fdate(c.effect_date)}</td>
