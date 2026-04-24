@@ -600,13 +600,18 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh}){
           return false;
         });
 
-        // Filtre recherche
-        const filteredContracts=comSearch
-          ? displayContracts.filter(function(c){
+        // Filtre recherche : indépendant du mois/année — cherche dans tous les contrats éligibles du conseiller
+        const searchContracts=comSearch
+          ? contracts.filter(function(c){
+              if(c.conseiller_id!==p.id) return false;
+              if(c.status==='ANNULE') return false;
+              const dt2=c.document_tracking||{};
+              if(!dt2.eligible_since) return false;
               const q=comSearch.toLowerCase();
               return c.client_name.toLowerCase().includes(q)||(c.contract_number||'').toLowerCase().includes(q);
             })
           : displayContracts;
+        const filteredContracts=comSearch?searchContracts:displayContracts;
 
         // N'afficher que les conseillers avec au moins une ligne client
         if(filteredContracts.length===0) return null;
