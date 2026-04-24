@@ -125,8 +125,11 @@ const TYPE_SANTE_TNS=['Ma Santé TNS & Retraités'];
 function calcBaseCommission(contract) {
   // Annulé = commission 0 dans tous les cas
   if(contract.status==='ANNULE') return 0;
-  // Commission manuelle = prioritaire (y compris 0€ explicite)
-  if(contract.manual_commission!==null&&contract.manual_commission!==undefined) return parseFloat(contract.manual_commission)||0;
+  // Commission manuelle = prioritaire (0€ explicite inclus)
+  if(contract.manual_commission!==null&&contract.manual_commission!==undefined){
+    const v=parseFloat(contract.manual_commission);
+    return isNaN(v)?0:v;
+  }
   const g=GRILLE_2026[contract.contract_type];
   if(!g) return 0;
   const mt=contract.mono_type||'';
@@ -1068,6 +1071,12 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
   },[isPaye,contract.id,sb]);
   const [editing,setEditing]=useState(false);
   const [editF,setEditF]=useState({client_name:contract.client_name,emission_date:contract.emission_date,effect_date:contract.effect_date,provenance:contract.provenance||'',annual_premium:contract.annual_premium||0,commission:calcBaseCommission(contract),conseiller_id:contract.conseiller_id,contract_type:contract.contract_type,contract_number:contract.contract_number,code_portefeuille:contract.code_portefeuille||''});
+  const [saveErr,setSaveErr]=useState('');
+
+  // Mettre à jour editF quand contract change (après refresh)
+  useEffect(function(){
+    if(!editing) setEditF({client_name:contract.client_name,emission_date:contract.emission_date,effect_date:contract.effect_date,provenance:contract.provenance||'',annual_premium:contract.annual_premium||0,commission:calcBaseCommission(contract),conseiller_id:contract.conseiller_id,contract_type:contract.contract_type,contract_number:contract.contract_number,code_portefeuille:contract.code_portefeuille||''});
+  },[contract]);
   const [messages,setMessages]=useState([]);
   const [newMsg,setNewMsg]=useState('');
   const [saving,setSaving]=useState(false);
@@ -1092,10 +1101,10 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
     setDt(newDt);onRefresh();setSaving(false);
   }
   async function saveEdit(){
-    setSaving(true);
-    const newCom=parseFloat(editF.commission)||0;
-    // Toujours sauvegarder comme manuel si direction modifie
-    await sb.from('contracts').update({
+    setSaving(true);setSaveErr('');
+    const rawCom=String(editF.commission).trim();
+    const newCom=rawCom===''?0:(isNaN(parseFloat(rawCom))?0:parseFloat(rawCom));
+    const res=await sb.from('contracts').update({
       client_name:toUpper(editF.client_name),
       emission_date:editF.emission_date,
       effect_date:editF.effect_date,
@@ -1108,15 +1117,21 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
       contract_number:editF.contract_number,
       code_portefeuille:editF.code_portefeuille||null,
     }).eq('id',contract.id);
+    if(res.error){setSaveErr('Erreur : '+res.error.message);setSaving(false);return;}
     setEditing(false);onRefresh();setSaving(false);
   }
   async function saveMonoType(val){
     setMonoType(val);
-    // Recalcul immédiat de la commission selon nouveau mono_type
-    const fakeC=Object.assign({},contract,{mono_type:val||null});
-    const newCom=calcBaseCommission(fakeC);
-    // Si pas de commission manuelle (manual_commission null), on recalcule
-    await sb.from('contracts').update({mono_type:val||null,commission:newCom}).eq('id',contract.id);
+    // Si commission manuelle existante → on la garde, on recalcule seulement si pas de manuel
+    const hasManual=contract.manual_commission!==null&&contract.manual_commission!==undefined;
+    if(hasManual){
+      // Juste mettre à jour le type mono, pas la commission
+      await sb.from('contracts').update({mono_type:val||null}).eq('id',contract.id);
+    } else {
+      const fakeC=Object.assign({},contract,{mono_type:val||null,manual_commission:null});
+      const newCom=calcBaseCommission(fakeC);
+      await sb.from('contracts').update({mono_type:val||null,commission:newCom}).eq('id',contract.id);
+    }
     onRefresh();
   }
   async function toggleAnnReq(){const v=!annReq;setAnnReq(v);await sb.from('contracts').update({annulation_requested:v}).eq('id',contract.id);onRefresh();}
@@ -1181,7 +1196,8 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
                   <div className="fg"><label>Commission (€)</label><input type="number" value={editF.commission} onChange={function(e){eu('commission',e.target.value);}}/></div>
                 </div>
                 <div style={{display:'flex',gap:'8px',justifyContent:'flex-end'}}>
-                  <button onClick={function(){setEditing(false);}}>Annuler</button>
+                  {saveErr&&<div style={{color:'#b91c1c',fontSize:'12px',alignSelf:'center'}}>{saveErr}</div>}
+                  <button onClick={function(){setEditing(false);setSaveErr('');setEditF({client_name:contract.client_name,emission_date:contract.emission_date,effect_date:contract.effect_date,provenance:contract.provenance||'',annual_premium:contract.annual_premium||0,commission:calcBaseCommission(contract),conseiller_id:contract.conseiller_id,contract_type:contract.contract_type,contract_number:contract.contract_number,code_portefeuille:contract.code_portefeuille||''});}}>Annuler</button>
                   <button className="bp" onClick={saveEdit} disabled={saving}>Enregistrer</button>
                 </div>
               </div>
