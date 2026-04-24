@@ -455,7 +455,7 @@ function App(){
       </div>
       <div style={{flex:1,overflow:'auto',background:'#f9fafb'}}>
         {active==='saisir-contrat'&&<FormContrat sb={sb} profile={profile} profiles={profiles} onSaved={function(){refresh();setActive(profile.role==='conseiller'?'mes-dossiers':'suivi-dossiers');}}/>}
-        {(active==='suivi-dossiers'||active==='mes-dossiers')&&<SuiviDossiers contracts={contracts} profile={profile} profiles={profiles} reads={reads} lastMsgMap={lastMsgMap} sort={sort} setSort={setSortP} fCons={fCons} setFCons={setFConsP} fYear={fYear} setFYear={setFYearP} fMonth={fMonth} setFMonth={setFMonthP} fType={fType} setFType={setFTypeP} fStat={fStat} setFStat={setFStatP} fDoss={fDoss} setFDoss={setFDossP} fPay={fPay} setFPay={setFPayP} fDup={fDup} setFDup={setFDupP} search={search} setSearch={setSearch} onSelect={function(c){setSelected(c);markRead(c.id);}} onNew={function(){setActive('saisir-contrat');}}/>}
+        {(active==='suivi-dossiers'||active==='mes-dossiers')&&<SuiviDossiers contracts={contracts} profile={profile} profiles={profiles} reads={reads} lastMsgMap={lastMsgMap} sort={sort} setSort={setSortP} fCons={fCons} setFCons={setFConsP} fYear={fYear} setFYear={setFYearP} fMonth={fMonth} setFMonth={setFMonthP} fType={fType} setFType={setFTypeP} fStat={fStat} setFStat={setFStatP} fDoss={fDoss} setFDoss={setFDossP} fPay={fPay} setFPay={setFPayP} fDup={fDup} setFDup={setFDupP} search={search} setSearch={setSearch} selectedId={selected&&selected.id} onSelect={function(c){setSelected(c);markRead(c.id);}} onNew={function(){setActive('saisir-contrat');}}/>}
         {active==='tableau-bord'&&<TableauBord contracts={contracts} profiles={profiles}/>}
         {(active==='commissions'||active==='mes-commissions')&&<Commissions contracts={contracts} profiles={profiles} profile={profile} sb={sb} onSelect={function(c){setSelected(c);markRead(c.id);}} onRefresh={refresh} year={comYear} setYear={setComYearP} month={comMonth} setMonth={setComMonthP} selCons={comSelCons} setSelCons={setComSelConsP} comSearch={comSearch} setComSearch={setComSearch}/>}
         {!['saisir-contrat','suivi-dossiers','mes-dossiers','tableau-bord','commissions','mes-commissions'].includes(active)&&<Placeholder nav={nav} active={active}/>}
@@ -985,7 +985,7 @@ function MultiSelect({label,options,value,onChange,width}){
 }
 
 
-function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,sort,setSort,fCons,setFCons,fYear,setFYear,fMonth,setFMonth,fType,setFType,fStat,setFStat,fDoss,setFDoss,fPay,setFPay,fDup,setFDup,search,setSearch,onSelect,onNew}){
+function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,sort,setSort,fCons,setFCons,fYear,setFYear,fMonth,setFMonth,fType,setFType,fStat,setFStat,fDoss,setFDoss,fPay,setFPay,fDup,setFDup,search,setSearch,selectedId,onSelect,onNew}){
   function sortBy(col){setSort(function(s){return s.col===col?{col:col,asc:!s.asc}:{col:col,asc:true};});}
 
   // Détecter les doublons AVANT le filtre
@@ -1101,7 +1101,8 @@ function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,sort,setSort
             const isDup=c.contract_number&&dupNums.has(normNum(c.contract_number));
             const textColor=annOk?'#334155':annReq?'#334155':'#333';
             const mutedColor=annOk?'#64748b':annReq?'#64748b':c.status==='PAYE'?'#166534':'#666';
-            return <tr key={c.id} onClick={function(){onSelect(c);}} style={{cursor:'pointer',background:rowBg,color:textColor}}>
+            const isSelected=selectedId===c.id;
+            return <tr key={c.id} onClick={function(){onSelect(c);}} style={{cursor:'pointer',background:isSelected?'#eff6ff':rowBg,color:textColor,boxShadow:isSelected?'inset 3px 0 0 #1d4ed8':''}}>
               <td style={{color:mutedColor,fontSize:'12.5px'}}>{c.conseiller&&c.conseiller.full_name?c.conseiller.full_name:'—'}</td>
               <td style={{fontWeight:500,color:textColor}}><div style={{display:'flex',alignItems:'center',gap:'6px'}}>{c.client_name}{hasUnread&&<span className="env-anim" title="Nouveau message" style={{fontSize:'13px',color:'#f59e0b'}}>✉</span>}</div></td>
               <td style={{color:mutedColor,fontFamily:'monospace',fontSize:'11.5px'}}>
