@@ -883,7 +883,7 @@ function FormContrat({sb,profile,profiles,onSaved}){
             <label style={{display:'flex',alignItems:'center',gap:'6px'}}>N° contrat *
               <div className="tip-wrap"><span style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:'15px',height:'15px',borderRadius:'50%',background:'#e5e7eb',color:'#555',fontSize:'10px',fontWeight:700,cursor:'help',flexShrink:0}}>?</span><span className="tip">Sans n° de contrat, indiquez la nature : "Courtage", "Banque", etc.</span></div>
             </label>
-            <input value={f.contract_number} onChange={function(e){u('contract_number',e.target.value);}} placeholder="N° ou ex: Courtage, Banque…"/>
+            <input value={f.contract_number} onChange={function(e){u('contract_number',e.target.value);}} onBlur={function(e){if(isNaN(e.target.value.replace(/\s/g,'')))u('contract_number',e.target.value.toUpperCase());}} placeholder="N° ou ex: Courtage, Banque…"/>
           </div>
         </div>
         <div className="fg2">
@@ -1243,7 +1243,7 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
               <div className="card" style={{padding:'16px'}}>
                 <div className="fg"><label>Conseiller</label><select value={editF.conseiller_id} onChange={function(e){eu('conseiller_id',e.target.value);}}>{profiles.map(function(p){return <option key={p.id} value={p.id}>{p.full_name}</option>;})}</select></div>
                 <div className="fg"><label>Nom / Raison sociale</label><input value={editF.client_name} onChange={function(e){eu('client_name',e.target.value);}} onBlur={function(e){eu('client_name',toUpper(e.target.value));}}/></div>
-                <div className="fg"><label>N° contrat</label><input value={editF.contract_number} onChange={function(e){eu('contract_number',e.target.value);}}/></div>
+                <div className="fg"><label>N° contrat</label><input value={editF.contract_number} onChange={function(e){eu('contract_number',e.target.value);}} onBlur={function(e){if(isNaN(e.target.value.replace(/\s/g,'')))eu('contract_number',e.target.value.toUpperCase());}}/></div>
                 <div className="fg2">
                   <div className="fg"><label>Date émission</label><input type="date" value={editF.emission_date} onChange={function(e){eu('emission_date',e.target.value);}}/></div>
                   <div className="fg"><label>Date d'effet</label><input type="date" value={editF.effect_date} onChange={function(e){eu('effect_date',e.target.value);}}/></div>
