@@ -289,7 +289,7 @@ function App(){
   const [reads,setReads]=useState({});
   const [lastMsgMap,setLastMsgMap]=useState({});
   // Sort et filtres persistants par utilisateur via localStorage
-  function loadPref(uid,key,def){try{const v=localStorage.getItem('crm_'+uid+'_'+key);return v!==null?JSON.parse(v):def;}catch(e){return def;}}
+  function loadPref(uid,key,def){try{if(!uid)return def;const v=localStorage.getItem('crm_'+uid+'_'+key);return v!==null?JSON.parse(v):def;}catch(e){return def;}}
   function savePref(uid,key,val){try{localStorage.setItem('crm_'+uid+'_'+key,JSON.stringify(val));}catch(e){}}
 
   const [sort,setSort]=useState({col:'emission_date',asc:true});
@@ -328,6 +328,22 @@ function App(){
   const setFDossP=mkSetter('fDoss',setFDoss);
   const setFPayP=mkSetter('fPay',setFPay);
   const setFDupP=mkSetter('fDup',setFDup);
+
+  // États commissions persistants
+  const now2=new Date();
+  const [comYear,setComYear]=useState(function(){return loadPref(null,'comYear',now2.getFullYear());});
+  const [comMonth,setComMonth]=useState(function(){return loadPref(null,'comMonth',now2.getMonth()+1);});
+  const [comSelCons,setComSelCons]=useState('');
+  const [comSearch,setComSearch]=useState('');
+  function loadComPrefs(uid){
+    setComYear(loadPref(uid,'comYear',new Date().getFullYear()));
+    setComMonth(loadPref(uid,'comMonth',new Date().getMonth()+1));
+    setComSelCons(loadPref(uid,'comSelCons',''));
+    setComSearch('');
+  }
+  const setComYearP=function(v){setComYear(v);if(profile)savePref(profile.id,'comYear',v);};
+  const setComMonthP=function(v){setComMonth(v);if(profile)savePref(profile.id,'comMonth',v);};
+  const setComSelConsP=function(v){setComSelCons(v);if(profile)savePref(profile.id,'comSelCons',v);};
 
   const [lf,setLf]=useState({email:'',password:''});
   const [le,setLe]=useState('');
@@ -375,6 +391,7 @@ function App(){
       if(!prof.data){setLe('Profil introuvable.');setLl(false);return;}
       setSb(cl);setProfile(prof.data);setActive(NAV[prof.data.role][0].id);
       loadUserPrefs(prof.data.id);
+      loadComPrefs(prof.data.id);
       await load(cl,prof.data);
     }catch(e){setLe('Erreur : '+e.message);}
     setLl(false);
@@ -440,7 +457,7 @@ function App(){
         {active==='saisir-contrat'&&<FormContrat sb={sb} profile={profile} profiles={profiles} onSaved={function(){refresh();setActive(profile.role==='conseiller'?'mes-dossiers':'suivi-dossiers');}}/>}
         {(active==='suivi-dossiers'||active==='mes-dossiers')&&<SuiviDossiers contracts={contracts} profile={profile} profiles={profiles} reads={reads} lastMsgMap={lastMsgMap} sort={sort} setSort={setSortP} fCons={fCons} setFCons={setFConsP} fYear={fYear} setFYear={setFYearP} fMonth={fMonth} setFMonth={setFMonthP} fType={fType} setFType={setFTypeP} fStat={fStat} setFStat={setFStatP} fDoss={fDoss} setFDoss={setFDossP} fPay={fPay} setFPay={setFPayP} fDup={fDup} setFDup={setFDupP} search={search} setSearch={setSearch} onSelect={function(c){setSelected(c);markRead(c.id);}} onNew={function(){setActive('saisir-contrat');}}/>}
         {active==='tableau-bord'&&<TableauBord contracts={contracts} profiles={profiles}/>}
-        {(active==='commissions'||active==='mes-commissions')&&<Commissions contracts={contracts} profiles={profiles} profile={profile} sb={sb} onSelect={function(c){setSelected(c);markRead(c.id);}} onRefresh={refresh}/>}
+        {(active==='commissions'||active==='mes-commissions')&&<Commissions contracts={contracts} profiles={profiles} profile={profile} sb={sb} onSelect={function(c){setSelected(c);markRead(c.id);}} onRefresh={refresh} year={comYear} setYear={setComYearP} month={comMonth} setMonth={setComMonthP} selCons={comSelCons} setSelCons={setComSelConsP} comSearch={comSearch} setComSearch={setComSearch}/>}
         {!['saisir-contrat','suivi-dossiers','mes-dossiers','tableau-bord','commissions','mes-commissions'].includes(active)&&<Placeholder nav={nav} active={active}/>}
       </div>
       {selected&&<DetailPanel key={selected.id} contract={selected} profile={profile} profiles={profiles} sb={sb} onClose={function(){setSelected(null);}} onRefresh={refresh}/>}
@@ -449,12 +466,7 @@ function App(){
 }
 
 /* ══ COMMISSIONS ══ */
-function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh}){
-  const now=new Date();
-  const [year,setYear]=useState(now.getFullYear());
-  const [month,setMonth]=useState(now.getMonth()+1);
-  const [selCons,setSelCons]=useState(profile.role==='conseiller'?profile.id:'');
-  const [comSearch,setComSearch]=useState('');
+function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh,year,setYear,month,setMonth,selCons,setSelCons,comSearch,setComSearch}){
   const [payments,setPayments]=useState({});
   const [saving,setSaving]=useState(false);
   const [checked,setChecked]=useState({});
