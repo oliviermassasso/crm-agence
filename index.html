@@ -550,7 +550,10 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh}){
           <div style={{fontSize:'13px',color:'#666'}}>Grille 2026 · {MONTHS[month-1]} {year}</div>
         </div>
         <div style={{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'center'}}>
-          <input value={comSearch} onChange={function(e){setComSearch(e.target.value);}} placeholder="Client ou n° contrat…" style={{maxWidth:'180px',padding:'6px 10px'}}/>
+          <div style={{position:'relative',maxWidth:'180px',flexShrink:0}}>
+            <input value={comSearch} onChange={function(e){setComSearch(e.target.value);}} placeholder="Client ou n° contrat…" style={{width:'100%',padding:'6px 28px 6px 10px'}}/>
+            {comSearch&&<span onClick={function(){setComSearch('');}} style={{position:'absolute',right:'8px',top:'50%',transform:'translateY(-50%)',cursor:'pointer',color:'#aaa',fontSize:'13px',fontWeight:700,lineHeight:1}}>✕</span>}
+          </div>
           {!isCollab&&(
             <select value={selCons} onChange={function(e){setSelCons(e.target.value);}} style={{width:'auto',padding:'6px 10px'}}>
               <option value="">Tous les conseillers</option>
@@ -1044,7 +1047,10 @@ function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,sort,setSort
         <button className="bp" onClick={onNew}>+ Nouveau contrat</button>
       </div>
       <div style={{display:'flex',gap:'8px',marginBottom:'14px',flexWrap:'wrap',alignItems:'center'}}>
-        <input value={search} onChange={function(e){setSearch(e.target.value);}} placeholder="Client ou n° contrat…" style={{maxWidth:'180px'}}/>
+        <div style={{position:'relative',maxWidth:'180px',flexShrink:0}}>
+          <input value={search} onChange={function(e){setSearch(e.target.value);}} placeholder="Client ou n° contrat…" style={{width:'100%',padding:'9px 28px 9px 12px'}}/>
+          {search&&<span onClick={function(){setSearch('');}} style={{position:'absolute',right:'8px',top:'50%',transform:'translateY(-50%)',cursor:'pointer',color:'#aaa',fontSize:'13px',fontWeight:700,lineHeight:1}}>✕</span>}
+        </div>
         <MultiSelect label="Toutes années" width="130px" value={fYear} onChange={setFYear} options={availYears.map(function(y){return {value:y,label:y};})}/>
         <MultiSelect label="Tous mois" width="120px" value={fMonth} onChange={setFMonth} options={availMonths.map(function(m){return {value:m,label:MONTHS[parseInt(m)-1]};})}/>
         <MultiSelect label="Tous conseillers" width="150px" value={fCons} onChange={setFCons} options={availCons.map(function(id){const p=profiles.find(function(p){return p.id===id;});return {value:id,label:p?p.full_name:id};})}/>
