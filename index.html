@@ -1686,7 +1686,31 @@ function Utilisateurs({profile,profiles,sb,onRefresh}){
     setSaving(false);
   }
 
-  function openEdit(u){
+  async function deactivateUser(u){
+    if(!window.confirm('Désactiver '+u.full_name+' ? Il ne pourra plus se connecter mais restera dans l\'historique.')) return;
+    setSaving(true);setErr('');
+    try{
+      await callAdmin('deactivate_user',{userId:u.id});
+      setOk(u.full_name+' désactivé.');
+      onRefresh();
+    }catch(e){setErr(e.message);}
+    setSaving(false);
+  }
+
+  async function reactivateUser(u){
+    if(!window.confirm('Réactiver '+u.full_name+' ? Il pourra à nouveau se connecter.')) return;
+    setSaving(true);setErr('');
+    try{
+      await callAdmin('reactivate_user',{userId:u.id});
+      setOk(u.full_name+' réactivé.');
+      onRefresh();
+    }catch(e){setErr(e.message);}
+    setSaving(false);
+  }
+
+  const [showAnciens,setShowAnciens]=useState(false);
+  const actifs=sorted.filter(function(u){return u.actif!==false;});
+  const anciens=sorted.filter(function(u){return u.actif===false;});
     setSelected(u);
     setForm({full_name:u.full_name,role:u.role,email:'',password:''});
     setErr('');setOk('');
@@ -1718,31 +1742,65 @@ function Utilisateurs({profile,profiles,sb,onRefresh}){
       {ok&&<div style={{background:'#f0fdf4',color:'#065f46',border:'1px solid #bbf7d0',padding:'10px 14px',borderRadius:'8px',fontSize:'13px',marginBottom:'14px'}}>{ok}</div>}
 
       {mode==='list'&&(
-        <div className="card" style={{overflow:'hidden'}}>
-          {sorted.map(function(u,i){
-            const rc=RC2[u.role]||RC2.conseiller;
-            const isMe=u.id===profile.id;
-            return(
-              <div key={u.id} style={{display:'flex',alignItems:'center',gap:'12px',padding:'14px 18px',borderBottom:i<sorted.length-1?'1px solid #f3f4f6':'',background:isMe?'#fafafa':u.actif===false?'#f8fafc':''}}>
-                <div style={{width:'36px',height:'36px',borderRadius:'50%',background:u.actif===false?'#f1f5f9':rc.bg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:'12px',fontWeight:700,color:u.actif===false?'#94a3b8':rc.tx,flexShrink:0}}>
-                  {u.full_name.split(' ').map(function(w){return w[0];}).join('').slice(0,2).toUpperCase()}
-                </div>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontWeight:500,fontSize:'14px',color:u.actif===false?'#94a3b8':''}}>{u.full_name}{isMe&&<span style={{marginLeft:'6px',fontSize:'10.5px',color:'#1d4ed8',background:'#dbeafe',padding:'1px 6px',borderRadius:'100px'}}>moi</span>}</div>
-                  <div style={{display:'flex',gap:'6px',marginTop:'2px',flexWrap:'wrap'}}>
-                    <span className="badge" style={{background:rc.bg,color:rc.tx}}>{ROLE_LABELS[u.role]}</span>
-                    {u.actif===false&&<span className="badge" style={{background:'#f1f5f9',color:'#94a3b8'}}>Ancien · sans accès</span>}
+        <>
+          <div className="card" style={{overflow:'hidden',marginBottom:'16px'}}>
+            {actifs.map(function(u,i){
+              const rc=RC2[u.role]||RC2.conseiller;
+              const isMe=u.id===profile.id;
+              return(
+                <div key={u.id} style={{display:'flex',alignItems:'center',gap:'12px',padding:'14px 18px',borderBottom:i<actifs.length-1?'1px solid #f3f4f6':'',background:isMe?'#fafafa':''}}>
+                  <div style={{width:'36px',height:'36px',borderRadius:'50%',background:rc.bg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:'12px',fontWeight:700,color:rc.tx,flexShrink:0}}>
+                    {u.full_name.split(' ').map(function(w){return w[0];}).join('').slice(0,2).toUpperCase()}
+                  </div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontWeight:500,fontSize:'14px'}}>{u.full_name}{isMe&&<span style={{marginLeft:'6px',fontSize:'10.5px',color:'#1d4ed8',background:'#dbeafe',padding:'1px 6px',borderRadius:'100px'}}>moi</span>}</div>
+                    <span className="badge" style={{background:rc.bg,color:rc.tx,marginTop:'2px'}}>{ROLE_LABELS[u.role]}</span>
+                  </div>
+                  <div style={{display:'flex',gap:'6px'}}>
+                    <button onClick={function(){openEdit(u);}} style={{fontSize:'12px',padding:'5px 10px'}}>✏️ Modifier</button>
+                    <button onClick={function(){resetPassword(u.id);}} style={{fontSize:'12px',padding:'5px 10px'}}>🔑 MDP</button>
+                    {!isMe&&<button onClick={function(){deactivateUser(u);}} title="Désactiver" style={{fontSize:'12px',padding:'5px 10px',color:'#92400e',border:'1px solid #fde68a',background:'#fef9c3'}}>⏸</button>}
+                    {!isMe&&<button onClick={function(){deleteUser(u);}} title="Supprimer" style={{fontSize:'12px',padding:'5px 10px',color:'#b91c1c',border:'1px solid #fecaca',background:'#fef2f2'}}>🗑</button>}
                   </div>
                 </div>
-                <div style={{display:'flex',gap:'6px'}}>
-                  {u.actif!==false&&<button onClick={function(){openEdit(u);}} style={{fontSize:'12px',padding:'5px 10px'}}>✏️ Modifier</button>}
-                  {u.actif!==false&&<button onClick={function(){resetPassword(u.id);}} style={{fontSize:'12px',padding:'5px 10px'}}>🔑 MDP</button>}
-                  {!isMe&&<button onClick={function(){deleteUser(u);}} style={{fontSize:'12px',padding:'5px 10px',color:'#b91c1c',border:'1px solid #fecaca',background:'#fef2f2'}}>🗑</button>}
+              );
+            })}
+          </div>
+
+          {anciens.length>0&&(
+            <div>
+              <button onClick={function(){setShowAnciens(!showAnciens);}} style={{width:'100%',textAlign:'left',padding:'10px 14px',background:'#f8fafc',border:'1px solid #e5e7eb',borderRadius:'8px',fontSize:'13px',color:'#555',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <span>👤 Anciens conseillers ({anciens.length})</span>
+                <span style={{fontSize:'11px',color:'#aaa'}}>{showAnciens?'▲ Masquer':'▼ Afficher'}</span>
+              </button>
+              {showAnciens&&(
+                <div className="card" style={{overflow:'hidden',marginTop:'8px'}}>
+                  {anciens.map(function(u,i){
+                    const rc=RC2[u.role]||RC2.conseiller;
+                    return(
+                      <div key={u.id} style={{display:'flex',alignItems:'center',gap:'12px',padding:'12px 18px',borderBottom:i<anciens.length-1?'1px solid #f3f4f6':'',background:'#f8fafc'}}>
+                        <div style={{width:'36px',height:'36px',borderRadius:'50%',background:'#f1f5f9',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'12px',fontWeight:700,color:'#94a3b8',flexShrink:0}}>
+                          {u.full_name.split(' ').map(function(w){return w[0];}).join('').slice(0,2).toUpperCase()}
+                        </div>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontWeight:500,fontSize:'14px',color:'#94a3b8'}}>{u.full_name}</div>
+                          <div style={{display:'flex',gap:'6px',marginTop:'2px'}}>
+                            <span className="badge" style={{background:'#f1f5f9',color:'#94a3b8'}}>{ROLE_LABELS[u.role]}</span>
+                            <span className="badge" style={{background:'#f1f5f9',color:'#94a3b8'}}>Sans accès</span>
+                          </div>
+                        </div>
+                        <div style={{display:'flex',gap:'6px'}}>
+                          <button onClick={function(){reactivateUser(u);}} title="Réactiver" style={{fontSize:'12px',padding:'5px 10px',color:'#065f46',border:'1px solid #bbf7d0',background:'#f0fdf4'}}>▶ Réactiver</button>
+                          <button onClick={function(){deleteUser(u);}} title="Supprimer définitivement" style={{fontSize:'12px',padding:'5px 10px',color:'#b91c1c',border:'1px solid #fecaca',background:'#fef2f2'}}>🗑</button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              )}
+            </div>
+          )}
+        </>
       )}
 
       {(mode==='create'||mode==='edit')&&(
