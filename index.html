@@ -1694,8 +1694,13 @@ function Utilisateurs({profile,profiles,sb,onRefresh}){
   }
 
   const sorted=[...profiles].sort(function(a,b){
-    const order={direction:0,manager:1,conseiller:2};
-    return (order[a.role]||3)-(order[b.role]||3)||a.full_name.localeCompare(b.full_name);
+    function rank(p){
+      if(p.role==='direction') return 0;
+      if(p.role==='manager') return 1;
+      if(p.actif!==false) return 2;
+      return 3; // anciens
+    }
+    return rank(a)-rank(b)||a.full_name.localeCompare(b.full_name);
   });
 
   return(
