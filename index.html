@@ -365,6 +365,46 @@ function App(){
   const [ll,setLl]=useState(false);
   const [lf,setLf]=useState({email:'',password:''});
 
+  // Détecter token de réinitialisation dans l'URL
+  const [resetMode,setResetMode]=useState(false);
+  const [resetPwd,setResetPwd]=useState('');
+  const [resetPwd2,setResetPwd2]=useState('');
+  const [resetSb,setResetSb]=useState(null);
+
+  useEffect(function(){
+    const hash=window.location.hash;
+    if(hash&&hash.includes('access_token')&&(hash.includes('type=recovery')||hash.includes('type=invite'))){
+      const params=new URLSearchParams(hash.replace('#',''));
+      const token=params.get('access_token');
+      const refresh=params.get('refresh_token');
+      if(token){
+        const cl=window.supabase.createClient(SB_URL,SB_KEY);
+        cl.auth.setSession({access_token:token,refresh_token:refresh||''}).then(function(){
+          setResetSb(cl);
+          setResetMode(true);
+          window.history.replaceState(null,'',window.location.pathname);
+        });
+      }
+    }
+  },[]);
+
+  const saveNewPassword=async function(){
+    if(!resetPwd||resetPwd.length<6){setLe('Le mot de passe doit faire au moins 6 caractères.');return;}
+    if(resetPwd!==resetPwd2){setLe('Les mots de passe ne correspondent pas.');return;}
+    setLl(true);setLe('');
+    try{
+      const {error}=await resetSb.auth.updateUser({password:resetPwd});
+      if(error){setLe('Erreur : '+error.message);setLl(false);return;}
+      // Connexion automatique après changement MDP
+      const prof=await resetSb.from('profiles').select('*').eq('id',(await resetSb.auth.getUser()).data.user.id).single();
+      setSb(resetSb);setProfile(prof.data);setActive(NAV[prof.data.role][0].id);
+      loadUserPrefs(prof.data.id);loadComPrefs(prof.data.id);
+      await load(resetSb,prof.data);
+      setResetMode(false);
+    }catch(e){setLe('Erreur : '+e.message);}
+    setLl(false);
+  };
+
   const sendForgot=async function(){
     if(!forgotEmail.trim()){setLe("L'email est obligatoire.");return;}
     setLl(true);setLe('');
@@ -457,7 +497,16 @@ function App(){
           <div style={{fontSize:'13px',color:'#666'}}>Gestion commerciale · Assurance AXA</div>
         </div>
         <div className="card" style={{padding:'28px'}}>
-          {forgotMode?(
+          {resetMode?(
+            <>
+              <div style={{fontSize:'15px',fontWeight:600,marginBottom:'6px'}}>Créer mon mot de passe</div>
+              <div style={{fontSize:'13px',color:'#888',marginBottom:'20px'}}>Choisissez un mot de passe sécurisé pour accéder au CRM.</div>
+              <div className="fg"><label>Nouveau mot de passe</label><input type="password" value={resetPwd} onChange={function(e){setResetPwd(e.target.value);}} placeholder="Min. 6 caractères"/></div>
+              <div className="fg"><label>Confirmer le mot de passe</label><input type="password" value={resetPwd2} onChange={function(e){setResetPwd2(e.target.value);}} placeholder="Répétez le mot de passe" onKeyDown={function(e){if(e.key==='Enter')saveNewPassword();}}/></div>
+              {le&&<div style={{background:'#fef2f2',color:'#b91c1c',border:'1px solid #fecaca',padding:'10px 14px',borderRadius:'8px',fontSize:'13px',marginBottom:'14px'}}>{le}</div>}
+              <button className="bp" onClick={saveNewPassword} disabled={ll} style={{width:'100%',padding:'11px'}}>{ll?'Enregistrement…':'Accéder au CRM'}</button>
+            </>
+          ):forgotMode?(
             <>
               <div style={{fontSize:'15px',fontWeight:600,marginBottom:'16px'}}>Réinitialiser mon mot de passe</div>
               <div className="fg"><label>Email</label><input type="email" value={forgotEmail} onChange={function(e){setForgotEmail(e.target.value);}} placeholder="prenom.nom@agence.fr" onKeyDown={function(e){if(e.key==='Enter')sendForgot();}}/></div>
