@@ -72,6 +72,7 @@ module.exports = async function handler(req, res) {
     }
 
 
+    if (action === 'delete_user') {
       const { userId } = payload;
       // Tenter de supprimer le compte Auth (peut échouer si profil sans compte)
       try { await supabase.auth.admin.deleteUser(userId); } catch(e) {}
