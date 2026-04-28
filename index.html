@@ -1709,8 +1709,8 @@ function Utilisateurs({profile,profiles,sb,onRefresh}){
   }
 
   const [showAnciens,setShowAnciens]=useState(false);
-  const actifs=sorted.filter(function(u){return u.actif!==false;});
-  const anciens=sorted.filter(function(u){return u.actif===false;});
+
+  function openEdit(u){
     setSelected(u);
     setForm({full_name:u.full_name,role:u.role,email:'',password:''});
     setErr('');setOk('');
@@ -1722,10 +1722,13 @@ function Utilisateurs({profile,profiles,sb,onRefresh}){
       if(p.role==='direction') return 0;
       if(p.role==='manager') return 1;
       if(p.actif!==false) return 2;
-      return 3; // anciens
+      return 3;
     }
     return rank(a)-rank(b)||a.full_name.localeCompare(b.full_name);
   });
+
+  const actifs=sorted.filter(function(u){return u.actif!==false;});
+  const anciens=sorted.filter(function(u){return u.actif===false;});
 
   return(
     <div style={{padding:'28px 32px',maxWidth:'720px'}}>
