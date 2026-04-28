@@ -535,7 +535,7 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh,year,setY
 
   const displayProfiles=isCollab
     ? profiles.filter(function(p){return p.id===profile.id;})
-    : profiles.filter(function(p){return p.role!=='direction';});
+    : profiles.filter(function(p){return p.role!=='direction'&&p.actif!==false;});
 
   const filtered=selCons&&!isCollab
     ? displayProfiles.filter(function(p){return p.id===selCons;})
@@ -600,7 +600,7 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh,year,setY
           {!isCollab&&(
             <select value={selCons} onChange={function(e){setSelCons(e.target.value);}} style={{width:'auto',padding:'6px 10px'}}>
               <option value="">Tous les conseillers</option>
-              {profiles.filter(function(p){return p.role!=='direction';}).map(function(p){return <option key={p.id} value={p.id}>{p.full_name}</option>;})}
+              {profiles.filter(function(p){return p.role!=='direction'&&p.actif!==false;}).map(function(p){return <option key={p.id} value={p.id}>{p.full_name}</option>;})}
             </select>
           )}
           <select value={month} onChange={function(e){setMonth(parseInt(e.target.value));}} style={{width:'auto',padding:'6px 10px'}}>
@@ -921,7 +921,7 @@ function TableauBord({contracts,rankContracts,profiles,profile}){
           <select value={year} onChange={function(e){setYear(parseInt(e.target.value));}} style={{width:'auto',padding:'6px 10px'}}>{[2021,2022,2023,2024,2025,2026].map(function(y){return <option key={y} value={y}>{y}</option>;})}</select>
           {isDir&&<select value={filterCons} onChange={function(e){setFilterCons(e.target.value);}} style={{width:'auto',padding:'6px 10px'}}>
             <option value="">Tous les conseillers</option>
-            {profiles.filter(function(p){return p.role!=='direction';}).map(function(p){return <option key={p.id} value={p.id}>{p.full_name}</option>;})}
+            {profiles.filter(function(p){return p.role!=='direction'&&p.actif!==false;}).map(function(p){return <option key={p.id} value={p.id}>{p.full_name}</option>;})}
           </select>}
         </div>
       </div>
@@ -1112,7 +1112,7 @@ function FormContrat({sb,profile,profiles,onSaved}){
     <div style={{padding:'36px 40px',maxWidth:'720px'}}>
       <div style={{marginBottom:'28px'}}><div style={{fontSize:'22px',fontWeight:600,marginBottom:'4px'}}>Saisir un contrat</div><div style={{fontSize:'13.5px',color:'#666'}}>Les champs * sont obligatoires</div></div>
       <div className="card" style={{padding:'28px'}}>
-        {isDir&&<div className="fg"><label>Conseiller *</label><select value={f.conseiller_id} onChange={function(e){u('conseiller_id',e.target.value);}}>{profiles.map(function(p){return <option key={p.id} value={p.id}>{p.full_name} ({RL[p.role]})</option>;})}</select></div>}
+        {isDir&&<div className="fg"><label>Conseiller *</label><select value={f.conseiller_id} onChange={function(e){u('conseiller_id',e.target.value);}}>{profiles.filter(function(p){return p.actif!==false;}).map(function(p){return <option key={p.id} value={p.id}>{p.full_name} ({RL[p.role]})</option>;})}</select></div>}
         <div className="fg2">
           <div className="fg"><label>Nom prénom / Raison sociale *</label><input value={f.client_name} onChange={function(e){u('client_name',e.target.value);}} onBlur={function(e){u('client_name',toUpper(e.target.value));}} placeholder="DUPONT JEAN"/></div>
           <div className="fg">
@@ -1496,7 +1496,7 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
             <div className="sec">Informations</div>
             {editing?(
               <div className="card" style={{padding:'16px'}}>
-                <div className="fg"><label>Conseiller</label><select value={editF.conseiller_id} onChange={function(e){eu('conseiller_id',e.target.value);}}>{profiles.map(function(p){return <option key={p.id} value={p.id}>{p.full_name}</option>;})}</select></div>
+                <div className="fg"><label>Conseiller</label><select value={editF.conseiller_id} onChange={function(e){eu('conseiller_id',e.target.value);}}>{profiles.filter(function(p){return p.actif!==false;}).map(function(p){return <option key={p.id} value={p.id}>{p.full_name}</option>;})}</select></div>
                 <div className="fg"><label>Nom / Raison sociale</label><input value={editF.client_name} onChange={function(e){eu('client_name',e.target.value);}} onBlur={function(e){eu('client_name',toUpper(e.target.value));}}/></div>
                 <div className="fg"><label>N° contrat</label><input value={editF.contract_number} onChange={function(e){eu('contract_number',e.target.value);}} onBlur={function(e){if(isNaN(e.target.value.replace(/\s/g,'')))eu('contract_number',e.target.value.toUpperCase());}}/></div>
                 <div className="fg2">
