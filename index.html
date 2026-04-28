@@ -1615,7 +1615,13 @@ function Utilisateurs({profile,profiles,sb,onRefresh}){
   const [err,setErr]=useState('');
   const [ok,setOk]=useState('');
 
-  const ROLE_LABELS={direction:'Direction',manager:'Manager',conseiller:'Conseiller'};
+  const [emailMap,setEmailMap]=useState({});
+
+  useEffect(function(){
+    callAdmin('list_users',{}).then(function(r){
+      if(r.emailMap) setEmailMap(r.emailMap);
+    }).catch(function(){});
+  },[]);
   const RC2={direction:{bg:'#dbeafe',tx:'#1e40af'},manager:{bg:'#fef3c7',tx:'#92400e'},conseiller:{bg:'#d1fae5',tx:'#065f46'}};
 
   function u(k,v){setForm(function(p){return Object.assign({},p,{[k]:v});});}
@@ -1712,7 +1718,7 @@ function Utilisateurs({profile,profiles,sb,onRefresh}){
 
   function openEdit(u){
     setSelected(u);
-    setForm({full_name:u.full_name,role:u.role,email:'',password:''});
+    setForm({full_name:u.full_name,role:u.role,email:emailMap[u.id]||'',password:''});
     setErr('');setOk('');
     setMode('edit');
   }
@@ -1757,7 +1763,10 @@ function Utilisateurs({profile,profiles,sb,onRefresh}){
                   </div>
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{fontWeight:500,fontSize:'14px'}}>{u.full_name}{isMe&&<span style={{marginLeft:'6px',fontSize:'10.5px',color:'#1d4ed8',background:'#dbeafe',padding:'1px 6px',borderRadius:'100px'}}>moi</span>}</div>
-                    <span className="badge" style={{background:rc.bg,color:rc.tx,marginTop:'2px'}}>{ROLE_LABELS[u.role]}</span>
+                    <div style={{display:'flex',gap:'6px',marginTop:'2px',alignItems:'center',flexWrap:'wrap'}}>
+                      <span className="badge" style={{background:rc.bg,color:rc.tx}}>{ROLE_LABELS[u.role]}</span>
+                      {emailMap[u.id]&&<span style={{fontSize:'11.5px',color:'#888'}}>{emailMap[u.id]}</span>}
+                    </div>
                   </div>
                   <div style={{display:'flex',gap:'6px'}}>
                     <button onClick={function(){openEdit(u);}} style={{fontSize:'12px',padding:'5px 10px'}}>✏️ Modifier</button>
@@ -1817,7 +1826,7 @@ function Utilisateurs({profile,profiles,sb,onRefresh}){
               <option value="direction">Direction</option>
             </select></div>
           </div>
-          <div className="fg"><label>Email {mode==='edit'&&<span style={{color:'#aaa',fontWeight:400}}>(laisser vide pour ne pas modifier)</span>}</label><input type="email" value={form.email} onChange={function(e){u('email',e.target.value);}} placeholder={mode==='create'?'prenom.nom@agence.fr':'Nouvel email…'}/></div>
+          <div className="fg"><label>Email {mode==='edit'&&<span style={{color:'#aaa',fontWeight:400}}>(modifier si nécessaire)</span>}</label><input type="email" value={form.email} onChange={function(e){u('email',e.target.value);}} placeholder={mode==='create'?'prenom.nom@agence.fr':'Email…'}/></div>
           <div className="fg"><label>Mot de passe {mode==='edit'&&<span style={{color:'#aaa',fontWeight:400}}>(laisser vide pour ne pas modifier)</span>}</label><input type="password" value={form.password} onChange={function(e){u('password',e.target.value);}} placeholder={mode==='create'?'Min. 6 caractères':'Nouveau mot de passe…'}/></div>
           <div style={{display:'flex',gap:'10px',justifyContent:'flex-end',marginTop:'8px'}}>
             <button onClick={function(){setMode('list');setErr('');setOk('');}}>Annuler</button>
