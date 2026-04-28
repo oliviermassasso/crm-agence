@@ -294,6 +294,7 @@ function App(){
   const [profile,setProfile]=useState(null);
   const [sb,setSb]=useState(null);
   const [contracts,setContracts]=useState([]);
+  const [rankContracts,setRankContracts]=useState([]);
   const [profiles,setProfiles]=useState([]);
   const [active,setActive]=useState(null);
   const [selected,setSelected]=useState(null);
@@ -378,7 +379,9 @@ function App(){
       if(page.length<pageSize) break;
       from+=pageSize;
     }
-    // Pour le classement : charger les données légères de tous les conseillers
+    setContracts(allContracts);
+
+    // Pour le classement du tableau de bord : données légères de tous les conseillers
     if(p.role==='conseiller'){
       let rankContracts=[];
       let rf=0;
@@ -389,11 +392,10 @@ function App(){
         if(rpage.length<pageSize) break;
         rf+=pageSize;
       }
-      // Fusionner : garder les données complètes du conseiller + données légères des autres
-      const otherContracts=rankContracts.filter(function(c){return c.conseiller_id!==p.id;});
-      allContracts=allContracts.concat(otherContracts);
+      setRankContracts(rankContracts);
+    } else {
+      setRankContracts(allContracts);
     }
-    setContracts(allContracts);
     if(selectedId){
       const updated=allContracts.find(function(c){return c.id===selectedId;});
       if(updated) setSelected(updated);
@@ -424,7 +426,7 @@ function App(){
     setLl(false);
   };
 
-  const logout=async function(){if(sb)await sb.auth.signOut();setProfile(null);setSb(null);setContracts([]);setActive(null);setReads({});setLastMsgMap({});setSelected(null);setLf({email:'',password:''});};
+  const logout=async function(){if(sb)await sb.auth.signOut();setProfile(null);setSb(null);setContracts([]);setRankContracts([]);setActive(null);setReads({});setLastMsgMap({});setSelected(null);setLastSelectedId(null);setLf({email:'',password:''});};
   const refresh=useCallback(function(){if(sb&&profile)load(sb,profile,selected&&selected.id);},[sb,profile,load,selected]);
   const markRead=useCallback(async function(cid){
     if(!sb||!profile)return;
@@ -483,7 +485,7 @@ function App(){
       <div style={{flex:1,overflow:'auto',background:'#f9fafb'}}>
         {active==='saisir-contrat'&&<FormContrat sb={sb} profile={profile} profiles={profiles} onSaved={function(){refresh();setActive(profile.role==='conseiller'?'mes-dossiers':'suivi-dossiers');}}/>}
         {(active==='suivi-dossiers'||active==='mes-dossiers')&&<SuiviDossiers contracts={contracts} profile={profile} profiles={profiles} reads={reads} lastMsgMap={lastMsgMap} sort={sort} setSort={setSortP} fCons={fCons} setFCons={setFConsP} fYear={fYear} setFYear={setFYearP} fMonth={fMonth} setFMonth={setFMonthP} fType={fType} setFType={setFTypeP} fStat={fStat} setFStat={setFStatP} fDoss={fDoss} setFDoss={setFDossP} fPay={fPay} setFPay={setFPayP} fDup={fDup} setFDup={setFDupP} search={search} setSearch={setSearch} selectedId={lastSelectedId} onSelect={function(c){setSelected(c);setLastSelectedId(c.id);markRead(c.id);}} onNew={function(){setActive('saisir-contrat');}}/>}
-        {active==='tableau-bord'&&<TableauBord contracts={contracts} profiles={profiles} profile={profile}/>}
+        {active==='tableau-bord'&&<TableauBord contracts={contracts} rankContracts={rankContracts} profiles={profiles} profile={profile}/>}
         {(active==='commissions'||active==='mes-commissions')&&<Commissions contracts={contracts} profiles={profiles} profile={profile} sb={sb} onSelect={function(c){setSelected(c);markRead(c.id);}} onRefresh={refresh} year={comYear} setYear={setComYearP} month={comMonth} setMonth={setComMonthP} selCons={comSelCons} setSelCons={setComSelConsP} comSearch={comSearch} setComSearch={setComSearch}/>}
         {!['saisir-contrat','suivi-dossiers','mes-dossiers','tableau-bord','commissions','mes-commissions'].includes(active)&&<Placeholder nav={nav} active={active}/>}
       </div>
@@ -789,7 +791,7 @@ function Jauge({ca,objectif,label,color}){
   );
 }
 
-function TableauBord({contracts,profiles,profile}){
+function TableauBord({contracts,rankContracts,profiles,profile}){
   const now=new Date();
   const [year,setYear]=useState(now.getFullYear());
   const [month,setMonth]=useState(now.getMonth()+1);
@@ -1033,7 +1035,7 @@ function TableauBord({contracts,profiles,profile}){
       {/* Classement conseillers — visible par tous */}
       {(()=>{
         const allConseillers=profiles.filter(function(p){return p.role==='conseiller'||p.role==='manager';});
-        const allActive2=contracts.filter(function(c){return c.status!=='ANNULE';});
+        const allActive2=(rankContracts||contracts).filter(function(c){return c.status!=='ANNULE';});
         const rankAll=allConseillers.map(function(p){
           const mine=allActive2.filter(function(c){return c.conseiller_id===p.id&&inPeriod(c,year,month)&&!isComplementaire(c);});
           const prevMine=allActive2.filter(function(c){return c.conseiller_id===p.id&&inPeriod(c,prevY,prevM)&&!isComplementaire(c);});
