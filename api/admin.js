@@ -57,14 +57,22 @@ module.exports = async function handler(req, res) {
 
     if (action === 'create_user') {
       const { email, full_name, role } = payload;
-      const r = await authAdmin('/generate_link', 'POST', {
-        type: 'invite',
+      // Créer le compte avec un MDP temporaire aléatoire
+      const tempPwd = Math.random().toString(36).slice(-12) + 'Aa1!';
+      const r = await authAdmin('/users', 'POST', {
         email,
-        options: { redirectTo: 'https://crm-agence.vercel.app' }
+        password: tempPwd,
+        email_confirm: true,
       });
-      if (!r.ok) return res.status(400).json({ error: r.data.message || r.data.error_description || 'Erreur invitation' });
-      const userId = r.data.properties && r.data.properties.hashed_token ? r.data.user.id : r.data.id;
-      if (userId) await sbFetch('/rest/v1/profiles', 'POST', { id: userId, full_name, role });
+      if (!r.ok) return res.status(400).json({ error: r.data.message || 'Erreur création' });
+      const userId = r.data.id;
+      await sbFetch('/rest/v1/profiles', 'POST', { id: userId, full_name, role });
+      // Envoyer un email de réinitialisation pour que l'utilisateur choisisse son MDP
+      await fetch(SB_URL + '/auth/v1/recover', {
+        method: 'POST',
+        headers: { 'apikey': SB_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, gotrue_meta_security: {} }),
+      });
       return res.status(200).json({ success: true });
     }
 
