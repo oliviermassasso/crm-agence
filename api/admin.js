@@ -48,7 +48,6 @@ module.exports = async function handler(req, res) {
     }
 
     if (action === 'list_users') {
-      // Récupérer tous les users Auth avec leurs emails
       const r = await authAdmin('/users?per_page=1000', 'GET');
       if (!r.ok) return res.status(400).json({ error: 'Erreur chargement' });
       const emailMap = {};
@@ -57,20 +56,22 @@ module.exports = async function handler(req, res) {
     }
 
     if (action === 'create_user') {
-      const { email, password, full_name, role } = payload;
-      const r = await authAdmin('/users', 'POST', { email, password, email_confirm: true });
+      const { email, full_name, role } = payload;
+      // Invitation par email — le collaborateur choisit son propre MDP
+      const r = await authAdmin('/users', 'POST', {
+        email,
+        email_confirm: false,
+        invite: true,
+      });
       if (!r.ok) return res.status(400).json({ error: r.data.message || 'Erreur création' });
       await sbFetch('/rest/v1/profiles', 'POST', { id: r.data.id, full_name, role });
       return res.status(200).json({ success: true });
     }
 
     if (action === 'update_user') {
-      const { userId, full_name, role, email, password } = payload;
-      const update = {};
-      if (email) update.email = email;
-      if (password) update.password = password;
-      if (Object.keys(update).length > 0) {
-        const r = await authAdmin('/users/' + userId, 'PUT', update);
+      const { userId, full_name, role, email } = payload;
+      if (email) {
+        const r = await authAdmin('/users/' + userId, 'PUT', { email });
         if (!r.ok) return res.status(400).json({ error: r.data.message || 'Erreur mise à jour' });
       }
       await sbFetch('/rest/v1/profiles?id=eq.' + userId, 'PATCH', { full_name, role });
@@ -99,9 +100,21 @@ module.exports = async function handler(req, res) {
     }
 
     if (action === 'reset_password') {
+      // Force un nouveau MDP par la direction
       const { userId, password } = payload;
       const r = await authAdmin('/users/' + userId, 'PUT', { password });
       if (!r.ok) return res.status(400).json({ error: r.data.message || 'Erreur reset' });
+      return res.status(200).json({ success: true });
+    }
+
+    if (action === 'send_reset_email') {
+      // Envoie un email de réinitialisation au collaborateur
+      const { email } = payload;
+      const r = await fetch(SB_URL + '/auth/v1/recover', {
+        method: 'POST',
+        headers: { 'apikey': SB_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
       return res.status(200).json({ success: true });
     }
 
