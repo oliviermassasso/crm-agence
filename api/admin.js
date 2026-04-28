@@ -55,7 +55,23 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({ success: true });
     }
 
-    if (action === 'delete_user') {
+    if (action === 'deactivate_user') {
+      const { userId } = payload;
+      // Bloquer la connexion Auth (ban 100 ans)
+      try { await supabase.auth.admin.updateUserById(userId, { ban_duration: '876600h' }); } catch(e) {}
+      await supabase.from('profiles').update({ actif: false }).eq('id', userId);
+      return res.status(200).json({ success: true });
+    }
+
+    if (action === 'reactivate_user') {
+      const { userId } = payload;
+      // Débloquer la connexion Auth
+      try { await supabase.auth.admin.updateUserById(userId, { ban_duration: 'none' }); } catch(e) {}
+      await supabase.from('profiles').update({ actif: true }).eq('id', userId);
+      return res.status(200).json({ success: true });
+    }
+
+
       const { userId } = payload;
       // Tenter de supprimer le compte Auth (peut échouer si profil sans compte)
       try { await supabase.auth.admin.deleteUser(userId); } catch(e) {}
