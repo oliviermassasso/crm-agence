@@ -363,6 +363,7 @@ function App(){
   const [forgotOk,setForgotOk]=useState('');
   const [le,setLe]=useState('');
   const [ll,setLl]=useState(false);
+  const [lf,setLf]=useState({email:'',password:''});
 
   const sendForgot=async function(){
     if(!forgotEmail.trim()){setLe("L'email est obligatoire.");return;}
