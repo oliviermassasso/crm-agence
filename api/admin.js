@@ -57,13 +57,14 @@ module.exports = async function handler(req, res) {
 
     if (action === 'create_user') {
       const { email, full_name, role } = payload;
-      // Utiliser l'endpoint d'invitation officiel Supabase
-      const r = await authAdmin('/invite', 'POST', {
+      const r = await authAdmin('/generate_link', 'POST', {
+        type: 'invite',
         email,
-        data: { full_name, role }
+        options: { redirectTo: 'https://crm-agence.vercel.app' }
       });
       if (!r.ok) return res.status(400).json({ error: r.data.message || r.data.error_description || 'Erreur invitation' });
-      await sbFetch('/rest/v1/profiles', 'POST', { id: r.data.id, full_name, role });
+      const userId = r.data.properties && r.data.properties.hashed_token ? r.data.user.id : r.data.id;
+      if (userId) await sbFetch('/rest/v1/profiles', 'POST', { id: userId, full_name, role });
       return res.status(200).json({ success: true });
     }
 
