@@ -1,9 +1,36 @@
-const { createClient } = require('@supabase/supabase-js');
+const SB_URL = 'https://hmuhuokfbfpcnovmllti.supabase.co';
+const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-const supabase = createClient(
-  process.env.SUPABASE_URL || 'https://hmuhuokfbfpcnovmllti.supabase.co',
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+async function sbFetch(path, method, body) {
+  const res = await fetch(SB_URL + path, {
+    method: method || 'GET',
+    headers: {
+      'apikey': SB_KEY,
+      'Authorization': 'Bearer ' + SB_KEY,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=representation',
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const text = await res.text();
+  try { return { ok: res.ok, status: res.status, data: JSON.parse(text) }; }
+  catch(e) { return { ok: res.ok, status: res.status, data: text }; }
+}
+
+async function authAdmin(path, method, body) {
+  const res = await fetch(SB_URL + '/auth/v1/admin' + path, {
+    method: method || 'GET',
+    headers: {
+      'apikey': SB_KEY,
+      'Authorization': 'Bearer ' + SB_KEY,
+      'Content-Type': 'application/json',
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const text = await res.text();
+  try { return { ok: res.ok, status: res.status, data: JSON.parse(text) }; }
+  catch(e) { return { ok: res.ok, status: res.status, data: text }; }
+}
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -12,82 +39,65 @@ module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { action, payload, requesterId } = req.body;
-
-  // Vérifier que le demandeur est bien direction
-  const { data: requester } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', requesterId)
-    .single();
-
-  if (!requester || requester.role !== 'direction') {
-    return res.status(403).json({ error: 'Accès refusé' });
-  }
-
   try {
+    const { action, payload, requesterId } = req.body;
+
+    const check = await sbFetch('/rest/v1/profiles?id=eq.' + requesterId + '&select=role', 'GET');
+    if (!check.ok || !check.data || !check.data[0] || check.data[0].role !== 'direction') {
+      return res.status(403).json({ error: 'Accès refusé' });
+    }
+
     if (action === 'create_user') {
       const { email, password, full_name, role } = payload;
-      const { data, error } = await supabase.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: true,
-      });
-      if (error) return res.status(400).json({ error: error.message });
-      await supabase.from('profiles').insert({
-        id: data.user.id,
-        full_name,
-        role,
-      });
-      return res.status(200).json({ success: true, user: data.user });
+      const r = await authAdmin('/users', 'POST', { email, password, email_confirm: true });
+      if (!r.ok) return res.status(400).json({ error: r.data.message || 'Erreur création' });
+      await sbFetch('/rest/v1/profiles', 'POST', { id: r.data.id, full_name, role });
+      return res.status(200).json({ success: true });
     }
 
     if (action === 'update_user') {
       const { userId, full_name, role, email, password } = payload;
-      if (email || password) {
-        const update = {};
-        if (email) update.email = email;
-        if (password) update.password = password;
-        const { error } = await supabase.auth.admin.updateUserById(userId, update);
-        if (error) return res.status(400).json({ error: error.message });
+      const update = {};
+      if (email) update.email = email;
+      if (password) update.password = password;
+      if (Object.keys(update).length > 0) {
+        const r = await authAdmin('/users/' + userId, 'PUT', update);
+        if (!r.ok) return res.status(400).json({ error: r.data.message || 'Erreur mise à jour' });
       }
-      await supabase.from('profiles').update({ full_name, role }).eq('id', userId);
+      await sbFetch('/rest/v1/profiles?id=eq.' + userId, 'PATCH', { full_name, role });
       return res.status(200).json({ success: true });
     }
 
     if (action === 'deactivate_user') {
       const { userId } = payload;
-      // Bloquer la connexion Auth (ban 100 ans)
-      try { await supabase.auth.admin.updateUserById(userId, { ban_duration: '876600h' }); } catch(e) {}
-      await supabase.from('profiles').update({ actif: false }).eq('id', userId);
+      try { await authAdmin('/users/' + userId, 'PUT', { ban_duration: '876600h' }); } catch(e) {}
+      await sbFetch('/rest/v1/profiles?id=eq.' + userId, 'PATCH', { actif: false });
       return res.status(200).json({ success: true });
     }
 
     if (action === 'reactivate_user') {
       const { userId } = payload;
-      // Débloquer la connexion Auth
-      try { await supabase.auth.admin.updateUserById(userId, { ban_duration: 'none' }); } catch(e) {}
-      await supabase.from('profiles').update({ actif: true }).eq('id', userId);
+      try { await authAdmin('/users/' + userId, 'PUT', { ban_duration: 'none' }); } catch(e) {}
+      await sbFetch('/rest/v1/profiles?id=eq.' + userId, 'PATCH', { actif: true });
       return res.status(200).json({ success: true });
     }
 
-
     if (action === 'delete_user') {
       const { userId } = payload;
-      // Tenter de supprimer le compte Auth (peut échouer si profil sans compte)
-      try { await supabase.auth.admin.deleteUser(userId); } catch(e) {}
-      await supabase.from('profiles').delete().eq('id', userId);
+      try { await authAdmin('/users/' + userId, 'DELETE'); } catch(e) {}
+      await sbFetch('/rest/v1/profiles?id=eq.' + userId, 'DELETE');
       return res.status(200).json({ success: true });
     }
 
     if (action === 'reset_password') {
       const { userId, password } = payload;
-      const { error } = await supabase.auth.admin.updateUserById(userId, { password });
-      if (error) return res.status(400).json({ error: error.message });
+      const r = await authAdmin('/users/' + userId, 'PUT', { password });
+      if (!r.ok) return res.status(400).json({ error: r.data.message || 'Erreur reset' });
       return res.status(200).json({ success: true });
     }
 
     return res.status(400).json({ error: 'Action inconnue' });
+
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }
