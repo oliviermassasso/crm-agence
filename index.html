@@ -268,7 +268,7 @@ const PROVS=['Leads / E-contact AXA','Leads / E-contact AGENCE','PRVT','Rebond',
 const MONO_OPTS=[{value:'',label:'Aucun'},{value:'mono',label:'Mono contrat (com = 0€)'},{value:'mono_sante',label:'Mono santé (taux − 1%)'},{value:'mono_pro',label:'Mono pro (taux − 1%)'}];
 const PAY_OPTS=[{value:'non_paye',label:'Pas encore payé',bg:'#f3f4f6',tx:'#374151'},{value:'paye',label:'Payé',bg:'#d1fae5',tx:'#065f46'},{value:'impaye',label:'Impayé',bg:'#fee2e2',tx:'#991b1b'}];
 const NAV={
-  direction:[{id:'saisir-contrat',label:'Saisir un contrat',icon:'+'},{id:'suivi-dossiers',label:'Suivi des dossiers',icon:'≡'},{id:'tableau-bord',label:'Tableau de bord',icon:'◉'},{id:'commissions',label:'Commissions',icon:'€'},{id:'conges',label:'Congés',icon:'🌴'},{id:'resiliations',label:'Résiliations',icon:'↩',s:7},{id:'salaires',label:'Salaires',icon:'∑',s:6},{id:'configuration',label:'Configuration',icon:'⚙',s:5}],
+  direction:[{id:'saisir-contrat',label:'Saisir un contrat',icon:'+'},{id:'suivi-dossiers',label:'Suivi des dossiers',icon:'≡'},{id:'tableau-bord',label:'Tableau de bord',icon:'◉'},{id:'commissions',label:'Commissions',icon:'€'},{id:'conges',label:'Congés',icon:'🌴'},{id:'resiliations',label:'Résiliations',icon:'↩',s:7},{id:'salaires',label:'Salaires',icon:'∑',s:6},{id:'utilisateurs',label:'Utilisateurs',icon:'👤'},{id:'configuration',label:'Configuration',icon:'⚙',s:5}],
   manager:[{id:'saisir-contrat',label:'Saisir un contrat',icon:'+'},{id:'suivi-dossiers',label:'Suivi des dossiers',icon:'≡'},{id:'tableau-bord',label:'Tableau de bord',icon:'◉'},{id:'commissions',label:'Commissions',icon:'€'},{id:'conges',label:'Congés',icon:'🌴'},{id:'resiliations',label:'Résiliations',icon:'↩',s:7}],
   conseiller:[{id:'saisir-contrat',label:'Saisir un contrat',icon:'+'},{id:'mes-dossiers',label:'Mes dossiers',icon:'≡'},{id:'tableau-bord',label:'Tableau de bord',icon:'◉'},{id:'mes-commissions',label:'Mes commissions',icon:'€'},{id:'conges',label:'Congés',icon:'🌴'}]
 };
@@ -487,8 +487,9 @@ function App(){
         {(active==='suivi-dossiers'||active==='mes-dossiers')&&<SuiviDossiers contracts={contracts} profile={profile} profiles={profiles} reads={reads} lastMsgMap={lastMsgMap} sort={sort} setSort={setSortP} fCons={fCons} setFCons={setFConsP} fYear={fYear} setFYear={setFYearP} fMonth={fMonth} setFMonth={setFMonthP} fType={fType} setFType={setFTypeP} fStat={fStat} setFStat={setFStatP} fDoss={fDoss} setFDoss={setFDossP} fPay={fPay} setFPay={setFPayP} fDup={fDup} setFDup={setFDupP} search={search} setSearch={setSearch} selectedId={lastSelectedId} onSelect={function(c){setSelected(c);setLastSelectedId(c.id);markRead(c.id);}} onNew={function(){setActive('saisir-contrat');}}/>}
         {active==='tableau-bord'&&<TableauBord contracts={contracts} rankContracts={rankContracts} profiles={profiles} profile={profile}/>}
         {active==='conges'&&<CongesPlaceholder profile={profile}/>}
+        {active==='utilisateurs'&&<Utilisateurs profile={profile} profiles={profiles} sb={sb} onRefresh={refresh}/>}
         {(active==='commissions'||active==='mes-commissions')&&<Commissions contracts={contracts} profiles={profiles} profile={profile} sb={sb} onSelect={function(c){setSelected(c);markRead(c.id);}} onRefresh={refresh} year={comYear} setYear={setComYearP} month={comMonth} setMonth={setComMonthP} selCons={comSelCons} setSelCons={setComSelConsP} comSearch={comSearch} setComSearch={setComSearch}/>}
-        {!['saisir-contrat','suivi-dossiers','mes-dossiers','tableau-bord','commissions','mes-commissions','conges'].includes(active)&&<Placeholder nav={nav} active={active}/>}
+        {!['saisir-contrat','suivi-dossiers','mes-dossiers','tableau-bord','commissions','mes-commissions','conges','utilisateurs'].includes(active)&&<Placeholder nav={nav} active={active}/>}
       </div>
       {selected&&<DetailPanel key={selected.id} contract={selected} profile={profile} profiles={profiles} sb={sb} onClose={function(){setSelected(null);}} onRefresh={refresh}/>}
     </div>
@@ -1605,7 +1606,161 @@ function CopyBtn({text}){
   return <span onClick={function(e){e.stopPropagation();navigator.clipboard.writeText(text);setCopied(true);setTimeout(function(){setCopied(false);},1500);}} title={copied?'Copié !':'Copier'} style={{cursor:'pointer',fontSize:'12px',padding:'1px 4px',border:'1px solid '+(copied?'#bbf7d0':'#bfdbfe'),borderRadius:'4px',background:copied?'#f0fdf4':'#eff6ff',color:copied?'#16a34a':'#3b82f6',userSelect:'none',transition:'all 0.2s'}}>{copied?'✓':'⧉'}</span>;
 }
 
-function CongesPlaceholder({profile}){
+/* ══ UTILISATEURS ══ */
+function Utilisateurs({profile,profiles,sb,onRefresh}){
+  const [mode,setMode]=useState('list'); // list | create | edit
+  const [selected,setSelected]=useState(null);
+  const [form,setForm]=useState({full_name:'',role:'conseiller',email:'',password:''});
+  const [saving,setSaving]=useState(false);
+  const [err,setErr]=useState('');
+  const [ok,setOk]=useState('');
+
+  const ROLE_LABELS={direction:'Direction',manager:'Manager',conseiller:'Conseiller'};
+  const RC2={direction:{bg:'#dbeafe',tx:'#1e40af'},manager:{bg:'#fef3c7',tx:'#92400e'},conseiller:{bg:'#d1fae5',tx:'#065f46'}};
+
+  function u(k,v){setForm(function(p){return Object.assign({},p,{[k]:v});});}
+
+  async function callAdmin(action,payload){
+    const res=await fetch('/api/admin',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action,payload,requesterId:profile.id})
+    });
+    const data=await res.json();
+    if(!res.ok) throw new Error(data.error||'Erreur serveur');
+    return data;
+  }
+
+  async function createUser(){
+    if(!form.full_name.trim()){setErr('Le nom est obligatoire.');return;}
+    if(!form.email.trim()){setErr("L'email est obligatoire.");return;}
+    if(!form.password||form.password.length<6){setErr('Le mot de passe doit faire au moins 6 caractères.');return;}
+    setSaving(true);setErr('');
+    try{
+      await callAdmin('create_user',{email:form.email,password:form.password,full_name:form.full_name,role:form.role});
+      setOk('Utilisateur créé avec succès.');
+      setForm({full_name:'',role:'conseiller',email:'',password:''});
+      setMode('list');
+      onRefresh();
+    }catch(e){setErr(e.message);}
+    setSaving(false);
+  }
+
+  async function updateUser(){
+    if(!form.full_name.trim()){setErr('Le nom est obligatoire.');return;}
+    setSaving(true);setErr('');
+    try{
+      await callAdmin('update_user',{
+        userId:selected.id,
+        full_name:form.full_name,
+        role:form.role,
+        email:form.email||undefined,
+        password:form.password||undefined,
+      });
+      setOk('Utilisateur modifié.');
+      setMode('list');
+      onRefresh();
+    }catch(e){setErr(e.message);}
+    setSaving(false);
+  }
+
+  async function resetPassword(userId){
+    const pwd=window.prompt('Nouveau mot de passe (min. 6 caractères) :');
+    if(!pwd||pwd.length<6){alert('Mot de passe trop court.');return;}
+    setSaving(true);setErr('');
+    try{
+      await callAdmin('reset_password',{userId,password:pwd});
+      setOk('Mot de passe réinitialisé.');
+    }catch(e){setErr(e.message);}
+    setSaving(false);
+  }
+
+  async function deleteUser(u){
+    if(!window.confirm('Supprimer '+u.full_name+' ? Cette action est irréversible.')) return;
+    setSaving(true);setErr('');
+    try{
+      await callAdmin('delete_user',{userId:u.id});
+      setOk('Utilisateur supprimé.');
+      onRefresh();
+    }catch(e){setErr(e.message);}
+    setSaving(false);
+  }
+
+  function openEdit(u){
+    setSelected(u);
+    setForm({full_name:u.full_name,role:u.role,email:'',password:''});
+    setErr('');setOk('');
+    setMode('edit');
+  }
+
+  const sorted=[...profiles].sort(function(a,b){
+    const order={direction:0,manager:1,conseiller:2};
+    return (order[a.role]||3)-(order[b.role]||3)||a.full_name.localeCompare(b.full_name);
+  });
+
+  return(
+    <div style={{padding:'28px 32px',maxWidth:'720px'}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'22px'}}>
+        <div>
+          <div style={{fontSize:'22px',fontWeight:600,marginBottom:'2px'}}>Utilisateurs</div>
+          <div style={{fontSize:'13px',color:'#666'}}>{profiles.length} compte{profiles.length!==1?'s':''}</div>
+        </div>
+        {mode==='list'&&<button className="bp" onClick={function(){setForm({full_name:'',role:'conseiller',email:'',password:''});setErr('');setOk('');setMode('create');}}>+ Nouvel utilisateur</button>}
+        {mode!=='list'&&<button onClick={function(){setMode('list');setErr('');setOk('');}}>← Retour</button>}
+      </div>
+
+      {err&&<div style={{background:'#fef2f2',color:'#b91c1c',border:'1px solid #fecaca',padding:'10px 14px',borderRadius:'8px',fontSize:'13px',marginBottom:'14px'}}>{err}</div>}
+      {ok&&<div style={{background:'#f0fdf4',color:'#065f46',border:'1px solid #bbf7d0',padding:'10px 14px',borderRadius:'8px',fontSize:'13px',marginBottom:'14px'}}>{ok}</div>}
+
+      {mode==='list'&&(
+        <div className="card" style={{overflow:'hidden'}}>
+          {sorted.map(function(u,i){
+            const rc=RC2[u.role]||RC2.conseiller;
+            const isMe=u.id===profile.id;
+            return(
+              <div key={u.id} style={{display:'flex',alignItems:'center',gap:'12px',padding:'14px 18px',borderBottom:i<sorted.length-1?'1px solid #f3f4f6':'',background:isMe?'#fafafa':''}}>
+                <div style={{width:'36px',height:'36px',borderRadius:'50%',background:rc.bg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:'12px',fontWeight:700,color:rc.tx,flexShrink:0}}>
+                  {u.full_name.split(' ').map(function(w){return w[0];}).join('').slice(0,2).toUpperCase()}
+                </div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontWeight:500,fontSize:'14px'}}>{u.full_name}{isMe&&<span style={{marginLeft:'6px',fontSize:'10.5px',color:'#1d4ed8',background:'#dbeafe',padding:'1px 6px',borderRadius:'100px'}}>moi</span>}</div>
+                  <span className="badge" style={{background:rc.bg,color:rc.tx,marginTop:'2px'}}>{ROLE_LABELS[u.role]}</span>
+                </div>
+                <div style={{display:'flex',gap:'6px'}}>
+                  <button onClick={function(){openEdit(u);}} style={{fontSize:'12px',padding:'5px 10px'}}>✏️ Modifier</button>
+                  <button onClick={function(){resetPassword(u.id);}} style={{fontSize:'12px',padding:'5px 10px'}}>🔑 MDP</button>
+                  {!isMe&&<button onClick={function(){deleteUser(u);}} style={{fontSize:'12px',padding:'5px 10px',color:'#b91c1c',border:'1px solid #fecaca',background:'#fef2f2'}}>🗑</button>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {(mode==='create'||mode==='edit')&&(
+        <div className="card" style={{padding:'28px'}}>
+          <div style={{fontSize:'15px',fontWeight:600,marginBottom:'20px'}}>{mode==='create'?'Créer un utilisateur':'Modifier '+selected?.full_name}</div>
+          <div className="fg2">
+            <div className="fg"><label>Nom complet *</label><input value={form.full_name} onChange={function(e){u('full_name',e.target.value);}} placeholder="Prénom NOM"/></div>
+            <div className="fg"><label>Rôle *</label><select value={form.role} onChange={function(e){u('role',e.target.value);}}>
+              <option value="conseiller">Conseiller</option>
+              <option value="manager">Manager</option>
+              <option value="direction">Direction</option>
+            </select></div>
+          </div>
+          <div className="fg"><label>Email {mode==='edit'&&<span style={{color:'#aaa',fontWeight:400}}>(laisser vide pour ne pas modifier)</span>}</label><input type="email" value={form.email} onChange={function(e){u('email',e.target.value);}} placeholder={mode==='create'?'prenom.nom@agence.fr':'Nouvel email…'}/></div>
+          <div className="fg"><label>Mot de passe {mode==='edit'&&<span style={{color:'#aaa',fontWeight:400}}>(laisser vide pour ne pas modifier)</span>}</label><input type="password" value={form.password} onChange={function(e){u('password',e.target.value);}} placeholder={mode==='create'?'Min. 6 caractères':'Nouveau mot de passe…'}/></div>
+          <div style={{display:'flex',gap:'10px',justifyContent:'flex-end',marginTop:'8px'}}>
+            <button onClick={function(){setMode('list');setErr('');setOk('');}}>Annuler</button>
+            <button className="bp" onClick={mode==='create'?createUser:updateUser} disabled={saving}>{saving?'Enregistrement…':mode==='create'?'Créer':'Enregistrer'}</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
   const isDir=['direction','manager'].includes(profile.role);
   return(
     <div style={{padding:'40px',maxWidth:'700px'}}>
