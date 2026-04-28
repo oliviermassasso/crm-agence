@@ -57,13 +57,12 @@ module.exports = async function handler(req, res) {
 
     if (action === 'create_user') {
       const { email, full_name, role } = payload;
-      // Invitation par email — le collaborateur choisit son propre MDP
-      const r = await authAdmin('/users', 'POST', {
+      // Utiliser l'endpoint d'invitation officiel Supabase
+      const r = await authAdmin('/invite', 'POST', {
         email,
-        email_confirm: false,
-        invite: true,
+        data: { full_name, role }
       });
-      if (!r.ok) return res.status(400).json({ error: r.data.message || 'Erreur création' });
+      if (!r.ok) return res.status(400).json({ error: r.data.message || r.data.error_description || 'Erreur invitation' });
       await sbFetch('/rest/v1/profiles', 'POST', { id: r.data.id, full_name, role });
       return res.status(200).json({ success: true });
     }
