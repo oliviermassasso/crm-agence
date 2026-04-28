@@ -1617,11 +1617,7 @@ function Utilisateurs({profile,profiles,sb,onRefresh}){
 
   const [emailMap,setEmailMap]=useState({});
 
-  useEffect(function(){
-    callAdmin('list_users',{}).then(function(r){
-      if(r.emailMap) setEmailMap(r.emailMap);
-    }).catch(function(){});
-  },[]);
+  const ROLE_LABELS={direction:'Direction',manager:'Manager',conseiller:'Conseiller'};
   const RC2={direction:{bg:'#dbeafe',tx:'#1e40af'},manager:{bg:'#fef3c7',tx:'#92400e'},conseiller:{bg:'#d1fae5',tx:'#065f46'}};
 
   function u(k,v){setForm(function(p){return Object.assign({},p,{[k]:v});});}
@@ -1636,6 +1632,12 @@ function Utilisateurs({profile,profiles,sb,onRefresh}){
     if(!res.ok) throw new Error(data.error||'Erreur serveur');
     return data;
   }
+
+  useEffect(function(){
+    callAdmin('list_users',{}).then(function(r){
+      if(r.emailMap) setEmailMap(r.emailMap);
+    }).catch(function(){});
+  },[]);
 
   async function createUser(){
     if(!form.full_name.trim()){setErr('Le nom est obligatoire.');return;}
