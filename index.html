@@ -358,7 +358,20 @@ function App(){
   const setComMonthP=function(v){setComMonth(v);if(profile)savePref(profile.id,'comMonth',v);};
   const setComSelConsP=function(v){setComSelCons(v);if(profile)savePref(profile.id,'comSelCons',v);};
 
-  const [lf,setLf]=useState({email:'',password:''});
+  const [forgotMode,setForgotMode]=useState(false);
+  const [forgotEmail,setForgotEmail]=useState('');
+  const [forgotOk,setForgotOk]=useState('');
+
+  const sendForgot=async function(){
+    if(!forgotEmail.trim()){setLe("L'email est obligatoire.");return;}
+    setLl(true);setLe('');
+    try{
+      const cl=window.supabase.createClient(SB_URL,SB_KEY);
+      await cl.auth.resetPasswordForEmail(forgotEmail,{redirectTo:'https://crm-agence.vercel.app'});
+      setForgotOk('Email envoyé ! Vérifiez votre boîte mail.');
+    }catch(e){setLe('Erreur : '+e.message);}
+    setLl(false);
+  };
   const [le,setLe]=useState('');
   const [ll,setLl]=useState(false);
 
@@ -443,10 +456,24 @@ function App(){
           <div style={{fontSize:'13px',color:'#666'}}>Gestion commerciale · Assurance AXA</div>
         </div>
         <div className="card" style={{padding:'28px'}}>
-          <div className="fg"><label>Email</label><input type="email" value={lf.email} onChange={function(e){setLf(function(f){return Object.assign({},f,{email:e.target.value});});}} placeholder="prenom.nom@agence.fr" onKeyDown={function(e){if(e.key==='Enter')login();}}/></div>
-          <div className="fg"><label>Mot de passe</label><input type="password" value={lf.password} onChange={function(e){setLf(function(f){return Object.assign({},f,{password:e.target.value});});}} placeholder="••••••••" onKeyDown={function(e){if(e.key==='Enter')login();}}/></div>
-          {le&&<div style={{background:'#fef2f2',color:'#b91c1c',border:'1px solid #fecaca',padding:'10px 14px',borderRadius:'8px',fontSize:'13px',marginBottom:'14px'}}>{le}</div>}
-          <button className="bp" onClick={login} disabled={ll} style={{width:'100%',padding:'11px'}}>{ll?'Connexion…':'Se connecter'}</button>
+          {forgotMode?(
+            <>
+              <div style={{fontSize:'15px',fontWeight:600,marginBottom:'16px'}}>Réinitialiser mon mot de passe</div>
+              <div className="fg"><label>Email</label><input type="email" value={forgotEmail} onChange={function(e){setForgotEmail(e.target.value);}} placeholder="prenom.nom@agence.fr" onKeyDown={function(e){if(e.key==='Enter')sendForgot();}}/></div>
+              {le&&<div style={{background:'#fef2f2',color:'#b91c1c',border:'1px solid #fecaca',padding:'10px 14px',borderRadius:'8px',fontSize:'13px',marginBottom:'14px'}}>{le}</div>}
+              {forgotOk&&<div style={{background:'#f0fdf4',color:'#065f46',border:'1px solid #bbf7d0',padding:'10px 14px',borderRadius:'8px',fontSize:'13px',marginBottom:'14px'}}>{forgotOk}</div>}
+              <button className="bp" onClick={sendForgot} disabled={ll} style={{width:'100%',padding:'11px',marginBottom:'10px'}}>{ll?'Envoi…':'Envoyer le lien'}</button>
+              <button onClick={function(){setForgotMode(false);setLe('');setForgotOk('');}} style={{width:'100%',fontSize:'12px'}}>← Retour à la connexion</button>
+            </>
+          ):(
+            <>
+              <div className="fg"><label>Email</label><input type="email" value={lf.email} onChange={function(e){setLf(function(f){return Object.assign({},f,{email:e.target.value});});}} placeholder="prenom.nom@agence.fr" onKeyDown={function(e){if(e.key==='Enter')login();}}/></div>
+              <div className="fg"><label>Mot de passe</label><input type="password" value={lf.password} onChange={function(e){setLf(function(f){return Object.assign({},f,{password:e.target.value});});}} placeholder="••••••••" onKeyDown={function(e){if(e.key==='Enter')login();}}/></div>
+              {le&&<div style={{background:'#fef2f2',color:'#b91c1c',border:'1px solid #fecaca',padding:'10px 14px',borderRadius:'8px',fontSize:'13px',marginBottom:'14px'}}>{le}</div>}
+              <button className="bp" onClick={login} disabled={ll} style={{width:'100%',padding:'11px',marginBottom:'10px'}}>{ll?'Connexion…':'Se connecter'}</button>
+              <div style={{textAlign:'center'}}><span onClick={function(){setForgotMode(true);setLe('');}} style={{fontSize:'12.5px',color:'#1d4ed8',cursor:'pointer',textDecoration:'underline'}}>Mot de passe oublié ?</span></div>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -1642,11 +1669,10 @@ function Utilisateurs({profile,profiles,sb,onRefresh}){
   async function createUser(){
     if(!form.full_name.trim()){setErr('Le nom est obligatoire.');return;}
     if(!form.email.trim()){setErr("L'email est obligatoire.");return;}
-    if(!form.password||form.password.length<6){setErr('Le mot de passe doit faire au moins 6 caractères.');return;}
     setSaving(true);setErr('');
     try{
-      await callAdmin('create_user',{email:form.email,password:form.password,full_name:form.full_name,role:form.role});
-      setOk('Utilisateur créé avec succès.');
+      await callAdmin('create_user',{email:form.email,full_name:form.full_name,role:form.role});
+      setOk('Invitation envoyée à '+form.email+'. Le collaborateur recevra un email pour créer son mot de passe.');
       setForm({full_name:'',role:'conseiller',email:'',password:''});
       setMode('list');
       onRefresh();
@@ -1672,15 +1698,25 @@ function Utilisateurs({profile,profiles,sb,onRefresh}){
     setSaving(false);
   }
 
-  async function resetPassword(userId){
-    const pwd=window.prompt('Nouveau mot de passe (min. 6 caractères) :');
-    if(!pwd||pwd.length<6){alert('Mot de passe trop court.');return;}
-    setSaving(true);setErr('');
-    try{
-      await callAdmin('reset_password',{userId,password:pwd});
-      setOk('Mot de passe réinitialisé.');
-    }catch(e){setErr(e.message);}
-    setSaving(false);
+  async function resetPassword(u){
+    const choice=window.confirm('Envoyer un email de réinitialisation à '+u.full_name+' ?\n\nOK = email automatique (recommandé)\nAnnuler = saisir manuellement un nouveau MDP');
+    if(choice){
+      setSaving(true);setErr('');
+      try{
+        await callAdmin('send_reset_email',{email:emailMap[u.id]});
+        setOk('Email de réinitialisation envoyé à '+emailMap[u.id]);
+      }catch(e){setErr(e.message);}
+      setSaving(false);
+    } else {
+      const pwd=window.prompt('Nouveau mot de passe (min. 6 caractères) :');
+      if(!pwd||pwd.length<6){alert('Mot de passe trop court.');return;}
+      setSaving(true);setErr('');
+      try{
+        await callAdmin('reset_password',{userId:u.id,password:pwd});
+        setOk('Mot de passe de '+u.full_name+' réinitialisé.');
+      }catch(e){setErr(e.message);}
+      setSaving(false);
+    }
   }
 
   async function deleteUser(u){
@@ -1829,7 +1865,8 @@ function Utilisateurs({profile,profiles,sb,onRefresh}){
             </select></div>
           </div>
           <div className="fg"><label>Email {mode==='edit'&&<span style={{color:'#aaa',fontWeight:400}}>(modifier si nécessaire)</span>}</label><input type="email" value={form.email} onChange={function(e){u('email',e.target.value);}} placeholder={mode==='create'?'prenom.nom@agence.fr':'Email…'}/></div>
-          <div className="fg"><label>Mot de passe {mode==='edit'&&<span style={{color:'#aaa',fontWeight:400}}>(laisser vide pour ne pas modifier)</span>}</label><input type="password" value={form.password} onChange={function(e){u('password',e.target.value);}} placeholder={mode==='create'?'Min. 6 caractères':'Nouveau mot de passe…'}/></div>
+          {mode==='create'&&<div style={{background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:'8px',padding:'10px 14px',fontSize:'12.5px',color:'#1e40af',marginBottom:'16px'}}>📧 Un email d'invitation sera envoyé automatiquement. Le collaborateur créera lui-même son mot de passe.</div>}
+          {mode==='edit'&&<div className="fg"><label>Mot de passe <span style={{color:'#aaa',fontWeight:400}}>(laisser vide pour ne pas modifier)</span></label><input type="password" value={form.password} onChange={function(e){u('password',e.target.value);}} placeholder="Nouveau mot de passe…"/></div>}
           <div style={{display:'flex',gap:'10px',justifyContent:'flex-end',marginTop:'8px'}}>
             <button onClick={function(){setMode('list');setErr('');setOk('');}}>Annuler</button>
             <button className="bp" onClick={mode==='create'?createUser:updateUser} disabled={saving}>{saving?'Enregistrement…':mode==='create'?'Créer':'Enregistrer'}</button>
