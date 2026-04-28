@@ -1763,6 +1763,9 @@ function Utilisateurs({profile,profiles,sb,onRefresh}){
 
 function CongesPlaceholder({profile}){
   const isDir=['direction','manager'].includes(profile.role);
+  return(
+    <div style={{padding:'40px',maxWidth:'700px'}}>
+      <div style={{fontSize:'22px',fontWeight:600,marginBottom:'6px'}}>🌴 Congés</div>
       <div style={{fontSize:'13px',color:'#888',marginBottom:'28px'}}>Module en cours de construction</div>
       <div className="card" style={{padding:'28px'}}>
         <div style={{fontSize:'14px',fontWeight:600,marginBottom:'16px',color:'#333'}}>Ce module permettra :</div>
