@@ -268,9 +268,9 @@ const PROVS=['Leads / E-contact AXA','Leads / E-contact AGENCE','PRVT','Rebond',
 const MONO_OPTS=[{value:'',label:'Aucun'},{value:'mono',label:'Mono contrat (com = 0€)'},{value:'mono_sante',label:'Mono santé (taux − 1%)'},{value:'mono_pro',label:'Mono pro (taux − 1%)'}];
 const PAY_OPTS=[{value:'non_paye',label:'Pas encore payé',bg:'#f3f4f6',tx:'#374151'},{value:'paye',label:'Payé',bg:'#d1fae5',tx:'#065f46'},{value:'impaye',label:'Impayé',bg:'#fee2e2',tx:'#991b1b'}];
 const NAV={
-  direction:[{id:'saisir-contrat',label:'Saisir un contrat',icon:'+'},{id:'suivi-dossiers',label:'Suivi des dossiers',icon:'≡'},{id:'tableau-bord',label:'Tableau de bord',icon:'◉'},{id:'commissions',label:'Commissions',icon:'€'},{id:'resiliations',label:'Résiliations',icon:'↩',s:7},{id:'salaires',label:'Salaires',icon:'∑',s:6},{id:'configuration',label:'Configuration',icon:'⚙',s:5}],
-  manager:[{id:'saisir-contrat',label:'Saisir un contrat',icon:'+'},{id:'suivi-dossiers',label:'Suivi des dossiers',icon:'≡'},{id:'tableau-bord',label:'Tableau de bord',icon:'◉'},{id:'commissions',label:'Commissions',icon:'€'},{id:'resiliations',label:'Résiliations',icon:'↩',s:7}],
-  conseiller:[{id:'saisir-contrat',label:'Saisir un contrat',icon:'+'},{id:'mes-dossiers',label:'Mes dossiers',icon:'≡'},{id:'tableau-bord',label:'Tableau de bord',icon:'◉'},{id:'mes-commissions',label:'Mes commissions',icon:'€'}]
+  direction:[{id:'saisir-contrat',label:'Saisir un contrat',icon:'+'},{id:'suivi-dossiers',label:'Suivi des dossiers',icon:'≡'},{id:'tableau-bord',label:'Tableau de bord',icon:'◉'},{id:'commissions',label:'Commissions',icon:'€'},{id:'conges',label:'Congés',icon:'🌴'},{id:'resiliations',label:'Résiliations',icon:'↩',s:7},{id:'salaires',label:'Salaires',icon:'∑',s:6},{id:'configuration',label:'Configuration',icon:'⚙',s:5}],
+  manager:[{id:'saisir-contrat',label:'Saisir un contrat',icon:'+'},{id:'suivi-dossiers',label:'Suivi des dossiers',icon:'≡'},{id:'tableau-bord',label:'Tableau de bord',icon:'◉'},{id:'commissions',label:'Commissions',icon:'€'},{id:'conges',label:'Congés',icon:'🌴'},{id:'resiliations',label:'Résiliations',icon:'↩',s:7}],
+  conseiller:[{id:'saisir-contrat',label:'Saisir un contrat',icon:'+'},{id:'mes-dossiers',label:'Mes dossiers',icon:'≡'},{id:'tableau-bord',label:'Tableau de bord',icon:'◉'},{id:'mes-commissions',label:'Mes commissions',icon:'€'},{id:'conges',label:'Congés',icon:'🌴'}]
 };
 const RL={direction:'Direction',manager:'Manager',conseiller:'Conseiller'};
 const RC={direction:{bg:'#dbeafe',tx:'#1e40af'},manager:{bg:'#fef3c7',tx:'#92400e'},conseiller:{bg:'#d1fae5',tx:'#065f46'}};
@@ -486,8 +486,9 @@ function App(){
         {active==='saisir-contrat'&&<FormContrat sb={sb} profile={profile} profiles={profiles} onSaved={function(){refresh();setActive(profile.role==='conseiller'?'mes-dossiers':'suivi-dossiers');}}/>}
         {(active==='suivi-dossiers'||active==='mes-dossiers')&&<SuiviDossiers contracts={contracts} profile={profile} profiles={profiles} reads={reads} lastMsgMap={lastMsgMap} sort={sort} setSort={setSortP} fCons={fCons} setFCons={setFConsP} fYear={fYear} setFYear={setFYearP} fMonth={fMonth} setFMonth={setFMonthP} fType={fType} setFType={setFTypeP} fStat={fStat} setFStat={setFStatP} fDoss={fDoss} setFDoss={setFDossP} fPay={fPay} setFPay={setFPayP} fDup={fDup} setFDup={setFDupP} search={search} setSearch={setSearch} selectedId={lastSelectedId} onSelect={function(c){setSelected(c);setLastSelectedId(c.id);markRead(c.id);}} onNew={function(){setActive('saisir-contrat');}}/>}
         {active==='tableau-bord'&&<TableauBord contracts={contracts} rankContracts={rankContracts} profiles={profiles} profile={profile}/>}
+        {active==='conges'&&<CongesPlaceholder profile={profile}/>}
         {(active==='commissions'||active==='mes-commissions')&&<Commissions contracts={contracts} profiles={profiles} profile={profile} sb={sb} onSelect={function(c){setSelected(c);markRead(c.id);}} onRefresh={refresh} year={comYear} setYear={setComYearP} month={comMonth} setMonth={setComMonthP} selCons={comSelCons} setSelCons={setComSelConsP} comSearch={comSearch} setComSearch={setComSearch}/>}
-        {!['saisir-contrat','suivi-dossiers','mes-dossiers','tableau-bord','commissions','mes-commissions'].includes(active)&&<Placeholder nav={nav} active={active}/>}
+        {!['saisir-contrat','suivi-dossiers','mes-dossiers','tableau-bord','commissions','mes-commissions','conges'].includes(active)&&<Placeholder nav={nav} active={active}/>}
       </div>
       {selected&&<DetailPanel key={selected.id} contract={selected} profile={profile} profiles={profiles} sb={sb} onClose={function(){setSelected(null);}} onRefresh={refresh}/>}
     </div>
@@ -1602,6 +1603,32 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
 function CopyBtn({text}){
   const [copied,setCopied]=useState(false);
   return <span onClick={function(e){e.stopPropagation();navigator.clipboard.writeText(text);setCopied(true);setTimeout(function(){setCopied(false);},1500);}} title={copied?'Copié !':'Copier'} style={{cursor:'pointer',fontSize:'12px',padding:'1px 4px',border:'1px solid '+(copied?'#bbf7d0':'#bfdbfe'),borderRadius:'4px',background:copied?'#f0fdf4':'#eff6ff',color:copied?'#16a34a':'#3b82f6',userSelect:'none',transition:'all 0.2s'}}>{copied?'✓':'⧉'}</span>;
+}
+
+function CongesPlaceholder({profile}){
+  const isDir=['direction','manager'].includes(profile.role);
+  return(
+    <div style={{padding:'40px',maxWidth:'700px'}}>
+      <div style={{fontSize:'22px',fontWeight:600,marginBottom:'6px'}}>🌴 Congés</div>
+      <div style={{fontSize:'13px',color:'#888',marginBottom:'28px'}}>Module en cours de construction</div>
+      <div className="card" style={{padding:'28px'}}>
+        <div style={{fontSize:'14px',fontWeight:600,marginBottom:'16px',color:'#333'}}>Ce module permettra :</div>
+        <div style={{display:'flex',flexDirection:'column',gap:'10px',fontSize:'13.5px',color:'#555',lineHeight:1.6}}>
+          {!isDir&&<div>✦ Soumettre des demandes de congés (CP, RTT, sans solde…)</div>}
+          {!isDir&&<div>✦ Suivre le statut de vos demandes : en attente, validé, refusé</div>}
+          {!isDir&&<div>✦ Visualiser votre planning personnel</div>}
+          {isDir&&<div>✦ Valider ou refuser les demandes de congés</div>}
+          {isDir&&<div>✦ Visualiser le planning de toute l'équipe</div>}
+          {isDir&&<div>✦ Gérer les soldes de congés par collaborateur</div>}
+          <div>✦ Vue planning mensuelle avec indication des absences</div>
+          <div>✦ Notifications lors des changements de statut</div>
+        </div>
+        <div style={{marginTop:'20px',padding:'12px 16px',background:'#f8fafc',borderRadius:'8px',border:'1px solid #e5e7eb',fontSize:'12.5px',color:'#888'}}>
+          Développement prévu après les modules Salaires et Résiliations.
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function Placeholder({nav,active}){
