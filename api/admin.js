@@ -47,6 +47,15 @@ module.exports = async function handler(req, res) {
       return res.status(403).json({ error: 'Accès refusé' });
     }
 
+    if (action === 'list_users') {
+      // Récupérer tous les users Auth avec leurs emails
+      const r = await authAdmin('/users?per_page=1000', 'GET');
+      if (!r.ok) return res.status(400).json({ error: 'Erreur chargement' });
+      const emailMap = {};
+      (r.data.users || []).forEach(function(u) { emailMap[u.id] = u.email; });
+      return res.status(200).json({ emailMap });
+    }
+
     if (action === 'create_user') {
       const { email, password, full_name, role } = payload;
       const r = await authAdmin('/users', 'POST', { email, password, email_confirm: true });
