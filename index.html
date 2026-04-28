@@ -1718,17 +1718,20 @@ function Utilisateurs({profile,profiles,sb,onRefresh}){
             const rc=RC2[u.role]||RC2.conseiller;
             const isMe=u.id===profile.id;
             return(
-              <div key={u.id} style={{display:'flex',alignItems:'center',gap:'12px',padding:'14px 18px',borderBottom:i<sorted.length-1?'1px solid #f3f4f6':'',background:isMe?'#fafafa':''}}>
-                <div style={{width:'36px',height:'36px',borderRadius:'50%',background:rc.bg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:'12px',fontWeight:700,color:rc.tx,flexShrink:0}}>
+              <div key={u.id} style={{display:'flex',alignItems:'center',gap:'12px',padding:'14px 18px',borderBottom:i<sorted.length-1?'1px solid #f3f4f6':'',background:isMe?'#fafafa':u.actif===false?'#f8fafc':''}}>
+                <div style={{width:'36px',height:'36px',borderRadius:'50%',background:u.actif===false?'#f1f5f9':rc.bg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:'12px',fontWeight:700,color:u.actif===false?'#94a3b8':rc.tx,flexShrink:0}}>
                   {u.full_name.split(' ').map(function(w){return w[0];}).join('').slice(0,2).toUpperCase()}
                 </div>
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontWeight:500,fontSize:'14px'}}>{u.full_name}{isMe&&<span style={{marginLeft:'6px',fontSize:'10.5px',color:'#1d4ed8',background:'#dbeafe',padding:'1px 6px',borderRadius:'100px'}}>moi</span>}</div>
-                  <span className="badge" style={{background:rc.bg,color:rc.tx,marginTop:'2px'}}>{ROLE_LABELS[u.role]}</span>
+                  <div style={{fontWeight:500,fontSize:'14px',color:u.actif===false?'#94a3b8':''}}>{u.full_name}{isMe&&<span style={{marginLeft:'6px',fontSize:'10.5px',color:'#1d4ed8',background:'#dbeafe',padding:'1px 6px',borderRadius:'100px'}}>moi</span>}</div>
+                  <div style={{display:'flex',gap:'6px',marginTop:'2px',flexWrap:'wrap'}}>
+                    <span className="badge" style={{background:rc.bg,color:rc.tx}}>{ROLE_LABELS[u.role]}</span>
+                    {u.actif===false&&<span className="badge" style={{background:'#f1f5f9',color:'#94a3b8'}}>Ancien · sans accès</span>}
+                  </div>
                 </div>
                 <div style={{display:'flex',gap:'6px'}}>
-                  <button onClick={function(){openEdit(u);}} style={{fontSize:'12px',padding:'5px 10px'}}>✏️ Modifier</button>
-                  <button onClick={function(){resetPassword(u.id);}} style={{fontSize:'12px',padding:'5px 10px'}}>🔑 MDP</button>
+                  {u.actif!==false&&<button onClick={function(){openEdit(u);}} style={{fontSize:'12px',padding:'5px 10px'}}>✏️ Modifier</button>}
+                  {u.actif!==false&&<button onClick={function(){resetPassword(u.id);}} style={{fontSize:'12px',padding:'5px 10px'}}>🔑 MDP</button>}
                   {!isMe&&<button onClick={function(){deleteUser(u);}} style={{fontSize:'12px',padding:'5px 10px',color:'#b91c1c',border:'1px solid #fecaca',background:'#fef2f2'}}>🗑</button>}
                 </div>
               </div>
