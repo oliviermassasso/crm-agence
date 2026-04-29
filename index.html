@@ -489,6 +489,28 @@ function App(){
     setReads(function(r){return Object.assign({},r,{[cid]:now});});
   },[sb,profile]);
 
+  const [monCompte,setMonCompte]=useState(false);
+  const [mdpF,setMdpF]=useState({ancien:'',nouveau:'',confirm:''});
+  const [mdpErr,setMdpErr]=useState('');
+  const [mdpOk,setMdpOk]=useState('');
+  const [mdpSaving,setMdpSaving]=useState(false);
+
+  const changeMdp=async function(){
+    if(!mdpF.ancien){setMdpErr('Saisissez votre ancien mot de passe.');return;}
+    if(!mdpF.nouveau||mdpF.nouveau.length<6){setMdpErr('Le nouveau mot de passe doit faire au moins 6 caractères.');return;}
+    if(mdpF.nouveau!==mdpF.confirm){setMdpErr('Les mots de passe ne correspondent pas.');return;}
+    setMdpSaving(true);setMdpErr('');
+    try{
+      const check=await sb.auth.signInWithPassword({email:(await sb.auth.getUser()).data.user.email,password:mdpF.ancien});
+      if(check.error){setMdpErr('Ancien mot de passe incorrect.');setMdpSaving(false);return;}
+      const {error}=await sb.auth.updateUser({password:mdpF.nouveau});
+      if(error){setMdpErr('Erreur : '+error.message);setMdpSaving(false);return;}
+      setMdpOk('Mot de passe modifié avec succès.');
+      setMdpF({ancien:'',nouveau:'',confirm:''});
+    }catch(e){setMdpErr('Erreur : '+e.message);}
+    setMdpSaving(false);
+  };
+
   if(!profile) return(
     <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#f3f4f6'}}>
       <div style={{width:'100%',maxWidth:'380px',padding:'16px'}}>
@@ -529,28 +551,6 @@ function App(){
     </div>
   );
 
-  const [monCompte,setMonCompte]=useState(false);
-  const [mdpF,setMdpF]=useState({ancien:'',nouveau:'',confirm:''});
-  const [mdpErr,setMdpErr]=useState('');
-  const [mdpOk,setMdpOk]=useState('');
-  const [mdpSaving,setMdpSaving]=useState(false);
-
-  const changeMdp=async function(){
-    if(!mdpF.ancien){setMdpErr('Saisissez votre ancien mot de passe.');return;}
-    if(!mdpF.nouveau||mdpF.nouveau.length<6){setMdpErr('Le nouveau mot de passe doit faire au moins 6 caractères.');return;}
-    if(mdpF.nouveau!==mdpF.confirm){setMdpErr('Les mots de passe ne correspondent pas.');return;}
-    setMdpSaving(true);setMdpErr('');
-    try{
-      // Vérifier l'ancien MDP en se reconnectant
-      const check=await sb.auth.signInWithPassword({email:(await sb.auth.getUser()).data.user.email,password:mdpF.ancien});
-      if(check.error){setMdpErr('Ancien mot de passe incorrect.');setMdpSaving(false);return;}
-      const {error}=await sb.auth.updateUser({password:mdpF.nouveau});
-      if(error){setMdpErr('Erreur : '+error.message);setMdpSaving(false);return;}
-      setMdpOk('Mot de passe modifié avec succès.');
-      setMdpF({ancien:'',nouveau:'',confirm:''});
-    }catch(e){setMdpErr('Erreur : '+e.message);}
-    setMdpSaving(false);
-  };
   const nav=NAV[profile.role]||[];
   const rc=RC[profile.role];
   const ini=(profile.full_name||'?').split(' ').map(function(w){return w[0];}).join('').slice(0,2).toUpperCase();
