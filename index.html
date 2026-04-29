@@ -2018,6 +2018,51 @@ function Utilisateurs({profile,profiles,sb,onRefresh}){
 
 
 /* ══ CONFIGURATION ══ */
+function GrilleRow({type,row,canEdit,onSave}){
+  const [localFixed,setLocalFixed]=useState(!!row.fixed);
+  const [localTaux,setLocalTaux]=useState(row.fixed?'':(row.taux!==null?parseFloat((row.taux*100).toFixed(4)):''));
+  const [localFixedVal,setLocalFixedVal]=useState(row.fixed?(row.montant_fixe||''):'');
+
+  useEffect(function(){
+    setLocalFixed(!!row.fixed);
+    setLocalTaux(row.fixed?'':(row.taux!==null?parseFloat((row.taux*100).toFixed(4)):''));
+    setLocalFixedVal(row.fixed?(row.montant_fixe||''):'');
+  },[row.fixed,row.taux,row.montant_fixe]);
+
+  return(
+    <tr>
+      <td style={{fontSize:'12.5px'}}>{type}</td>
+      <td>
+        <select value={localFixed?'fixe':'taux'} disabled={!canEdit} onChange={function(e){setLocalFixed(e.target.value==='fixe');}} style={{width:'auto',padding:'4px 8px',fontSize:'12px'}}>
+          <option value="taux">Taux %</option>
+          <option value="fixe">Montant fixe</option>
+        </select>
+      </td>
+      <td>
+        {!localFixed&&<input type="number" step="0.01" value={localTaux} disabled={!canEdit} onChange={function(e){setLocalTaux(e.target.value);}} onBlur={function(){if(canEdit)onSave(type,parseFloat(localTaux)/100,false,null);}} style={{width:'80px',padding:'4px 8px',fontSize:'12px'}} placeholder="ex: 1.8"/>}
+      </td>
+      <td>
+        {localFixed&&<input type="number" step="0.01" value={localFixedVal} disabled={!canEdit} onChange={function(e){setLocalFixedVal(e.target.value);}} onBlur={function(){if(canEdit)onSave(type,null,true,parseFloat(localFixedVal));}} style={{width:'80px',padding:'4px 8px',fontSize:'12px'}} placeholder="ex: 15"/>}
+      </td>
+    </tr>
+  );
+}
+
+function ObjRow({fam,type,getObj,saveObj,canEdit}){
+  const val=getObj(fam||null,type||null);
+  return(
+    <tr style={{background:type?'#fafafa':''}}>
+      <td style={{paddingLeft:type?'24px':'',fontSize:'12px',color:type?'#666':'',fontWeight:type?400:600}}>{type?'↳ '+type:fam}</td>
+      <td style={{textAlign:'right'}}>
+        {canEdit
+          ?<input type="number" defaultValue={val} onBlur={function(e){saveObj(fam,type,e.target.value);}} style={{width:'120px',padding:'4px 8px',fontSize:'12px',textAlign:'right'}} placeholder="—"/>
+          :<span style={{fontSize:'12.5px'}}>{val?feur0(val):'—'}</span>
+        }
+      </td>
+    </tr>
+  );
+}
+
 function Configuration({sb,profile,profiles,grilles,setGrilles,objectifs,setObjectifs}){
   const [onglet,setOnglet]=useState('grille');
   const [anneeG,setAnneeG]=useState(new Date().getFullYear());
@@ -2145,26 +2190,7 @@ function Configuration({sb,profile,profiles,grilles,setGrilles,objectifs,setObje
                     <tbody>
                       {fam.types.map(function(type){
                         const row=grilleActive[type]||{taux:null,fixed:false,montant_fixe:null};
-                        const [localFixed,setLocalFixed]=useState(!!row.fixed);
-                        const [localTaux,setLocalTaux]=useState(row.fixed?'':(row.taux!==null?parseFloat((row.taux*100).toFixed(4)):''));
-                        const [localFixedVal,setLocalFixedVal]=useState(row.fixed?(row.montant_fixe||''):'');
-                        return(
-                          <tr key={type}>
-                            <td style={{fontSize:'12.5px'}}>{type}</td>
-                            <td>
-                              <select value={localFixed?'fixe':'taux'} disabled={!canEdit} onChange={function(e){setLocalFixed(e.target.value==='fixe');}} style={{width:'auto',padding:'4px 8px',fontSize:'12px'}}>
-                                <option value="taux">Taux %</option>
-                                <option value="fixe">Montant fixe</option>
-                              </select>
-                            </td>
-                            <td>
-                              {!localFixed&&<input type="number" step="0.01" value={localTaux} disabled={!canEdit} onChange={function(e){setLocalTaux(e.target.value);}} onBlur={function(){if(canEdit)saveGrilleRow(type,parseFloat(localTaux)/100,false,null);}} style={{width:'80px',padding:'4px 8px',fontSize:'12px'}} placeholder="ex: 1.8"/>}
-                            </td>
-                            <td>
-                              {localFixed&&<input type="number" step="0.01" value={localFixedVal} disabled={!canEdit} onChange={function(e){setLocalFixedVal(e.target.value);}} onBlur={function(){if(canEdit)saveGrilleRow(type,null,true,parseFloat(localFixedVal));}} style={{width:'80px',padding:'4px 8px',fontSize:'12px'}} placeholder="ex: 15"/>}
-                            </td>
-                          </tr>
-                        );
+                        return <GrilleRow key={type} type={type} row={row} canEdit={canEdit} onSave={saveGrilleRow}/>;
                       })}
                     </tbody>
                   </table>
@@ -2201,28 +2227,9 @@ function Configuration({sb,profile,profiles,grilles,setGrilles,objectifs,setObje
               <tbody>
                 {FAMILLES_PRINCIPALES.map(function(fam){
                   return [
-                    <tr key={fam.name} style={{background:fam.bg}}>
-                      <td style={{fontWeight:600,color:fam.color,fontSize:'12px'}}>{fam.name}</td>
-                      <td style={{textAlign:'right'}}>
-                        {canEdit
-                          ?<input type="number" defaultValue={getObj(fam.name,null)} onBlur={function(e){saveObj(fam.name,null,e.target.value);}} style={{width:'120px',padding:'4px 8px',fontSize:'12px',textAlign:'right'}} placeholder="—"/>
-                          :<span style={{fontSize:'12.5px'}}>{getObj(fam.name,null)?feur0(getObj(fam.name,null)):'—'}</span>
-                        }
-                      </td>
-                    </tr>
+                    <ObjRow key={fam.name} fam={fam.name} type={null} getObj={getObj} saveObj={saveObj} canEdit={canEdit}/>
                   ].concat(fam.types.map(function(type){
-                    const val=getObj(null,type);
-                    return(
-                      <tr key={type} style={{background:'#fafafa'}}>
-                        <td style={{paddingLeft:'24px',fontSize:'12px',color:'#666'}}>↳ {type}</td>
-                        <td style={{textAlign:'right'}}>
-                          {canEdit
-                            ?<input type="number" defaultValue={val} onBlur={function(e){saveObj(null,type,e.target.value);}} style={{width:'120px',padding:'4px 8px',fontSize:'12px',textAlign:'right'}} placeholder="—"/>
-                            :<span style={{fontSize:'12.5px'}}>{val?feur0(val):'—'}</span>
-                          }
-                        </td>
-                      </tr>
-                    );
+                    return <ObjRow key={type} fam={null} type={type} getObj={getObj} saveObj={saveObj} canEdit={canEdit}/>;
                   }));
                 })}
               </tbody>
