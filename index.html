@@ -478,18 +478,19 @@ function App(){
     }
     setGrilles(grMap);
 
-    // Charger objectifs
+      // Charger objectifs
     const ob=await cl.from('objectifs').select('*');
+    let allObjectifs=ob.data||[];
     // Migrer objectifs 2026 agence si absents
-    const has2026=((ob.data||[]).some(function(o){return o.annee===2026&&!o.conseiller_id;}));
+    const has2026=(allObjectifs.some(function(o){return o.annee===2026&&!o.conseiller_id;}));
     if(!has2026){
       const objRows=Object.entries(OBJECTIFS_2026).map(function(e){
         return {annee:2026,conseiller_id:null,famille:e[0],contract_type:null,montant:e[1]};
       });
       await cl.from('objectifs').upsert(objRows,{onConflict:'annee,conseiller_id,famille,contract_type'});
-      ob.data=(ob.data||[]).concat(objRows);
+      allObjectifs=allObjectifs.concat(objRows);
     }
-    setObjectifs(ob.data||[]);
+    setObjectifs(allObjectifs);
       const updated=allContracts.find(function(c){return c.id===selectedId;});
       if(updated) setSelected(updated);
     }
@@ -1536,7 +1537,7 @@ function DetailPanel({contract,profile,profiles,sb,grilles,onClose,onRefresh}){
       });
   },[isPaye,contract.id,sb]);
   const [editing,setEditing]=useState(false);
-  const [editF,setEditF]=useState({client_name:contract.client_name,emission_date:contract.emission_date,effect_date:contract.effect_date,provenance:contract.provenance||'',annual_premium:contract.annual_premium||0,commission:calcBaseCommission(contract),conseiller_id:contract.conseiller_id,contract_type:contract.contract_type,contract_number:contract.contract_number,code_portefeuille:contract.code_portefeuille||''});
+  const [editF,setEditF]=useState({client_name:contract.client_name,emission_date:contract.emission_date,effect_date:contract.effect_date,provenance:contract.provenance||'',annual_premium:contract.annual_premium||0,commission:calcBaseCommission(contract,grilles),conseiller_id:contract.conseiller_id,contract_type:contract.contract_type,contract_number:contract.contract_number,code_portefeuille:contract.code_portefeuille||''});
   const [saveErr,setSaveErr]=useState('');
   const [messages,setMessages]=useState([]);
   const [newMsg,setNewMsg]=useState('');
@@ -1602,7 +1603,7 @@ function DetailPanel({contract,profile,profiles,sb,grilles,onClose,onRefresh}){
       await sb.from('contracts').update({mono_type:val||null}).eq('id',contract.id);
     } else {
       const fakeC=Object.assign({},contract,{mono_type:val||null,manual_commission:null});
-      const newCom=calcBaseCommission(fakeC);
+      const newCom=calcBaseCommission(fakeC,grilles);
       await sb.from('contracts').update({mono_type:val||null,commission:newCom}).eq('id',contract.id);
     }
     onRefresh();
@@ -1646,7 +1647,7 @@ function DetailPanel({contract,profile,profiles,sb,grilles,onClose,onRefresh}){
           </div>
           <div style={{display:'flex',gap:'6px',alignItems:'center'}}>
             {canDirEdit&&!editing&&<button onClick={function(){
-              setEditF({client_name:contract.client_name,emission_date:contract.emission_date,effect_date:contract.effect_date,provenance:contract.provenance||'',annual_premium:contract.annual_premium||0,commission:calcBaseCommission(contract),conseiller_id:contract.conseiller_id,contract_type:contract.contract_type,contract_number:contract.contract_number,code_portefeuille:contract.code_portefeuille||''});
+              setEditF({client_name:contract.client_name,emission_date:contract.emission_date,effect_date:contract.effect_date,provenance:contract.provenance||'',annual_premium:contract.annual_premium||0,commission:calcBaseCommission(contract,grilles),conseiller_id:contract.conseiller_id,contract_type:contract.contract_type,contract_number:contract.contract_number,code_portefeuille:contract.code_portefeuille||''});
               setEditing(true);
             }} style={{fontSize:'12px',padding:'5px 10px'}}>✏️ Modifier</button>}
             <button onClick={onClose} style={{padding:'6px 10px',fontSize:'13px'}}>✕</button>
@@ -1678,7 +1679,7 @@ function DetailPanel({contract,profile,profiles,sb,grilles,onClose,onRefresh}){
                 </div>
                 <div style={{display:'flex',gap:'8px',justifyContent:'flex-end'}}>
                   {saveErr&&<div style={{color:'#b91c1c',fontSize:'12px',alignSelf:'center'}}>{saveErr}</div>}
-                  <button onClick={function(){setEditing(false);setSaveErr('');setEditF({client_name:contract.client_name,emission_date:contract.emission_date,effect_date:contract.effect_date,provenance:contract.provenance||'',annual_premium:contract.annual_premium||0,commission:calcBaseCommission(contract),conseiller_id:contract.conseiller_id,contract_type:contract.contract_type,contract_number:contract.contract_number,code_portefeuille:contract.code_portefeuille||''});}}>Annuler</button>
+                  <button onClick={function(){setEditing(false);setSaveErr('');setEditF({client_name:contract.client_name,emission_date:contract.emission_date,effect_date:contract.effect_date,provenance:contract.provenance||'',annual_premium:contract.annual_premium||0,commission:calcBaseCommission(contract,grilles),conseiller_id:contract.conseiller_id,contract_type:contract.contract_type,contract_number:contract.contract_number,code_portefeuille:contract.code_portefeuille||''});}}>Annuler</button>
                   <button className="bp" onClick={saveEdit} disabled={saving}>Enregistrer</button>
                 </div>
               </div>
