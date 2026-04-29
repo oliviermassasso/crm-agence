@@ -529,7 +529,28 @@ function App(){
     </div>
   );
 
-  const nav=NAV[profile.role]||[];
+  const [monCompte,setMonCompte]=useState(false);
+  const [mdpF,setMdpF]=useState({ancien:'',nouveau:'',confirm:''});
+  const [mdpErr,setMdpErr]=useState('');
+  const [mdpOk,setMdpOk]=useState('');
+  const [mdpSaving,setMdpSaving]=useState(false);
+
+  const changeMdp=async function(){
+    if(!mdpF.ancien){setMdpErr('Saisissez votre ancien mot de passe.');return;}
+    if(!mdpF.nouveau||mdpF.nouveau.length<6){setMdpErr('Le nouveau mot de passe doit faire au moins 6 caractères.');return;}
+    if(mdpF.nouveau!==mdpF.confirm){setMdpErr('Les mots de passe ne correspondent pas.');return;}
+    setMdpSaving(true);setMdpErr('');
+    try{
+      // Vérifier l'ancien MDP en se reconnectant
+      const check=await sb.auth.signInWithPassword({email:(await sb.auth.getUser()).data.user.email,password:mdpF.ancien});
+      if(check.error){setMdpErr('Ancien mot de passe incorrect.');setMdpSaving(false);return;}
+      const {error}=await sb.auth.updateUser({password:mdpF.nouveau});
+      if(error){setMdpErr('Erreur : '+error.message);setMdpSaving(false);return;}
+      setMdpOk('Mot de passe modifié avec succès.');
+      setMdpF({ancien:'',nouveau:'',confirm:''});
+    }catch(e){setMdpErr('Erreur : '+e.message);}
+    setMdpSaving(false);
+  };
   const rc=RC[profile.role];
   const ini=(profile.full_name||'?').split(' ').map(function(w){return w[0];}).join('').slice(0,2).toUpperCase();
   const comId=profile.role==='conseiller'?'mes-commissions':'commissions';
@@ -556,9 +577,28 @@ function App(){
               <div style={{fontSize:'11px',color:'#999'}}>{RL[profile.role]}</div>
             </div>
           </div>
+          <button onClick={function(){setMonCompte(true);setMdpErr('');setMdpOk('');setMdpF({ancien:'',nouveau:'',confirm:'']);}} style={{width:'100%',fontSize:'12px',padding:'6px',marginBottom:'6px'}}>🔑 Mon compte</button>
           <button onClick={logout} style={{width:'100%',fontSize:'12px',padding:'6px'}}>Déconnexion</button>
         </div>
       </div>
+
+      {monCompte&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.35)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center'}} onClick={function(e){if(e.target===e.currentTarget){setMonCompte(false);}}}>
+          <div style={{background:'#fff',borderRadius:'12px',padding:'28px',width:'100%',maxWidth:'380px',boxShadow:'0 8px 32px rgba(0,0,0,0.18)'}}>
+            <div style={{fontSize:'16px',fontWeight:600,marginBottom:'4px'}}>Mon compte</div>
+            <div style={{fontSize:'13px',color:'#888',marginBottom:'20px'}}>{profile.full_name} · {RL[profile.role]}</div>
+            <div className="fg"><label>Ancien mot de passe</label><input type="password" value={mdpF.ancien} onChange={function(e){setMdpF(function(p){return Object.assign({},p,{ancien:e.target.value});});}} placeholder="••••••••"/></div>
+            <div className="fg"><label>Nouveau mot de passe</label><input type="password" value={mdpF.nouveau} onChange={function(e){setMdpF(function(p){return Object.assign({},p,{nouveau:e.target.value});});}} placeholder="Min. 6 caractères"/></div>
+            <div className="fg"><label>Confirmer le nouveau mot de passe</label><input type="password" value={mdpF.confirm} onChange={function(e){setMdpF(function(p){return Object.assign({},p,{confirm:e.target.value});});}} placeholder="Répétez le mot de passe" onKeyDown={function(e){if(e.key==='Enter')changeMdp();}}/></div>
+            {mdpErr&&<div style={{background:'#fef2f2',color:'#b91c1c',border:'1px solid #fecaca',padding:'10px 14px',borderRadius:'8px',fontSize:'13px',marginBottom:'14px'}}>{mdpErr}</div>}
+            {mdpOk&&<div style={{background:'#f0fdf4',color:'#065f46',border:'1px solid #bbf7d0',padding:'10px 14px',borderRadius:'8px',fontSize:'13px',marginBottom:'14px'}}>{mdpOk}</div>}
+            <div style={{display:'flex',gap:'8px',justifyContent:'flex-end'}}>
+              <button onClick={function(){setMonCompte(false);}}>Fermer</button>
+              <button className="bp" onClick={changeMdp} disabled={mdpSaving}>{mdpSaving?'Enregistrement…':'Changer le mot de passe'}</button>
+            </div>
+          </div>
+        </div>
+      )}
       <div style={{flex:1,overflow:'auto',background:'#f9fafb'}}>
         {active==='saisir-contrat'&&<FormContrat sb={sb} profile={profile} profiles={profiles} onSaved={function(){refresh();setActive(profile.role==='conseiller'?'mes-dossiers':'suivi-dossiers');}}/>}
         {(active==='suivi-dossiers'||active==='mes-dossiers')&&<SuiviDossiers contracts={contracts} profile={profile} profiles={profiles} reads={reads} lastMsgMap={lastMsgMap} sort={sort} setSort={setSortP} fCons={fCons} setFCons={setFConsP} fYear={fYear} setFYear={setFYearP} fMonth={fMonth} setFMonth={setFMonthP} fType={fType} setFType={setFTypeP} fStat={fStat} setFStat={setFStatP} fDoss={fDoss} setFDoss={setFDossP} fPay={fPay} setFPay={setFPayP} fDup={fDup} setFDup={setFDupP} search={search} setSearch={setSearch} selectedId={lastSelectedId} onSelect={function(c){setSelected(c);setLastSelectedId(c.id);markRead(c.id);}} onNew={function(){setActive('saisir-contrat');}}/>}
