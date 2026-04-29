@@ -551,6 +551,7 @@ function App(){
     }catch(e){setMdpErr('Erreur : '+e.message);}
     setMdpSaving(false);
   };
+  const nav=NAV[profile.role]||[];
   const rc=RC[profile.role];
   const ini=(profile.full_name||'?').split(' ').map(function(w){return w[0];}).join('').slice(0,2).toUpperCase();
   const comId=profile.role==='conseiller'?'mes-commissions':'commissions';
