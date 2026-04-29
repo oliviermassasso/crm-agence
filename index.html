@@ -1157,7 +1157,7 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
         <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px'}}>
           <div style={{fontSize:'13px',fontWeight:600,marginBottom:'4px'}}>Objectifs {mode==='mois'?'mensuels (1/12)':'annuels'} {year}</div>
           <div style={{fontSize:'11px',color:'#aaa',marginBottom:'14px'}}>Survol → % réalisé</div>
-          {objTotal>0&&<Jauge label="🎯 Production totale" ca={caTotal} objectif={objTotal} color="#1d4ed8"/>}
+          {objTotal>0&&<Jauge label="🎯 Production totale AXA" ca={caTotal} objectif={objTotal} color="#1d4ed8"/>}
           {caByFamily.length===0
             ?<div style={{color:'#aaa',fontSize:'13px',textAlign:'center',padding:'20px 0'}}>Aucune donnée</div>
             :caByFamily.map(function(f){return <Jauge key={f.name} label={f.name} ca={f.ca} objectif={f.obj} color={f.color}/>;})
@@ -2249,7 +2249,7 @@ function Configuration({sb,profile,profiles,grilles,setGrilles,objectifs,setObje
               <tbody>
                 {/* Objectif total production */}
                 <tr style={{background:'#eff6ff'}}>
-                  <td style={{fontWeight:700,fontSize:'13px',color:'#1d4ed8'}}>🎯 Production totale</td>
+                  <td style={{fontWeight:700,fontSize:'13px',color:'#1d4ed8'}}>🎯 Production totale AXA</td>
                   <td style={{textAlign:'right'}}>
                     {canEdit
                       ?<ObjRow fam="__total__" type={null} getObj={getObj} saveObj={saveObj} canEdit={canEdit}/>
