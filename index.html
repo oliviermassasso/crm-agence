@@ -284,6 +284,7 @@ const today=function(){return new Date().toISOString().split('T')[0];};
 const fdate=function(d){return d?new Date(d).toLocaleDateString('fr-FR'):'—';};
 const feur=function(n){return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(n||0);};
 const feur0=function(n){return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:0,maximumFractionDigits:0}).format(n||0);};
+const fnum=function(n){return new Intl.NumberFormat('fr-FR').format(n||0);};
 const fdt=function(d){if(!d)return '';const dt=new Date(d);return dt.toLocaleDateString('fr-FR')+' '+dt.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});};
 const toUpper=function(s){return (s||'').toUpperCase();};
 function docStatus(dt){
@@ -1027,7 +1028,8 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
     return mode==='mois'?Math.round(total/12):total;
   }
 
-  // CA par famille — familles principales uniquement
+  const caTotal=sumCA(cur.filter(function(c){return !isComplementaire(c);}));
+  const objTotal=getObjPeriod('__total__',false);
   const caByFamily=FAMILLES_PRINCIPALES.map(function(f){
     const s=cur.filter(function(c){return f.types.includes(c.contract_type);}).reduce(function(a,c){return a+(c.annual_premium||0);},0);
     const obj=getObjPeriod(f.name,false);
@@ -1097,7 +1099,7 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
       {/* KPIs */}
       <div style={{display:'flex',gap:'12px',marginBottom:'16px',flexWrap:'wrap'}}>
         <KPI label="CA période" value={feur0(ca)} evo={evoCa}/>
-        <KPI label="Nb contrats" value={nb} evo={evoNb}/>
+        <KPI label="Nb contrats" value={fnum(nb)} evo={evoNb}/>
         <KPI label="Panier moyen" value={nb>0?feur0(Math.round(ca/nb)):'—'} evo={null}/>
         <KPI label="Écart vs N-1" value={evoCa!==null?(evoCa>=0?'+':'')+evoCa.toFixed(1)+'%':'—'} evo={evoCa}/>
       </div>
@@ -1155,6 +1157,7 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
         <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px'}}>
           <div style={{fontSize:'13px',fontWeight:600,marginBottom:'4px'}}>Objectifs {mode==='mois'?'mensuels (1/12)':'annuels'} {year}</div>
           <div style={{fontSize:'11px',color:'#aaa',marginBottom:'14px'}}>Survol → % réalisé</div>
+          {objTotal>0&&<Jauge label="🎯 Production totale" ca={caTotal} objectif={objTotal} color="#1d4ed8"/>}
           {caByFamily.length===0
             ?<div style={{color:'#aaa',fontSize:'13px',textAlign:'center',padding:'20px 0'}}>Aucune donnée</div>
             :caByFamily.map(function(f){return <Jauge key={f.name} label={f.name} ca={f.ca} objectif={f.obj} color={f.color}/>;})
@@ -2227,7 +2230,18 @@ function Configuration({sb,profile,profiles,grilles,setGrilles,objectifs,setObje
                 <th style={{textAlign:'right'}}>Objectif annuel (€)</th>
               </tr></thead>
               <tbody>
-                {FAMILLES_PRINCIPALES.map(function(fam){
+                {/* Objectif total production */}
+                <tr style={{background:'#eff6ff'}}>
+                  <td style={{fontWeight:700,fontSize:'13px',color:'#1d4ed8'}}>🎯 Production totale</td>
+                  <td style={{textAlign:'right'}}>
+                    {canEdit
+                      ?<input type="number" defaultValue={getObj('__total__',null)} onBlur={function(e){saveObj('__total__',null,e.target.value);}} style={{width:'120px',padding:'4px 8px',fontSize:'12px',textAlign:'right'}} placeholder="—"/>
+                      :<span style={{fontSize:'12.5px',fontWeight:600}}>{getObj('__total__',null)?feur0(getObj('__total__',null)):'—'}</span>
+                    }
+                  </td>
+                </tr>
+                {/* Toutes les familles */}
+                {FAMILIES.map(function(fam){
                   return [
                     <ObjRow key={fam.name} fam={fam.name} type={null} getObj={getObj} saveObj={saveObj} canEdit={canEdit}/>
                   ].concat(fam.types.map(function(type){
