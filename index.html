@@ -122,25 +122,31 @@ const TYPE_MRH=['MRH'];
 const TYPE_PJ_PA=['PJ','Ma PA'];
 const TYPE_SANTE_TNS=['Ma Santé TNS & Retraités'];
 
-function calcBaseCommission(contract) {
-  // Annulé = commission 0 dans tous les cas
+function calcBaseCommission(contract, grillesMap) {
   if(contract.status==='ANNULE') return 0;
-  // Commission manuelle = prioritaire (0€ explicite inclus)
   if(contract.manual_commission!==null&&contract.manual_commission!==undefined){
     const v=parseFloat(contract.manual_commission);
     return isNaN(v)?0:v;
   }
-  const g=GRILLE_2026[contract.contract_type];
+  // Déterminer l'année de la grille selon la date d'émission
+  const annee=contract.emission_date?new Date(contract.emission_date).getFullYear():new Date().getFullYear();
+  // Chercher dans la grille de l'année, sinon fallback GRILLE_2026 codée en dur
+  let g=null;
+  if(grillesMap&&grillesMap[annee]&&grillesMap[annee][contract.contract_type]){
+    const gr=grillesMap[annee][contract.contract_type];
+    g={rate:gr.fixed?gr.montant_fixe:gr.taux,fixed:!!gr.fixed};
+  } else {
+    g=GRILLE_2026[contract.contract_type]||null;
+  }
   if(!g) return 0;
   const mt=contract.mono_type||'';
   const isSante=TYPE_SANTE.includes(contract.contract_type);
   const isPro=TYPE_PRO.includes(contract.contract_type);
-  // Mono contrat = 0 sauf santé/pro qui ont décote
   if(mt==='mono'&&!isSante&&!isPro) return 0;
   let rate=g.rate;
   if(mt==='mono_sante'&&isSante) rate=Math.max(0,rate-0.01);
   if(mt==='mono_pro'&&isPro) rate=Math.max(0,rate-0.01);
-  if(g.fixed) return rate;
+  if(g.fixed) return rate||0;
   return Math.round((contract.annual_premium||0)*rate*100)/100;
 }
 
@@ -165,7 +171,7 @@ function isConforme(c) {
   return true;
 }
 
-function calcMonthCommissions(contracts,profiles,year,month,paidAtMap) {
+function calcMonthCommissions(contracts,profiles,year,month,paidAtMap,grillesMap) {
   // Mois précédent
   const prevMonth=month===1?12:month-1;
   const prevYear=month===1?year-1:year;
@@ -206,7 +212,7 @@ function calcMonthCommissions(contracts,profiles,year,month,paidAtMap) {
     // Base commission par contrat — tous éligibles par définition
     let baseCom=0;
     mine.forEach(function(c){
-      baseCom+=calcBaseCommission(c);
+      baseCom+=calcBaseCommission(c,grillesMap);
     });
 
     // Bonifications mensuelles sur contrats éligibles (= tous dans mine)
@@ -294,6 +300,8 @@ function App(){
   const [profile,setProfile]=useState(null);
   const [sb,setSb]=useState(null);
   const [contracts,setContracts]=useState([]);
+  const [grilles,setGrilles]=useState({});   // {annee: {type: {taux, fixed, montant_fixe}}}
+  const [objectifs,setObjectifs]=useState([]); // raw rows
   const [rankContracts,setRankContracts]=useState([]);
   const [profiles,setProfiles]=useState([]);
   const [active,setActive]=useState(null);
@@ -450,7 +458,38 @@ function App(){
     } else {
       setRankContracts(allContracts);
     }
-    if(selectedId){
+    // Charger grilles
+    const gr=await cl.from('grilles').select('*');
+    const grMap={};
+    (gr.data||[]).forEach(function(r){
+      if(!grMap[r.annee]) grMap[r.annee]={};
+      grMap[r.annee][r.contract_type]={taux:r.taux,fixed:r.fixed,montant_fixe:r.montant_fixe,id:r.id};
+    });
+    // Migrer grille 2026 si absente
+    if(!grMap[2026]||Object.keys(grMap[2026]).length===0){
+      const rows=Object.entries(GRILLE_2026).map(function(e){
+        return {annee:2026,contract_type:e[0],taux:e[1].fixed?null:e[1].rate,fixed:e[1].fixed,montant_fixe:e[1].fixed?e[1].rate:null};
+      });
+      await cl.from('grilles').upsert(rows,{onConflict:'annee,contract_type'});
+      rows.forEach(function(r){
+        if(!grMap[2026]) grMap[2026]={};
+        grMap[2026][r.contract_type]={taux:r.taux,fixed:r.fixed,montant_fixe:r.montant_fixe};
+      });
+    }
+    setGrilles(grMap);
+
+    // Charger objectifs
+    const ob=await cl.from('objectifs').select('*');
+    // Migrer objectifs 2026 agence si absents
+    const has2026=((ob.data||[]).some(function(o){return o.annee===2026&&!o.conseiller_id;}));
+    if(!has2026){
+      const objRows=Object.entries(OBJECTIFS_2026).map(function(e){
+        return {annee:2026,conseiller_id:null,famille:e[0],contract_type:null,montant:e[1]};
+      });
+      await cl.from('objectifs').upsert(objRows,{onConflict:'annee,conseiller_id,famille,contract_type'});
+      ob.data=(ob.data||[]).concat(objRows);
+    }
+    setObjectifs(ob.data||[]);
       const updated=allContracts.find(function(c){return c.id===selectedId;});
       if(updated) setSelected(updated);
     }
@@ -603,19 +642,20 @@ function App(){
       <div style={{flex:1,overflow:'auto',background:'#f9fafb'}}>
         {active==='saisir-contrat'&&<FormContrat sb={sb} profile={profile} profiles={profiles} onSaved={function(){refresh();setActive(profile.role==='conseiller'?'mes-dossiers':'suivi-dossiers');}}/>}
         {(active==='suivi-dossiers'||active==='mes-dossiers')&&<SuiviDossiers contracts={contracts} profile={profile} profiles={profiles} reads={reads} lastMsgMap={lastMsgMap} sort={sort} setSort={setSortP} fCons={fCons} setFCons={setFConsP} fYear={fYear} setFYear={setFYearP} fMonth={fMonth} setFMonth={setFMonthP} fType={fType} setFType={setFTypeP} fStat={fStat} setFStat={setFStatP} fDoss={fDoss} setFDoss={setFDossP} fPay={fPay} setFPay={setFPayP} fDup={fDup} setFDup={setFDupP} search={search} setSearch={setSearch} selectedId={lastSelectedId} onSelect={function(c){setSelected(c);setLastSelectedId(c.id);markRead(c.id);}} onNew={function(){setActive('saisir-contrat');}}/>}
-        {active==='tableau-bord'&&<TableauBord contracts={contracts} rankContracts={rankContracts} profiles={profiles} profile={profile}/>}
+        {active==='tableau-bord'&&<TableauBord contracts={contracts} rankContracts={rankContracts} profiles={profiles} profile={profile} objectifs={objectifs}/>}
+        {active==='configuration'&&<Configuration sb={sb} profile={profile} profiles={profiles} grilles={grilles} setGrilles={setGrilles} objectifs={objectifs} setObjectifs={setObjectifs}/>}
         {active==='conges'&&<CongesPlaceholder profile={profile}/>}
         {active==='utilisateurs'&&<Utilisateurs profile={profile} profiles={profiles} sb={sb} onRefresh={refresh}/>}
-        {(active==='commissions'||active==='mes-commissions')&&<Commissions contracts={contracts} profiles={profiles} profile={profile} sb={sb} onSelect={function(c){setSelected(c);markRead(c.id);}} onRefresh={refresh} year={comYear} setYear={setComYearP} month={comMonth} setMonth={setComMonthP} selCons={comSelCons} setSelCons={setComSelConsP} comSearch={comSearch} setComSearch={setComSearch}/>}
-        {!['saisir-contrat','suivi-dossiers','mes-dossiers','tableau-bord','commissions','mes-commissions','conges','utilisateurs'].includes(active)&&<Placeholder nav={nav} active={active}/>}
+        {(active==='commissions'||active==='mes-commissions')&&<Commissions contracts={contracts} profiles={profiles} profile={profile} sb={sb} onSelect={function(c){setSelected(c);markRead(c.id);}} onRefresh={refresh} year={comYear} setYear={setComYearP} month={comMonth} setMonth={setComMonthP} selCons={comSelCons} setSelCons={setComSelConsP} comSearch={comSearch} setComSearch={setComSearch} grilles={grilles}/>}
+        {!['saisir-contrat','suivi-dossiers','mes-dossiers','tableau-bord','commissions','mes-commissions','conges','utilisateurs','configuration'].includes(active)&&<Placeholder nav={nav} active={active}/>}
       </div>
-      {selected&&<DetailPanel key={selected.id} contract={selected} profile={profile} profiles={profiles} sb={sb} onClose={function(){setSelected(null);}} onRefresh={refresh}/>}
+      {selected&&<DetailPanel key={selected.id} contract={selected} profile={profile} profiles={profiles} sb={sb} grilles={grilles} onClose={function(){setSelected(null);}} onRefresh={refresh}/>}
     </div>
   );
 }
 
 /* ══ COMMISSIONS ══ */
-function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh,year,setYear,month,setMonth,selCons,setSelCons,comSearch,setComSearch}){
+function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh,year,setYear,month,setMonth,selCons,setSelCons,comSearch,setComSearch,grilles}){
   const [payments,setPayments]=useState({});
   const [saving,setSaving]=useState(false);
   const [checked,setChecked]=useState({});
@@ -649,7 +689,7 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh,year,setY
     });
   });
 
-  const computed=calcMonthCommissions(contracts,profiles,year,month,paidAtMap);
+  const computed=calcMonthCommissions(contracts,profiles,year,month,paidAtMap,grilles);
 
   const displayProfiles=isCollab
     ? profiles.filter(function(p){return p.id===profile.id;})
@@ -806,7 +846,7 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh,year,setY
                     ? <tr><td colSpan="7" style={{textAlign:'center',color:'#aaa',padding:'16px'}}>Aucun contrat éligible ce mois</td></tr>
                     : filteredContracts.map(function(c){
                       const g=GRILLE_2026[c.contract_type];
-                      const com=calcBaseCommission(c);
+                      const com=calcBaseCommission(c,grilles);
                       const mt=c.mono_type||'';
                       return(
                         <tr key={c.id} style={{cursor:'pointer',background:checked[c.id]?'#f0fdf4':''}}>
@@ -911,7 +951,7 @@ function Jauge({ca,objectif,label,color}){
   );
 }
 
-function TableauBord({contracts,rankContracts,profiles,profile}){
+function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
   const now=new Date();
   const [year,setYear]=useState(now.getFullYear());
   const [month,setMonth]=useState(now.getMonth()+1);
@@ -971,16 +1011,24 @@ function TableauBord({contracts,rankContracts,profiles,profile}){
     return Object.assign({},carte,{fam:fam,ca:caCur,nb:nbCur,evoCA:evoCA,evoNB:evoNB,creditCA:creditCA,evoCreditCA:evoCreditCA});
   });
 
-  // Objectif de la période
-  function getObjPeriod(annualObj){
-    if(!annualObj) return 0;
-    return mode==='mois'?Math.round(annualObj/12):annualObj;
+  // Objectifs depuis la base — agence ou conseiller selon filterCons
+  function getObjPeriod(familleOrType,isType){
+    const consId=filterCons||null;
+    // Chercher objectif conseiller si filtre actif, sinon agence (conseiller_id null)
+    const rows=(objectifs||[]).filter(function(o){
+      return o.annee===year&&
+        (consId?o.conseiller_id===consId:!o.conseiller_id)&&
+        (isType?(o.contract_type===familleOrType):(o.famille===familleOrType&&!o.contract_type));
+    });
+    const total=rows.reduce(function(s,o){return s+(o.montant||0);},0);
+    if(!total) return 0;
+    return mode==='mois'?Math.round(total/12):total;
   }
 
   // CA par famille — familles principales uniquement
   const caByFamily=FAMILLES_PRINCIPALES.map(function(f){
     const s=cur.filter(function(c){return f.types.includes(c.contract_type);}).reduce(function(a,c){return a+(c.annual_premium||0);},0);
-    const obj=getObjPeriod(OBJECTIFS_2026[f.name]);
+    const obj=getObjPeriod(f.name,false);
     return {name:f.name,color:f.color,bg:f.bg,ca:s,obj:obj};
   }).filter(function(f){return f.ca>0||f.obj>0;}).sort(function(a,b){return b.ca-a.ca;});
 
@@ -1470,7 +1518,7 @@ function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,sort,setSort
 }
 
 /* ══ PANNEAU DÉTAIL ══ */
-function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
+function DetailPanel({contract,profile,profiles,sb,grilles,onClose,onRefresh}){
   const [dt,setDt]=useState(contract.document_tracking||{});
   const [monoType,setMonoType]=useState(contract.mono_type||'');
   const [annReq,setAnnReq]=useState(contract.annulation_requested||false);
@@ -1642,7 +1690,7 @@ function DetailPanel({contract,profile,profiles,sb,onClose,onRefresh}){
                 <IR label="Date d'effet" value={fdate(contract.effect_date)}/>
                 <IR label="Provenance" value={contract.provenance||'—'}/>
                 <IR label="Prime annuelle" value={feur0(contract.annual_premium)}/>
-                {!isCollab&&<IR label="Commission calculée" value={feur(calcBaseCommission(contract))}/>}
+                {!isCollab&&<IR label="Commission calculée" value={feur(calcBaseCommission(contract,grilles))}/>}
                 {contract.comments&&<IR label="Commentaire" value={contract.comments}/>}
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'9px 0',fontSize:'13.5px'}}>
                   <span style={{color:'#666'}}>Code portefeuille</span>
@@ -1969,7 +2017,224 @@ function Utilisateurs({profile,profiles,sb,onRefresh}){
 }
 
 
-function CongesPlaceholder({profile}){
+/* ══ CONFIGURATION ══ */
+function Configuration({sb,profile,profiles,grilles,setGrilles,objectifs,setObjectifs}){
+  const [onglet,setOnglet]=useState('grille');
+  const [anneeG,setAnneeG]=useState(new Date().getFullYear());
+  const [anneeO,setAnneeO]=useState(new Date().getFullYear());
+  const [conseillerO,setConseillerO]=useState(''); // '' = agence
+  const [saving,setSaving]=useState(false);
+  const [ok,setOk]=useState('');
+  const canEdit=profile.role==='direction';
+
+  // ── GRILLE ──
+  const annees=Object.keys(grilles).map(Number).sort(function(a,b){return b-a;});
+  const grilleActive=grilles[anneeG]||{};
+
+  async function saveGrilleRow(type,taux,fixed,montant_fixe){
+    setSaving(true);setOk('');
+    const row={annee:anneeG,contract_type:type,taux:fixed?null:parseFloat(taux)||0,fixed:!!fixed,montant_fixe:fixed?parseFloat(montant_fixe)||0:null};
+    await sb.from('grilles').upsert(row,{onConflict:'annee,contract_type'});
+    setGrilles(function(g){
+      const ng=Object.assign({},g);
+      if(!ng[anneeG]) ng[anneeG]={};
+      ng[anneeG]=Object.assign({},ng[anneeG],{[type]:{taux:row.taux,fixed:row.fixed,montant_fixe:row.montant_fixe}});
+      return ng;
+    });
+    setSaving(false);setOk('Sauvegardé');
+    setTimeout(function(){setOk('');},2000);
+  }
+
+  async function copyGrille(fromAnnee,toAnnee){
+    if(!grilles[fromAnnee]){return;}
+    setSaving(true);setOk('');
+    const rows=Object.entries(grilles[fromAnnee]).map(function(e){
+      return {annee:toAnnee,contract_type:e[0],taux:e[1].taux,fixed:e[1].fixed,montant_fixe:e[1].montant_fixe};
+    });
+    await sb.from('grilles').upsert(rows,{onConflict:'annee,contract_type'});
+    setGrilles(function(g){
+      const ng=Object.assign({},g);
+      ng[toAnnee]={};
+      rows.forEach(function(r){ng[toAnnee][r.contract_type]={taux:r.taux,fixed:r.fixed,montant_fixe:r.montant_fixe};});
+      return ng;
+    });
+    setAnneeG(toAnnee);
+    setSaving(false);setOk('Grille '+toAnnee+' créée depuis '+fromAnnee);
+  }
+
+  // ── OBJECTIFS ──
+  const anneesO=[...new Set((objectifs||[]).map(function(o){return o.annee;}))].sort(function(a,b){return b-a;});
+  if(!anneesO.includes(anneeO)&&anneesO.length===0) anneesO.push(new Date().getFullYear());
+
+  function getObj(famille,type){
+    const row=(objectifs||[]).find(function(o){
+      return o.annee===anneeO&&
+        (conseillerO?o.conseiller_id===conseillerO:!o.conseiller_id)&&
+        (type?o.contract_type===type:o.famille===famille&&!o.contract_type);
+    });
+    return row?row.montant:'';
+  }
+
+  async function saveObj(famille,type,val){
+    setSaving(true);setOk('');
+    const montant=parseFloat(val)||0;
+    const row={annee:anneeO,conseiller_id:conseillerO||null,famille:famille||null,contract_type:type||null,montant};
+    await sb.from('objectifs').upsert(row,{onConflict:'annee,conseiller_id,famille,contract_type'});
+    setObjectifs(function(prev){
+      const filtered=(prev||[]).filter(function(o){
+        return !(o.annee===anneeO&&(conseillerO?o.conseiller_id===conseillerO:!o.conseiller_id)&&o.famille===(famille||null)&&o.contract_type===(type||null));
+      });
+      return filtered.concat([Object.assign({},row)]);
+    });
+    setSaving(false);setOk('Sauvegardé');
+    setTimeout(function(){setOk('');},2000);
+  }
+
+  async function copyObjectifs(fromAnnee,toAnnee){
+    setSaving(true);setOk('');
+    const src=(objectifs||[]).filter(function(o){return o.annee===fromAnnee;});
+    const rows=src.map(function(o){return {annee:toAnnee,conseiller_id:o.conseiller_id,famille:o.famille,contract_type:o.contract_type,montant:o.montant};});
+    await sb.from('objectifs').upsert(rows,{onConflict:'annee,conseiller_id,famille,contract_type'});
+    setObjectifs(function(prev){return (prev||[]).filter(function(o){return o.annee!==toAnnee;}).concat(rows);});
+    setAnneeO(toAnnee);
+    setSaving(false);setOk('Objectifs '+toAnnee+' créés depuis '+fromAnnee);
+  }
+
+  const actifProfiles=profiles.filter(function(p){return p.role!=='direction'&&p.actif!==false;});
+
+  return(
+    <div style={{padding:'28px 32px',maxWidth:'900px'}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'22px',flexWrap:'wrap',gap:'12px'}}>
+        <div><div style={{fontSize:'22px',fontWeight:600}}>Configuration</div><div style={{fontSize:'13px',color:'#666'}}>Grilles de rémunération et objectifs</div></div>
+        {ok&&<span style={{fontSize:'13px',color:'#059669',fontWeight:500}}>✓ {ok}</span>}
+      </div>
+
+      {/* Onglets */}
+      <div style={{display:'flex',border:'1px solid #e5e7eb',borderRadius:'8px',overflow:'hidden',marginBottom:'22px',width:'fit-content'}}>
+        <button onClick={function(){setOnglet('grille');}} style={{padding:'8px 20px',fontSize:'13px',border:'none',borderRadius:0,background:onglet==='grille'?'#1d4ed8':'#fff',color:onglet==='grille'?'#fff':'#555'}}>📊 Grille de rémunération</button>
+        <button onClick={function(){setOnglet('objectifs');}} style={{padding:'8px 20px',fontSize:'13px',border:'none',borderLeft:'1px solid #e5e7eb',borderRadius:0,background:onglet==='objectifs'?'#1d4ed8':'#fff',color:onglet==='objectifs'?'#fff':'#555'}}>🎯 Objectifs</button>
+      </div>
+
+      {onglet==='grille'&&(
+        <div>
+          <div style={{display:'flex',gap:'10px',alignItems:'center',marginBottom:'16px',flexWrap:'wrap'}}>
+            <select value={anneeG} onChange={function(e){setAnneeG(parseInt(e.target.value));}} style={{width:'auto',padding:'7px 12px'}}>
+              {annees.map(function(a){return <option key={a} value={a}>{a}</option>;})}
+            </select>
+            {canEdit&&(
+              <button onClick={function(){copyGrille(anneeG,anneeG+1);}} disabled={saving||!!grilles[anneeG+1]} style={{fontSize:'12.5px',padding:'7px 14px'}}
+                title={grilles[anneeG+1]?'Grille '+(anneeG+1)+' existe déjà':''}>
+                + Créer grille {anneeG+1} (copie {anneeG})
+              </button>
+            )}
+            {!canEdit&&<span style={{fontSize:'12px',color:'#aaa'}}>Lecture seule</span>}
+          </div>
+
+          {FAMILIES.map(function(fam){
+            return(
+              <div key={fam.name} style={{marginBottom:'16px'}}>
+                <div style={{fontSize:'12px',fontWeight:600,color:fam.color,padding:'6px 10px',background:fam.bg,borderRadius:'6px 6px 0 0',borderBottom:'1px solid #e5e7eb'}}>{fam.name}</div>
+                <div className="card" style={{borderRadius:'0 0 8px 8px',overflow:'hidden'}}>
+                  <table>
+                    <thead><tr>
+                      <th style={{width:'40%'}}>Type de contrat</th>
+                      <th>Mode</th>
+                      <th>Taux (%)</th>
+                      <th>Montant fixe (€)</th>
+                    </tr></thead>
+                    <tbody>
+                      {fam.types.map(function(type){
+                        const row=grilleActive[type]||{taux:null,fixed:false,montant_fixe:null};
+                        const [localFixed,setLocalFixed]=useState(!!row.fixed);
+                        const [localTaux,setLocalTaux]=useState(row.fixed?'':(row.taux!==null?parseFloat((row.taux*100).toFixed(4)):''));
+                        const [localFixedVal,setLocalFixedVal]=useState(row.fixed?(row.montant_fixe||''):'');
+                        return(
+                          <tr key={type}>
+                            <td style={{fontSize:'12.5px'}}>{type}</td>
+                            <td>
+                              <select value={localFixed?'fixe':'taux'} disabled={!canEdit} onChange={function(e){setLocalFixed(e.target.value==='fixe');}} style={{width:'auto',padding:'4px 8px',fontSize:'12px'}}>
+                                <option value="taux">Taux %</option>
+                                <option value="fixe">Montant fixe</option>
+                              </select>
+                            </td>
+                            <td>
+                              {!localFixed&&<input type="number" step="0.01" value={localTaux} disabled={!canEdit} onChange={function(e){setLocalTaux(e.target.value);}} onBlur={function(){if(canEdit)saveGrilleRow(type,parseFloat(localTaux)/100,false,null);}} style={{width:'80px',padding:'4px 8px',fontSize:'12px'}} placeholder="ex: 1.8"/>}
+                            </td>
+                            <td>
+                              {localFixed&&<input type="number" step="0.01" value={localFixedVal} disabled={!canEdit} onChange={function(e){setLocalFixedVal(e.target.value);}} onBlur={function(){if(canEdit)saveGrilleRow(type,null,true,parseFloat(localFixedVal));}} style={{width:'80px',padding:'4px 8px',fontSize:'12px'}} placeholder="ex: 15"/>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {onglet==='objectifs'&&(
+        <div>
+          <div style={{display:'flex',gap:'10px',alignItems:'center',marginBottom:'16px',flexWrap:'wrap'}}>
+            <select value={anneeO} onChange={function(e){setAnneeO(parseInt(e.target.value));}} style={{width:'auto',padding:'7px 12px'}}>
+              {anneesO.map(function(a){return <option key={a} value={a}>{a}</option>;})}
+            </select>
+            <select value={conseillerO} onChange={function(e){setConseillerO(e.target.value);}} style={{width:'auto',padding:'7px 12px'}}>
+              <option value="">🏢 Objectif agence</option>
+              {actifProfiles.map(function(p){return <option key={p.id} value={p.id}>{p.full_name}</option>;})}
+            </select>
+            {canEdit&&(
+              <button onClick={function(){copyObjectifs(anneeO,anneeO+1);}} disabled={saving||(objectifs||[]).some(function(o){return o.annee===anneeO+1;})} style={{fontSize:'12.5px',padding:'7px 14px'}}>
+                + Créer objectifs {anneeO+1} (copie {anneeO})
+              </button>
+            )}
+          </div>
+
+          <div className="card" style={{overflow:'hidden'}}>
+            <table>
+              <thead><tr>
+                <th style={{width:'45%'}}>Famille / Type</th>
+                <th style={{textAlign:'right'}}>Objectif annuel (€)</th>
+              </tr></thead>
+              <tbody>
+                {FAMILLES_PRINCIPALES.map(function(fam){
+                  return [
+                    <tr key={fam.name} style={{background:fam.bg}}>
+                      <td style={{fontWeight:600,color:fam.color,fontSize:'12px'}}>{fam.name}</td>
+                      <td style={{textAlign:'right'}}>
+                        {canEdit
+                          ?<input type="number" defaultValue={getObj(fam.name,null)} onBlur={function(e){saveObj(fam.name,null,e.target.value);}} style={{width:'120px',padding:'4px 8px',fontSize:'12px',textAlign:'right'}} placeholder="—"/>
+                          :<span style={{fontSize:'12.5px'}}>{getObj(fam.name,null)?feur0(getObj(fam.name,null)):'—'}</span>
+                        }
+                      </td>
+                    </tr>
+                  ].concat(fam.types.map(function(type){
+                    const val=getObj(null,type);
+                    return(
+                      <tr key={type} style={{background:'#fafafa'}}>
+                        <td style={{paddingLeft:'24px',fontSize:'12px',color:'#666'}}>↳ {type}</td>
+                        <td style={{textAlign:'right'}}>
+                          {canEdit
+                            ?<input type="number" defaultValue={val} onBlur={function(e){saveObj(null,type,e.target.value);}} style={{width:'120px',padding:'4px 8px',fontSize:'12px',textAlign:'right'}} placeholder="—"/>
+                            :<span style={{fontSize:'12.5px'}}>{val?feur0(val):'—'}</span>
+                          }
+                        </td>
+                      </tr>
+                    );
+                  }));
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
   const isDir=['direction','manager'].includes(profile.role);
   return(
     <div style={{padding:'40px',maxWidth:'700px'}}>
