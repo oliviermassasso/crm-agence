@@ -2055,29 +2055,37 @@ function GrilleRow({type,row,canEdit,onSave}){
 
 function ObjRow({fam,type,getObj,saveObj,canEdit}){
   const initVal=getObj(fam||null,type||null);
-  const [val,setVal]=useState(initVal!==''?String(initVal):'');
-  const [dirty,setDirty]=useState(false);
+  const [val,setVal]=useState(initVal!==''&&initVal!==null&&initVal!==undefined?String(initVal):'');
+  const savedRef=React.useRef(val);
 
+  // Sync uniquement si valeur externe change ET qu'on n'est pas en train d'éditer
+  const [editing,setEditing]=useState(false);
   useEffect(function(){
-    const v=getObj(fam||null,type||null);
-    setVal(v!==''?String(v):'');
-    setDirty(false);
-  },[fam,type,JSON.stringify(getObj(fam||null,type||null))]);
+    if(!editing){
+      const v=getObj(fam||null,type||null);
+      const s=v!==''&&v!==null&&v!==undefined?String(v):'';
+      setVal(s);
+      savedRef.current=s;
+    }
+  },[fam,type]);
 
   function handleBlur(){
-    if(dirty){
+    setEditing(false);
+    if(val!==savedRef.current){
+      savedRef.current=val;
       saveObj(fam,type,val);
-      setDirty(false);
     }
   }
 
-  const label=type?'↳ '+type:fam;
+  const isTotal=fam==='__total__';
+  const label=isTotal?'🎯 Production totale AXA':type?'↳ '+type:fam;
+  const dirty=val!==savedRef.current;
   return(
-    <tr style={{background:type?'#fafafa':''}}>
-      <td style={{paddingLeft:type?'24px':'',fontSize:'12px',color:type?'#666':'',fontWeight:type?400:600}}>{label}</td>
+    <tr style={{background:isTotal?'#eff6ff':type?'#fafafa':''}}>
+      <td style={{paddingLeft:type?'24px':'',fontSize:'12px',color:isTotal?'#1d4ed8':type?'#666':'',fontWeight:isTotal||!type?700:400}}>{label}</td>
       <td style={{textAlign:'right'}}>
         {canEdit
-          ?<input type="number" value={val} onChange={function(e){setVal(e.target.value);setDirty(true);}} onBlur={handleBlur} style={{width:'120px',padding:'4px 8px',fontSize:'12px',textAlign:'right',background:dirty?'#fffbeb':''}} placeholder="—"/>
+          ?<input type="number" value={val} onChange={function(e){setEditing(true);setVal(e.target.value);}} onBlur={handleBlur} style={{width:'120px',padding:'4px 8px',fontSize:'12px',textAlign:'right',background:dirty?'#fffbeb':''}} placeholder="—"/>
           :<span style={{fontSize:'12.5px'}}>{val?feur0(parseFloat(val)):'—'}</span>
         }
       </td>
@@ -2248,15 +2256,7 @@ function Configuration({sb,profile,profiles,grilles,setGrilles,objectifs,setObje
               </tr></thead>
               <tbody>
                 {/* Objectif total production */}
-                <tr style={{background:'#eff6ff'}}>
-                  <td style={{fontWeight:700,fontSize:'13px',color:'#1d4ed8'}}>🎯 Production totale AXA</td>
-                  <td style={{textAlign:'right'}}>
-                    {canEdit
-                      ?<ObjRow fam="__total__" type={null} getObj={getObj} saveObj={saveObj} canEdit={canEdit}/>
-                      :<span style={{fontSize:'12.5px',fontWeight:600}}>{getObj('__total__',null)?feur0(getObj('__total__',null)):'—'}</span>
-                    }
-                  </td>
-                </tr>
+                <ObjRow key="__total__" fam="__total__" type={null} getObj={getObj} saveObj={saveObj} canEdit={canEdit}/>
                 {/* Toutes les familles */}
                 {FAMILIES.map(function(fam){
                   return [
