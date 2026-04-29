@@ -588,7 +588,7 @@ function App(){
           <div style={{background:'#fff',borderRadius:'12px',padding:'28px',width:'100%',maxWidth:'380px',boxShadow:'0 8px 32px rgba(0,0,0,0.18)'}}>
             <div style={{fontSize:'16px',fontWeight:600,marginBottom:'4px'}}>Mon compte</div>
             <div style={{fontSize:'13px',color:'#888',marginBottom:'20px'}}>{profile.full_name} · {RL[profile.role]}</div>
-            <div className="fg"><label>Ancien mot de passe</label><input type="password" value={mdpF.ancien} onChange={function(e){setMdpF(function(p){return Object.assign({},p,{ancien:e.target.value});});}} placeholder="••••••••"/></div>
+            <div className="fg"><label>Ancien mot de passe</label><input type="password" value={mdpF.ancien} onChange={function(e){setMdpF(function(p){return Object.assign({},p,{ancien:e.target.value});});}} placeholder="Ancien mot de passe"/></div>
             <div className="fg"><label>Nouveau mot de passe</label><input type="password" value={mdpF.nouveau} onChange={function(e){setMdpF(function(p){return Object.assign({},p,{nouveau:e.target.value});});}} placeholder="Min. 6 caractères"/></div>
             <div className="fg"><label>Confirmer le nouveau mot de passe</label><input type="password" value={mdpF.confirm} onChange={function(e){setMdpF(function(p){return Object.assign({},p,{confirm:e.target.value});});}} placeholder="Répétez le mot de passe" onKeyDown={function(e){if(e.key==='Enter')changeMdp();}}/></div>
             {mdpErr&&<div style={{background:'#fef2f2',color:'#b91c1c',border:'1px solid #fecaca',padding:'10px 14px',borderRadius:'8px',fontSize:'13px',marginBottom:'14px'}}>{mdpErr}</div>}
