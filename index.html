@@ -1202,8 +1202,8 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
       {/* KPIs */}
       <div style={{display:'flex',gap:'12px',marginBottom:'16px',flexWrap:'wrap'}}>
         {/* CA Total */}
-        <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'16px 18px',flex:'0 0 auto'}}>
-          <div style={{display:'flex',alignItems:'center',gap:'4px',marginBottom:'6px'}}>
+        <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'16px 18px',flex:1,minWidth:0}}>
+          <div style={{display:'flex',alignItems:'center',gap:'4px',marginBottom:'6px',flexWrap:'wrap'}}>
             <span style={{fontSize:'13px',fontWeight:700,color:'#111',textTransform:'uppercase',letterSpacing:'0.3px'}}>CA Total</span>
             <span style={{fontSize:'10px',color:'#aaa',fontWeight:400}}>· IARD Part & Pro, Prév., Santé, Collective</span>
             <span className="tip-wrap" style={{marginLeft:'2px'}}>
@@ -1211,18 +1211,18 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
               <span className="tip" style={{maxWidth:'320px',width:'320px'}}>Hors Banque, Épargne & Retraite, Courtage, VTC et Crédits Conso</span>
             </span>
           </div>
-          <div style={{display:'flex',gap:'24px',alignItems:'flex-start',flexWrap:'wrap'}}>
+          <div style={{display:'flex',gap:'16px',alignItems:'flex-start',flexWrap:'wrap'}}>
             <div>
-              <div style={{display:'flex',alignItems:'baseline',gap:'10px',marginBottom:'2px'}}>
-                <span style={{fontSize:'24px',fontWeight:700}}>{feur0(ca)}</span>
+              <div style={{display:'flex',alignItems:'baseline',gap:'8px',marginBottom:'2px'}}>
+                <span style={{fontSize:'22px',fontWeight:700}}>{feur0(ca)}</span>
                 <Evo val={evoCa}/>
               </div>
               <div style={{fontSize:'11px',color:'#bbb'}}>N-1 : {caPrev>0?feur0(caPrev):'—'}</div>
             </div>
-            <div style={{borderLeft:'1px solid #f3f4f6',paddingLeft:'24px'}}>
-              <div style={{display:'flex',alignItems:'baseline',gap:'10px',marginBottom:'2px'}}>
-                <span style={{fontSize:'24px',fontWeight:700}}>{fnum(nb)}</span>
-                <span style={{fontSize:'12px',color:'#888'}}>contrats</span>
+            <div style={{borderLeft:'1px solid #f3f4f6',paddingLeft:'16px'}}>
+              <div style={{display:'flex',alignItems:'baseline',gap:'8px',marginBottom:'2px'}}>
+                <span style={{fontSize:'22px',fontWeight:700}}>{fnum(nb)}</span>
+                <span style={{fontSize:'11px',color:'#888'}}>contrats</span>
                 <Evo val={evoNb}/>
               </div>
               <div style={{fontSize:'11px',color:'#bbb'}}>N-1 : {nbPrev>0?fnum(nbPrev):'—'}</div>
@@ -1240,44 +1240,50 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
           const fNb=contratsCur.length,fNbPrev=contratsPrev.length;
           const fEvoCA=fCAPrev>0?((fCA-fCAPrev)/fCAPrev*100):null;
           const fEvoNb=fNbPrev>0?((fNb-fNbPrev)/fNbPrev*100):null;
-          // Crédits conso pour AXA Banque
           const famCreditsAxa=FAMILIES.find(function(f){return f.name==='Crédits AXA';});
           const creditCA=nomFam==='AXA Banque'&&famCreditsAxa?sumCA(cur.filter(function(c){return famCreditsAxa.types.includes(c.contract_type);})):0;
           const creditCAPrev=nomFam==='AXA Banque'&&famCreditsAxa?sumCA(prev.filter(function(c){return famCreditsAxa.types.includes(c.contract_type);})):0;
           const creditEvo=creditCAPrev>0?((creditCA-creditCAPrev)/creditCAPrev*100):null;
+          const isBanque=nomFam==='AXA Banque';
           return(
-            <div key={nomFam} style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'16px 18px',flex:'0 0 auto',borderTop:'3px solid '+famDef.color}}>
+            <div key={nomFam} style={{background:'#fff',border:'1px solid #e5e7eb',borderTop:'3px solid '+famDef.color,borderRadius:'10px',padding:'16px 18px',flex:1,minWidth:0}}>
               <div style={{fontSize:'13px',fontWeight:700,color:famDef.color,textTransform:'uppercase',letterSpacing:'0.3px',marginBottom:'6px',background:famDef.bg,padding:'2px 8px',borderRadius:'4px',display:'inline-block'}}>{nomFam}</div>
-              {nomFam==='AXA Banque'?(
+              {isBanque?(
                 <>
-                  <div style={{display:'flex',alignItems:'baseline',gap:'8px',marginBottom:'1px'}}>
-                    <span style={{fontSize:'22px',fontWeight:700}}>{fnum(fNb)}</span>
-                    <span style={{fontSize:'11px',color:'#888'}}>acte{fNb!==1?'s':''}</span>
-                    {fEvoNb!==null&&<span style={{fontSize:'11px',fontWeight:700,color:fEvoNb>=0?'#059669':'#dc2626'}}>{fEvoNb>=0?'▲':'▼'} {Math.abs(fEvoNb).toFixed(1)}%</span>}
+                  <div>
+                    <div style={{display:'flex',alignItems:'baseline',gap:'8px',marginBottom:'2px'}}>
+                      <span style={{fontSize:'22px',fontWeight:700}}>{fnum(fNb)}</span>
+                      <span style={{fontSize:'11px',color:'#888'}}>acte{fNb!==1?'s':''}</span>
+                      <Evo val={fEvoNb}/>
+                    </div>
+                    <div style={{fontSize:'11px',color:'#bbb',marginBottom:'8px'}}>N-1 : {fnum(fNbPrev)} acte{fNbPrev!==1?'s':''}</div>
                   </div>
-                  <div style={{fontSize:'11px',color:'#bbb',marginBottom:'8px'}}>N-1 : {fnum(fNbPrev)} acte{fNbPrev!==1?'s':''}</div>
-                  {(creditCA>0||creditCAPrev>0)&&<>
-                    <div style={{display:'flex',alignItems:'baseline',gap:'8px',marginBottom:'1px',borderTop:'1px solid #f3f4f6',paddingTop:'6px'}}>
-                      <span style={{fontSize:'11px',color:'#888'}}>Crédits conso</span>
-                      <span style={{fontSize:'14px',fontWeight:600}}>{feur0(creditCA)}</span>
-                      {creditEvo!==null&&<span style={{fontSize:'11px',fontWeight:700,color:creditEvo>=0?'#059669':'#dc2626'}}>{creditEvo>=0?'▲':'▼'} {Math.abs(creditEvo).toFixed(1)}%</span>}
+                  <div style={{borderLeft:'none',paddingTop:'6px',borderTop:'1px solid #f3f4f6'}}>
+                    <div style={{fontSize:'10px',color:'#aaa',marginBottom:'2px'}}>Crédits conso</div>
+                    <div style={{display:'flex',alignItems:'baseline',gap:'8px',marginBottom:'2px'}}>
+                      <span style={{fontSize:'22px',fontWeight:700}}>{feur0(creditCA)}</span>
+                      <Evo val={creditEvo}/>
                     </div>
                     <div style={{fontSize:'11px',color:'#bbb'}}>N-1 : {feur0(creditCAPrev)}</div>
-                  </>}
+                  </div>
                 </>
               ):(
                 <>
-                  <div style={{display:'flex',alignItems:'baseline',gap:'8px',marginBottom:'1px'}}>
-                    <span style={{fontSize:'22px',fontWeight:700}}>{feur0(fCA)}</span>
-                    {fEvoCA!==null&&<span style={{fontSize:'11px',fontWeight:700,color:fEvoCA>=0?'#059669':'#dc2626'}}>{fEvoCA>=0?'▲':'▼'} {Math.abs(fEvoCA).toFixed(1)}%</span>}
+                  <div>
+                    <div style={{display:'flex',alignItems:'baseline',gap:'8px',marginBottom:'2px'}}>
+                      <span style={{fontSize:'22px',fontWeight:700}}>{feur0(fCA)}</span>
+                      <Evo val={fEvoCA}/>
+                    </div>
+                    <div style={{fontSize:'11px',color:'#bbb',marginBottom:'8px'}}>N-1 : {feur0(fCAPrev)}</div>
                   </div>
-                  <div style={{fontSize:'11px',color:'#bbb',marginBottom:'6px'}}>N-1 : {feur0(fCAPrev)}</div>
-                  <div style={{display:'flex',alignItems:'baseline',gap:'8px',marginBottom:'1px'}}>
-                    <span style={{fontSize:'14px',fontWeight:500,color:'#555'}}>{fnum(fNb)}</span>
-                    <span style={{fontSize:'11px',color:'#888'}}>affaire{fNb!==1?'s':''}</span>
-                    {fEvoNb!==null&&<span style={{fontSize:'11px',fontWeight:700,color:fEvoNb>=0?'#059669':'#dc2626'}}>{fEvoNb>=0?'▲':'▼'} {Math.abs(fEvoNb).toFixed(1)}%</span>}
+                  <div style={{borderTop:'1px solid #f3f4f6',paddingTop:'6px'}}>
+                    <div style={{display:'flex',alignItems:'baseline',gap:'8px',marginBottom:'2px'}}>
+                      <span style={{fontSize:'22px',fontWeight:700}}>{fnum(fNb)}</span>
+                      <span style={{fontSize:'11px',color:'#888'}}>affaire{fNb!==1?'s':''}</span>
+                      <Evo val={fEvoNb}/>
+                    </div>
+                    <div style={{fontSize:'11px',color:'#bbb'}}>N-1 : {fnum(fNbPrev)}</div>
                   </div>
-                  <div style={{fontSize:'11px',color:'#bbb'}}>N-1 : {fnum(fNbPrev)}</div>
                 </>
               )}
             </div>
@@ -1314,6 +1320,10 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
           ]},
           {section:'Collectives',fam:getFam('Collectives'),items:[
             {label:'Collectives',types:['Collectives'],objType:null},
+          ]},
+          {section:'Épargne & Retraite',fam:getFam('Épargne & Retraite'),items:[
+            {label:'Retraite',types:['FAR Retraite (apport affaire)','FAR Retraite VLP sup 1000€/an'],objType:null},
+            {label:'Épargne',types:['Assurance Vie (apport affaire)','Ass Vie & Retraite PUVL sup 5000€','Ass Vie & Retraite PUVL sup 100000€'],objType:null},
           ]},
         ];
 
