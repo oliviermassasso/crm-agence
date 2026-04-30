@@ -406,7 +406,7 @@ function App(){
       if(error){setLe('Erreur : '+error.message);setLl(false);return;}
       // Connexion automatique après changement MDP
       const prof=await resetSb.from('profiles').select('*').eq('id',(await resetSb.auth.getUser()).data.user.id).single();
-      setSb(resetSb);setProfile(prof.data);setActive(NAV[prof.data.role][0].id);
+      setSb(resetSb);setProfile(prof.data);setActive('tableau-bord');
       loadUserPrefs(prof.data.id);loadComPrefs(prof.data.id);
       await load(resetSb,prof.data);
       setResetMode(false);
@@ -514,7 +514,7 @@ function App(){
       if(auth.error){setLe(auth.error.message);setLl(false);return;}
       const prof=await cl.from('profiles').select('*').eq('id',auth.data.user.id).single();
       if(!prof.data){setLe('Profil introuvable.');setLl(false);return;}
-      setSb(cl);setProfile(prof.data);setActive(NAV[prof.data.role][0].id);
+      setSb(cl);setProfile(prof.data);setActive('tableau-bord');
       loadUserPrefs(prof.data.id);
       loadComPrefs(prof.data.id);
       await load(cl,prof.data);
