@@ -2139,61 +2139,84 @@ function Configuration({sb,profile,profiles,grilles,setGrilles,objectifs,setObje
 
   // ── OBJECTIFS ──
   const anneesO=[...new Set((objectifs||[]).map(function(o){return o.annee;}))].sort(function(a,b){return b-a;});
-  if(!anneesO.includes(anneeO)&&anneesO.length===0) anneesO.push(new Date().getFullYear());
+  if(anneesO.length===0) anneesO.push(new Date().getFullYear());
 
-  function getObj(famille,type){
-    const row=(objectifs||[]).find(function(o){
-      return o.annee===anneeO&&
-        (conseillerO?o.conseiller_id===conseillerO:!o.conseiller_id)&&
-        (type?o.contract_type===type:o.famille===famille&&!o.contract_type);
+  // State local pour édition groupée
+  const [localVals,setLocalVals]=useState({});
+  const [dirty,setDirty]=useState(false);
+
+  // Initialiser localVals quand anneeO ou conseillerO change
+  useEffect(function(){
+    const map={};
+    (objectifs||[]).filter(function(o){
+      return o.annee===anneeO&&(conseillerO?o.conseiller_id===conseillerO:!o.conseiller_id);
+    }).forEach(function(o){
+      const k=(o.famille||'')+'|'+(o.contract_type||'');
+      map[k]=o.montant!=null?String(o.montant):'';
     });
-    return row?row.montant:'';
+    setLocalVals(map);
+    setDirty(false);
+  },[anneeO,conseillerO,objectifs]);
+
+  function getLocalVal(fam,type){
+    const k=(fam||'')+'|'+(type||'');
+    return localVals[k]!==undefined?localVals[k]:'';
   }
 
-  async function saveObj(famille,type,val){
+  function setLocalVal(fam,type,val){
+    const k=(fam||'')+'|'+(type||'');
+    setLocalVals(function(prev){return Object.assign({},prev,{[k]:val});});
+    setDirty(true);
+  }
+
+  async function saveAllObjectifs(){
     setSaving(true);setOk('');
-    const montant=val===''||val===null||val===undefined?null:parseFloat(val);
-    if(montant===null){setSaving(false);return;}
     const consId=conseillerO||null;
-    const fam=famille||null;
-    const typ=type||null;
 
-    let q=sb.from('objectifs').select('id').eq('annee',anneeO);
-    if(consId) q=q.eq('conseiller_id',consId); else q=q.is('conseiller_id',null);
-    if(fam) q=q.eq('famille',fam); else q=q.is('famille',null);
-    if(typ) q=q.eq('contract_type',typ); else q=q.is('contract_type',null);
-    const existing=await q.maybeSingle();
+    // Supprimer toutes les lignes existantes pour cette année/conseiller
+    let delQ=sb.from('objectifs').delete().eq('annee',anneeO);
+    if(consId) delQ=delQ.eq('conseiller_id',consId); else delQ=delQ.is('conseiller_id',null);
+    const delR=await delQ;
+    if(delR.error){alert('Erreur : '+delR.error.message);setSaving(false);return;}
 
-    let err=null;
-    if(existing.data){
-      const r=await sb.from('objectifs').update({montant}).eq('id',existing.data.id);
-      err=r.error;
-    } else {
-      const r=await sb.from('objectifs').insert({annee:anneeO,conseiller_id:consId,famille:fam,contract_type:typ,montant});
-      err=r.error;
+    // Réinsérer uniquement les valeurs non vides
+    const rows=[];
+    Object.entries(localVals).forEach(function(e){
+      const v=parseFloat(e[1]);
+      if(!e[1]||isNaN(v)) return;
+      const parts=e[0].split('|');
+      const fam=parts[0]||null;
+      const typ=parts[1]||null;
+      rows.push({annee:anneeO,conseiller_id:consId,famille:fam,contract_type:typ,montant:v});
+    });
+
+    if(rows.length>0){
+      const insR=await sb.from('objectifs').insert(rows);
+      if(insR.error){alert('Erreur : '+insR.error.message);setSaving(false);return;}
     }
 
-    if(err){alert('Erreur sauvegarde : '+err.message);setSaving(false);return;}
-
-    const row={annee:anneeO,conseiller_id:consId,famille:fam,contract_type:typ,montant};
+    // Mettre à jour le state global
     setObjectifs(function(prev){
-      const filtered=(prev||[]).filter(function(o){
-        const famMatch=fam?(o.famille===fam):(o.famille===null||o.famille===undefined);
-        const typMatch=typ?(o.contract_type===typ):(o.contract_type===null||o.contract_type===undefined);
-        const consMatch=consId?(o.conseiller_id===consId):(o.conseiller_id===null||o.conseiller_id===undefined);
-        return !(o.annee===anneeO&&consMatch&&famMatch&&typMatch);
+      const autres=(prev||[]).filter(function(o){
+        if(o.annee!==anneeO) return true;
+        if(consId) return o.conseiller_id!==consId;
+        return o.conseiller_id!==null&&o.conseiller_id!==undefined;
       });
-      return filtered.concat([row]);
+      return autres.concat(rows);
     });
-    setSaving(false);setOk('Sauvegardé');
-    setTimeout(function(){setOk('');},2000);
+
+    setDirty(false);
+    setSaving(false);setOk('Objectifs enregistrés');
+    setTimeout(function(){setOk('');},3000);
   }
 
   async function copyObjectifs(fromAnnee,toAnnee){
     setSaving(true);setOk('');
     const src=(objectifs||[]).filter(function(o){return o.annee===fromAnnee;});
     const rows=src.map(function(o){return {annee:toAnnee,conseiller_id:o.conseiller_id,famille:o.famille,contract_type:o.contract_type,montant:o.montant};});
-    await sb.from('objectifs').upsert(rows,{onConflict:'annee,conseiller_id,famille,contract_type'});
+    // Supprimer toAnnee puis insérer
+    await sb.from('objectifs').delete().eq('annee',toAnnee);
+    if(rows.length>0) await sb.from('objectifs').insert(rows);
     setObjectifs(function(prev){return (prev||[]).filter(function(o){return o.annee!==toAnnee;}).concat(rows);});
     setAnneeO(toAnnee);
     setSaving(false);setOk('Objectifs '+toAnnee+' créés depuis '+fromAnnee);
@@ -2272,26 +2295,61 @@ function Configuration({sb,profile,profiles,grilles,setGrilles,objectifs,setObje
             )}
           </div>
 
-          <div className="card" style={{overflow:'hidden'}}>
+          <div className="card" style={{overflow:'hidden',marginBottom:'12px'}}>
             <table>
               <thead><tr>
-                <th style={{width:'45%'}}>Famille / Type</th>
+                <th style={{width:'55%'}}>Famille / Type</th>
                 <th style={{textAlign:'right'}}>Objectif annuel (€)</th>
               </tr></thead>
               <tbody>
-                {/* Objectif total production */}
-                <ObjRow key="__total__" fam="__total__" type={null} getObj={getObj} saveObj={saveObj} canEdit={canEdit}/>
+                {/* Production totale AXA */}
+                <tr style={{background:'#eff6ff'}}>
+                  <td style={{fontWeight:700,fontSize:'12.5px',color:'#1d4ed8'}}>🎯 Production totale AXA</td>
+                  <td style={{textAlign:'right'}}>
+                    {canEdit
+                      ?<input type="number" value={getLocalVal('__total__',null)} onChange={function(e){setLocalVal('__total__',null,e.target.value);}} style={{width:'130px',padding:'4px 8px',fontSize:'12px',textAlign:'right'}} placeholder="—"/>
+                      :<span style={{fontSize:'12.5px',fontWeight:600}}>{getLocalVal('__total__',null)?feur0(parseFloat(getLocalVal('__total__',null))):'—'}</span>
+                    }
+                  </td>
+                </tr>
                 {/* Toutes les familles */}
                 {FAMILIES.map(function(fam){
                   return [
-                    <ObjRow key={fam.name} fam={fam.name} type={null} getObj={getObj} saveObj={saveObj} canEdit={canEdit}/>
+                    <tr key={fam.name} style={{background:fam.bg}}>
+                      <td style={{fontWeight:600,color:fam.color,fontSize:'12px'}}>{fam.name}</td>
+                      <td style={{textAlign:'right'}}>
+                        {canEdit
+                          ?<input type="number" value={getLocalVal(fam.name,null)} onChange={function(e){setLocalVal(fam.name,null,e.target.value);}} style={{width:'130px',padding:'4px 8px',fontSize:'12px',textAlign:'right'}} placeholder="—"/>
+                          :<span style={{fontSize:'12.5px'}}>{getLocalVal(fam.name,null)?feur0(parseFloat(getLocalVal(fam.name,null))):'—'}</span>
+                        }
+                      </td>
+                    </tr>
                   ].concat(fam.types.map(function(type){
-                    return <ObjRow key={type} fam={null} type={type} getObj={getObj} saveObj={saveObj} canEdit={canEdit}/>;
+                    return(
+                      <tr key={type} style={{background:'#fafafa'}}>
+                        <td style={{paddingLeft:'24px',fontSize:'12px',color:'#666'}}>↳ {type}</td>
+                        <td style={{textAlign:'right'}}>
+                          {canEdit
+                            ?<input type="number" value={getLocalVal(null,type)} onChange={function(e){setLocalVal(null,type,e.target.value);}} style={{width:'130px',padding:'4px 8px',fontSize:'12px',textAlign:'right'}} placeholder="—"/>
+                            :<span style={{fontSize:'12.5px'}}>{getLocalVal(null,type)?feur0(parseFloat(getLocalVal(null,type))):'—'}</span>
+                          }
+                        </td>
+                      </tr>
+                    );
                   }));
                 })}
               </tbody>
             </table>
           </div>
+
+          {canEdit&&(
+            <div style={{display:'flex',justifyContent:'flex-end',gap:'10px',alignItems:'center'}}>
+              {dirty&&<span style={{fontSize:'12.5px',color:'#92400e'}}>● Modifications non enregistrées</span>}
+              <button className="bp" onClick={saveAllObjectifs} disabled={saving||!dirty} style={{padding:'9px 20px'}}>
+                {saving?'Enregistrement…':'💾 Enregistrer les objectifs'}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
