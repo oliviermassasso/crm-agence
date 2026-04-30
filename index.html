@@ -1603,9 +1603,7 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
         </div>
       )}
 
-      {/* Classement conseillers — visible par tous */}
-
-      {/* Classement conseillers — visible par tous */}
+      {/* Classement conseillers */}
       {(()=>{
         const allConseillers=profiles.filter(function(p){
           if(p.role!=='conseiller'&&p.role!=='manager') return false;
@@ -1616,40 +1614,39 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
         const rankAll=allConseillers.map(function(p){
           const mine=allActive2.filter(function(c){return c.conseiller_id===p.id&&inPeriod(c,year,months)&&!isExclu(c);});
           const prevMine=allActive2.filter(function(c){return c.conseiller_id===p.id&&inPeriod(c,prevY,months)&&!isExclu(c);});
-          return {id:p.id,name:p.full_name,ca:sumCA(mine),nb:mine.length,caPrev:sumCA(prevMine),nbPrev:prevMine.length};
-        }).filter(function(r){return r.ca>0||r.nb>0;}).sort(function(a,b){return b.ca-a.ca;});
+          return {id:p.id,name:p.full_name,ca:sumCA(mine),caPrev:sumCA(prevMine)};
+        }).filter(function(r){return r.ca>0;}).sort(function(a,b){return b.ca-a.ca;});
         if(rankAll.length===0) return null;
+        const maxCA=rankAll[0].ca||1;
+        const lightenR=function(hex,amt){const n=parseInt(hex.replace('#',''),16);return '#'+[((n>>16)&255),((n>>8)&255),(n&255)].map(function(v){return Math.min(255,v+amt).toString(16).padStart(2,'0');}).join('');};
+        const darkenR=function(hex,amt){const n=parseInt(hex.replace('#',''),16);return '#'+[((n>>16)&255),((n>>8)&255),(n&255)].map(function(v){return Math.max(0,v-amt).toString(16).padStart(2,'0');}).join('');};
+        const RANK_COLORS=['#1d4ed8','#0891b2','#16a34a','#7c3aed','#dc2626','#b45309','#6366f1'];
+        const medals=['🥇','🥈','🥉'];
         return(
-          <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px',marginBottom:'16px'}}>
-            <div style={{fontSize:'13px',fontWeight:600,marginBottom:'14px'}}>Classement conseillers</div>
-            <table style={{width:'100%',borderCollapse:'collapse',fontSize:'13px'}}>
-              <thead><tr style={{borderBottom:'1px solid #f3f4f6'}}>
-                <th style={{padding:'8px 10px',textAlign:'left',fontSize:'11px',color:'#888',fontWeight:600,textTransform:'uppercase'}}>#</th>
-                <th style={{padding:'8px 10px',textAlign:'left',fontSize:'11px',color:'#888',fontWeight:600,textTransform:'uppercase'}}>Conseiller</th>
-                <th style={{padding:'8px 10px',textAlign:'right',fontSize:'11px',color:'#888',fontWeight:600,textTransform:'uppercase'}}>CA</th>
-                <th style={{padding:'8px 10px',textAlign:'right',fontSize:'11px',color:'#888',fontWeight:600,textTransform:'uppercase'}}>vs N-1</th>
-                <th style={{padding:'8px 10px',textAlign:'right',fontSize:'11px',color:'#888',fontWeight:600,textTransform:'uppercase'}}>Contrats</th>
-                <th style={{padding:'8px 10px',textAlign:'right',fontSize:'11px',color:'#888',fontWeight:600,textTransform:'uppercase'}}>vs N-1</th>
-              </tr></thead>
-              <tbody>
-                {rankAll.map(function(r,i){
-                  const eCA=r.caPrev>0?((r.ca-r.caPrev)/r.caPrev*100):null;
-                  const eNB=r.nbPrev>0?((r.nb-r.nbPrev)/r.nbPrev*100):null;
-                  const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':(i+1)+'';
-                  const isMe=r.id===profile.id;
-                  return <tr key={r.id} style={{borderBottom:'1px solid #f9fafb',background:isMe?'#eff6ff':'',fontWeight:isMe?600:400}}>
-                    <td style={{padding:'9px 10px',color:'#999',fontSize:'12px'}}>{medal}</td>
-                    <td style={{padding:'9px 10px'}}>
-                      {r.name}{isMe&&<span style={{marginLeft:'6px',fontSize:'10.5px',color:'#1d4ed8',background:'#dbeafe',padding:'1px 6px',borderRadius:'100px'}}>moi</span>}
-                    </td>
-                    <td style={{padding:'9px 10px',textAlign:'right'}}>{feur0(r.ca)}</td>
-                    <td style={{padding:'9px 10px',textAlign:'right'}}>{eCA===null?<span style={{color:'#aaa'}}>—</span>:<span style={{color:eCA>=0?'#059669':'#dc2626',fontWeight:600,fontSize:'12px'}}>{eCA>=0?'▲ ':'▼ '}{Math.abs(eCA).toFixed(1)}%</span>}</td>
-                    <td style={{padding:'9px 10px',textAlign:'right'}}>{r.nb}</td>
-                    <td style={{padding:'9px 10px',textAlign:'right'}}>{eNB===null?<span style={{color:'#aaa'}}>—</span>:<span style={{color:eNB>=0?'#059669':'#dc2626',fontWeight:600,fontSize:'12px'}}>{eNB>=0?'▲ ':'▼ '}{Math.abs(eNB).toFixed(1)}%</span>}</td>
-                  </tr>;
-                })}
-              </tbody>
-            </table>
+          <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px 20px',marginBottom:'16px'}}>
+            <div style={{fontSize:'13px',fontWeight:600,marginBottom:'16px',textAlign:'center'}}>Classement conseillers · CA Total</div>
+            <div style={{display:'flex',flexDirection:'column',gap:'8px'}}>
+              {rankAll.map(function(r,i){
+                const col=RANK_COLORS[i%RANK_COLORS.length];
+                const pct=Math.max(4,Math.round(r.ca/maxCA*100));
+                const evo=r.caPrev>0?((r.ca-r.caPrev)/r.caPrev*100):null;
+                const isMe=r.id===profile.id;
+                const grad='linear-gradient(to right, '+lightenR(col,90)+' 0%, '+lightenR(col,25)+' 40%, '+col+' 80%, '+darkenR(col,40)+' 100%)';
+                return(
+                  <div key={r.id} style={{display:'flex',alignItems:'center',gap:'10px',padding:'6px 10px',borderRadius:'8px',background:isMe?'#f8faff':'',border:isMe?'1px solid #dbeafe':'1px solid transparent'}}>
+                    <div style={{width:'22px',textAlign:'center',fontSize:'14px',flexShrink:0}}>{i<3?medals[i]:<span style={{fontSize:'12px',fontWeight:700,color:'#aaa'}}>{i+1}</span>}</div>
+                    <div style={{width:'120px',fontSize:'12.5px',fontWeight:isMe?600:400,flexShrink:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.name}{isMe&&<span style={{marginLeft:'5px',fontSize:'10px',color:'#1d4ed8',background:'#dbeafe',padding:'1px 5px',borderRadius:'100px'}}>moi</span>}</div>
+                    <div style={{flex:1,position:'relative',height:'22px'}}>
+                      <div style={{position:'absolute',inset:0,borderRadius:'4px',background:grad,width:pct+'%',minWidth:'4px',transition:'width 0.4s'}}/>
+                    </div>
+                    <div style={{width:'80px',textAlign:'right',fontSize:'12.5px',fontWeight:600,flexShrink:0,color:col}}>{feur0(r.ca)}</div>
+                    <div style={{width:'60px',textAlign:'right',fontSize:'11px',flexShrink:0}}>
+                      {evo!==null?<span style={{fontWeight:600,color:evo>=0?'#059669':'#dc2626'}}>{evo>=0?'▲':'▼'} {Math.abs(evo).toFixed(1)}%</span>:<span style={{color:'#ddd'}}>—</span>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         );
       })()}
