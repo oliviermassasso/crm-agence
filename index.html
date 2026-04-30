@@ -1042,16 +1042,22 @@ function Jauge({ca,objectif,label,color,bg}){
 function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
   const now=new Date();
   const [year,setYear]=useState(now.getFullYear());
-  const [month,setMonth]=useState(now.getMonth()+1);
+  const [months,setMonths]=useState([now.getMonth()+1]); // tableau de mois sélectionnés
   const [mode,setMode]=useState('mois');
   const [filterCons,setFilterCons]=useState('');
   const isDir=['direction','manager'].includes(profile.role);
-  function inPeriod(c,y,m){
+
+  function inPeriod(c,y,ms){
     if(!c.emission_date)return false;
     const d=new Date(c.emission_date);
-    if(mode==='mois') return d.getFullYear()===y&&d.getMonth()+1===m;
+    if(mode==='mois'){
+      if(ms.length===0) return d.getFullYear()===y; // aucun mois = tous
+      return d.getFullYear()===y&&ms.includes(d.getMonth()+1);
+    }
     return d.getFullYear()===y;
   }
+
+  const nbMois=mode==='mois'?(months.length>0?months.length:12):12;
 
   // Filtrer selon le rôle
   const allActive=contracts.filter(function(c){return c.status!=='ANNULE';});
@@ -1059,11 +1065,10 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
     ? (filterCons?allActive.filter(function(c){return c.conseiller_id===filterCons;}):allActive)
     : allActive.filter(function(c){return c.conseiller_id===profile.id;}));
 
-  const cur=visibleActive.filter(function(c){return inPeriod(c,year,month);});
-  // N-1 : même mois année-1 (vue mois) ou année-1 (vue année)
+  const cur=visibleActive.filter(function(c){return inPeriod(c,year,months);});
+  // N-1 : mêmes mois, année-1
   const prevY=year-1;
-  const prevM=month;
-  const prev=visibleActive.filter(function(c){return inPeriod(c,prevY,prevM);});
+  const prev=visibleActive.filter(function(c){return inPeriod(c,prevY,months);});
 
   // CA Total = sans familles complémentaires NI crédits conso
   const famExclues=['Courtage','VTC','AXA Banque','Épargne & Retraite','Crédits AXA'];
@@ -1109,7 +1114,6 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
   // Objectifs depuis la base — agence ou conseiller selon filterCons
   function getObjPeriod(familleOrType,isType){
     const consId=filterCons||null;
-    // Chercher objectif conseiller si filtre actif, sinon agence (conseiller_id null)
     const rows=(objectifs||[]).filter(function(o){
       return o.annee===year&&
         (consId?o.conseiller_id===consId:!o.conseiller_id)&&
@@ -1117,7 +1121,7 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
     });
     const total=rows.reduce(function(s,o){return s+(o.montant||0);},0);
     if(!total) return 0;
-    return mode==='mois'?Math.round(total/12):total;
+    return mode==='annee'?total:Math.round(total/12*nbMois);
   }
 
   const caTotal=sumCA(cur.filter(function(c){return !isExclu(c);}));
@@ -1170,7 +1174,9 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
     </div>;
   }
 
-  const labelPeriode=mode==='mois'?MONTHS[month-1]+' '+year:'Année '+year;
+  const labelPeriode=mode==='mois'
+    ?(months.length===0?'Toute l\'année '+year:months.length===1?MONTHS[months[0]-1]+' '+year:months.map(function(m){return MONTHS[m-1];}).join(', ')+' '+year)
+    :'Année '+year;
 
   return(
     <div style={{padding:'28px 32px',maxWidth:'1100px'}}>
@@ -1182,7 +1188,7 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
             <button onClick={function(){setMode('mois');}} style={{padding:'6px 14px',fontSize:'12.5px',border:'none',borderRadius:0,background:mode==='mois'?'#1d4ed8':'#fff',color:mode==='mois'?'#fff':'#555'}}>Mois</button>
             <button onClick={function(){setMode('annee');}} style={{padding:'6px 14px',fontSize:'12.5px',border:'none',borderLeft:'1px solid #e5e7eb',borderRadius:0,background:mode==='annee'?'#1d4ed8':'#fff',color:mode==='annee'?'#fff':'#555'}}>Année</button>
           </div>
-          {mode==='mois'&&<select value={month} onChange={function(e){setMonth(parseInt(e.target.value));}} style={{width:'auto',padding:'6px 10px'}}>{MONTHS.map(function(ml,i){return <option key={i} value={i+1}>{ml}</option>;})}</select>}
+          {mode==='mois'&&<MultiSelect label="Tous les mois" width="140px" value={months.map(String)} onChange={function(v){setMonths(v.map(Number));}} options={MONTHS.map(function(ml,i){return {value:String(i+1),label:ml};})}/>}
           <select value={year} onChange={function(e){setYear(parseInt(e.target.value));}} style={{width:'auto',padding:'6px 10px'}}>{[2021,2022,2023,2024,2025,2026].map(function(y){return <option key={y} value={y}>{y}</option>;})}</select>
           {isDir&&<select value={filterCons} onChange={function(e){setFilterCons(e.target.value);}} style={{width:'auto',padding:'6px 10px'}}>
             <option value="">Tous les conseillers</option>
@@ -1347,8 +1353,8 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
         const allConseillers=profiles.filter(function(p){return p.role==='conseiller'||p.role==='manager';});
         const allActive2=(rankContracts||contracts).filter(function(c){return c.status!=='ANNULE';});
         const rankAll=allConseillers.map(function(p){
-          const mine=allActive2.filter(function(c){return c.conseiller_id===p.id&&inPeriod(c,year,month)&&!isExclu(c);});
-          const prevMine=allActive2.filter(function(c){return c.conseiller_id===p.id&&inPeriod(c,prevY,prevM)&&!isExclu(c);});
+          const mine=allActive2.filter(function(c){return c.conseiller_id===p.id&&inPeriod(c,year,months)&&!isExclu(c);});
+          const prevMine=allActive2.filter(function(c){return c.conseiller_id===p.id&&inPeriod(c,prevY,months)&&!isExclu(c);});
           return {id:p.id,name:p.full_name,ca:sumCA(mine),nb:mine.length,caPrev:sumCA(prevMine),nbPrev:prevMine.length};
         }).filter(function(r){return r.ca>0||r.nb>0;}).sort(function(a,b){return b.ca-a.ca;});
         if(rankAll.length===0) return null;
