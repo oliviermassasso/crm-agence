@@ -1035,12 +1035,7 @@ function DonutChart({data}){
     const ix1=cx+inner*Math.cos(start),iy1=cy+inner*Math.sin(start);
     const ix2=cx+inner*Math.cos(end),iy2=cy+inner*Math.sin(end);
     const face='M '+ix1+' '+iy1+' L '+x1+' '+y1+' A '+r+' '+r+' 0 '+large+' 1 '+x2+' '+y2+' L '+ix2+' '+iy2+' A '+inner+' '+inner+' 0 '+large+' 0 '+ix1+' '+iy1+' Z';
-    // Point central du tube pour gradient
-    const midR=(r+inner)/2;
-    const hx=cx+midR*Math.cos(midAngle);
-    const hy=cy+midR*Math.sin(midAngle);
-    return {face,pct,midAngle,hx,hy,label:d.label,value:d.value,color:d.color,
-      light:lighten(d.color,100),mid:lighten(d.color,20),dark:darken(d.color,55)};
+    return {face,pct,midAngle,label:d.label,value:d.value,color:d.color};
   });
 
   const [hovered,setHovered]=React.useState(null);
@@ -1050,15 +1045,16 @@ function DonutChart({data}){
       <svg width="200" height="200" viewBox="0 0 200 200" style={{flexShrink:0,overflow:'visible'}}>
         <defs>
           {slices.map(function(s,i){
-            // Gradient radial centré sur le milieu du tube → effet gonflé comme Excel
-            return <radialGradient key={i} id={'rg'+i}
-              cx={s.hx} cy={s.hy} r={(r-inner)*0.9}
-              gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stopColor={s.light}/>
-              <stop offset="30%" stopColor={s.mid}/>
-              <stop offset="65%" stopColor={s.color}/>
-              <stop offset="100%" stopColor={s.dark}/>
-            </radialGradient>;
+            const col=s.color;
+            const lighten=function(hex,amt){const n=parseInt(hex.replace('#',''),16);return '#'+[((n>>16)&255),((n>>8)&255),(n&255)].map(function(v){return Math.min(255,v+amt).toString(16).padStart(2,'0');}).join('');};
+            const darken=function(hex,amt){const n=parseInt(hex.replace('#',''),16);return '#'+[((n>>16)&255),((n>>8)&255),(n&255)].map(function(v){return Math.max(0,v-amt).toString(16).padStart(2,'0');}).join('');};
+            const top=cy-r, bottom=cy+r;
+            return <linearGradient key={i} id={'rg'+i} x1={cx} y1={top} x2={cx} y2={bottom} gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor={lighten(col,90)}/>
+              <stop offset="25%" stopColor={lighten(col,25)}/>
+              <stop offset="70%" stopColor={col}/>
+              <stop offset="100%" stopColor={darken(col,50)}/>
+            </linearGradient>;
           })}
           <filter id="dshadow">
             <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#00000040"/>
