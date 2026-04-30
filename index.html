@@ -931,19 +931,30 @@ function FamilleAccordions({sections,cur,prev,getObjPeriod,mode,year}){
         const totCA=sumCA(cur.filter(function(c){return allTypes.includes(c.contract_type);}));
         const totCAPrev=sumCA(prev.filter(function(c){return allTypes.includes(c.contract_type);}));
         const evo=totCAPrev>0?((totCA-totCAPrev)/totCAPrev*100):null;
+        const objFam=getObjPeriod(section.section,false);
+        const pctFam=objFam>0?Math.min(totCA/objFam*100,100):0;
+        const pctFamReal=objFam>0?Math.round(totCA/objFam*100):null;
         const isOpen=!!open[section.section];
         return(
           <div key={section.section} style={{marginBottom:'8px'}}>
-            <div onClick={function(){toggle(section.section);}} style={{cursor:'pointer',fontSize:'11px',fontWeight:700,color:section.fam.color,background:section.fam.bg,padding:'8px 12px',borderRadius:isOpen?'6px 6px 0 0':'6px',letterSpacing:'0.5px',textTransform:'uppercase',display:'flex',justifyContent:'space-between',alignItems:'center',userSelect:'none'}}>
-              <span style={{display:'flex',alignItems:'center',gap:'8px'}}>
-                <span style={{fontSize:'13px'}}>{isOpen?'▼':'▶'}</span>
-                <span>{section.section}</span>
-              </span>
-              <span style={{display:'flex',alignItems:'center',gap:'8px'}}>
-                <span style={{fontSize:'13px',fontWeight:700}}>{feur0(totCA)}</span>
-                {evo!==null&&<span style={{fontSize:'11px',fontWeight:700,color:evo>=0?'#059669':'#dc2626'}}>{evo>=0?'▲':'▼'} {Math.abs(evo).toFixed(1)}%</span>}
-                <span style={{fontSize:'10.5px',opacity:0.6}}>N-1 : {feur0(totCAPrev)}</span>
-              </span>
+            <div onClick={function(){toggle(section.section);}} style={{cursor:'pointer',background:section.fam.bg,borderRadius:isOpen?'6px 6px 0 0':'6px',overflow:'hidden',userSelect:'none'}}>
+              <div style={{fontSize:'11px',fontWeight:700,color:section.fam.color,padding:'8px 12px',letterSpacing:'0.5px',textTransform:'uppercase',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <span style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                  <span style={{fontSize:'13px'}}>{isOpen?'▼':'▶'}</span>
+                  <span>{section.section}</span>
+                </span>
+                <span style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                  <span style={{fontSize:'13px',fontWeight:700}}>{feur0(totCA)}</span>
+                  {evo!==null&&<span style={{fontSize:'11px',fontWeight:700,color:evo>=0?'#059669':'#dc2626'}}>{evo>=0?'▲':'▼'} {Math.abs(evo).toFixed(1)}%</span>}
+                  <span style={{fontSize:'10.5px',opacity:0.6}}>N-1 : {feur0(totCAPrev)}</span>
+                  {pctFamReal!==null&&<span style={{fontSize:'10.5px',fontWeight:600,color:pctFamReal>=100?'#059669':section.fam.color,background:'rgba(255,255,255,0.5)',padding:'1px 6px',borderRadius:'4px'}}>{pctFamReal}% obj.</span>}
+                </span>
+              </div>
+              {objFam>0&&(
+                <div style={{height:'4px',background:'rgba(255,255,255,0.4)',margin:'0'}}>
+                  <div style={{height:'100%',width:pctFam+'%',background:pctFamReal>=100?'#059669':section.fam.color,opacity:0.7,transition:'width 0.4s'}}/>
+                </div>
+              )}
             </div>
             {isOpen&&(
               <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:'1px',background:'#e5e7eb',border:'1px solid #e5e7eb',borderTop:'none',borderRadius:'0 0 6px 6px',overflow:'hidden'}}>
