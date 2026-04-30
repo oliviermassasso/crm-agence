@@ -921,6 +921,80 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh,year,setY
   );
 }
 
+function FamilleAccordions({sections,cur,prev,getObjPeriod,mode,year}){
+  const [open,setOpen]=useState({});
+  function toggle(name){setOpen(function(p){return Object.assign({},p,{[name]:!p[name]});});}
+  return(
+    <div>
+      {sections.map(function(section){
+        const allTypes=section.items.flatMap(function(i){return i.types;});
+        const totCA=sumCA(cur.filter(function(c){return allTypes.includes(c.contract_type);}));
+        const totCAPrev=sumCA(prev.filter(function(c){return allTypes.includes(c.contract_type);}));
+        const evo=totCAPrev>0?((totCA-totCAPrev)/totCAPrev*100):null;
+        const isOpen=!!open[section.section];
+        return(
+          <div key={section.section} style={{marginBottom:'8px'}}>
+            <div onClick={function(){toggle(section.section);}} style={{cursor:'pointer',fontSize:'11px',fontWeight:700,color:section.fam.color,background:section.fam.bg,padding:'8px 12px',borderRadius:isOpen?'6px 6px 0 0':'6px',letterSpacing:'0.5px',textTransform:'uppercase',display:'flex',justifyContent:'space-between',alignItems:'center',userSelect:'none'}}>
+              <span style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                <span style={{fontSize:'13px'}}>{isOpen?'▼':'▶'}</span>
+                <span>{section.section}</span>
+              </span>
+              <span style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                <span style={{fontSize:'13px',fontWeight:700}}>{feur0(totCA)}</span>
+                {evo!==null&&<span style={{fontSize:'11px',fontWeight:700,color:evo>=0?'#059669':'#dc2626'}}>{evo>=0?'▲':'▼'} {Math.abs(evo).toFixed(1)}%</span>}
+                <span style={{fontSize:'10.5px',opacity:0.6}}>N-1 : {feur0(totCAPrev)}</span>
+              </span>
+            </div>
+            {isOpen&&(
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:'1px',background:'#e5e7eb',border:'1px solid #e5e7eb',borderTop:'none',borderRadius:'0 0 6px 6px',overflow:'hidden'}}>
+                {section.items.map(function(item){
+                  const iCur=cur.filter(function(c){return item.types.includes(c.contract_type);});
+                  const iPrev=prev.filter(function(c){return item.types.includes(c.contract_type);});
+                  const iCA=sumCA(iCur),iCAPrev=sumCA(iPrev);
+                  const iNb=iCur.length,iNbPrev=iPrev.length;
+                  const evoCA=iCAPrev>0?((iCA-iCAPrev)/iCAPrev*100):null;
+                  const evoNb=iNbPrev>0?((iNb-iNbPrev)/iNbPrev*100):null;
+                  const objVal=item.objType
+                    ?getObjPeriod(item.objType,true)||getObjPeriod(section.section,false)
+                    :getObjPeriod(section.section,false);
+                  const pct=objVal>0?Math.min(iCA/objVal*100,100):0;
+                  const pctReal=objVal>0?Math.round(iCA/objVal*100):null;
+                  return(
+                    <div key={item.label} style={{background:'#fff',padding:'12px 14px'}}>
+                      <div style={{fontSize:'11px',fontWeight:600,color:section.fam.color,marginBottom:'8px'}}>{item.label}</div>
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:'1px'}}>
+                        <span style={{fontSize:'16px',fontWeight:700}}>{feur0(iCA)}</span>
+                        {evoCA!==null&&<span style={{fontSize:'11px',fontWeight:700,color:evoCA>=0?'#059669':'#dc2626'}}>{evoCA>=0?'▲':'▼'} {Math.abs(evoCA).toFixed(1)}%</span>}
+                      </div>
+                      <div style={{fontSize:'10.5px',color:'#bbb',marginBottom:'6px'}}>N-1 : {feur0(iCAPrev)}</div>
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:'1px'}}>
+                        <span style={{fontSize:'13px',fontWeight:500,color:'#555'}}>{fnum(iNb)} contrat{iNb!==1?'s':''}</span>
+                        {evoNb!==null&&<span style={{fontSize:'10.5px',fontWeight:600,color:evoNb>=0?'#059669':'#dc2626'}}>{evoNb>=0?'▲':'▼'} {Math.abs(evoNb).toFixed(1)}%</span>}
+                      </div>
+                      <div style={{fontSize:'10.5px',color:'#bbb',marginBottom:objVal>0?'8px':'0'}}>N-1 : {fnum(iNbPrev)}</div>
+                      {objVal>0&&(
+                        <div>
+                          <div style={{display:'flex',justifyContent:'space-between',fontSize:'10px',color:'#aaa',marginBottom:'2px'}}>
+                            <span>Obj. {feur0(objVal)}</span>
+                            <span style={{fontWeight:600,color:pctReal>=100?'#059669':'#888'}}>{pctReal}%</span>
+                          </div>
+                          <div style={{height:'5px',background:'#f3f4f6',borderRadius:'3px'}}>
+                            <div style={{height:'100%',width:pct+'%',background:pctReal>=100?'#059669':section.fam.color,borderRadius:'3px',transition:'width 0.4s'}}/>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 /* ══ TABLEAU DE BORD ══ */
 // Objectifs annuels 2026 par famille
 const OBJECTIFS_2026={
@@ -1144,69 +1218,7 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
           ]},
         ];
 
-        return CARTES_DETAIL.map(function(section){
-          return(
-            <div key={section.section} style={{marginBottom:'16px'}}>
-              <div style={{fontSize:'11px',fontWeight:700,color:section.fam.color,background:section.fam.bg,padding:'6px 12px',borderRadius:'6px 6px 0 0',letterSpacing:'0.5px',textTransform:'uppercase',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                <span>{section.section}</span>
-                <span style={{display:'flex',alignItems:'center',gap:'8px'}}>
-                  {(function(){
-                    const allTypes=section.items.flatMap(function(i){return i.types;});
-                    const totCA=sumCA(cur.filter(function(c){return allTypes.includes(c.contract_type);}));
-                    const totCAPrev=sumCA(prev.filter(function(c){return allTypes.includes(c.contract_type);}));
-                    const evo=totCAPrev>0?((totCA-totCAPrev)/totCAPrev*100):null;
-                    return <>
-                      <span style={{fontSize:'13px',fontWeight:700}}>{feur0(totCA)}</span>
-                      {evo!==null&&<span style={{fontSize:'11px',fontWeight:700,color:evo>=0?'#059669':'#dc2626'}}>{evo>=0?'▲':'▼'} {Math.abs(evo).toFixed(1)}%</span>}
-                      <span style={{fontSize:'10.5px',color:section.fam.color,opacity:0.6}}>N-1 : {feur0(totCAPrev)}</span>
-                    </>;
-                  })()}
-                </span>
-              </div>
-              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:'1px',background:'#e5e7eb',border:'1px solid #e5e7eb',borderTop:'none',borderRadius:'0 0 8px 8px',overflow:'hidden'}}>
-                {section.items.map(function(item){
-                  const iardCur=cur.filter(function(c){return item.types.includes(c.contract_type);});
-                  const iardPrev=prev.filter(function(c){return item.types.includes(c.contract_type);});
-                  const iCA=sumCA(iardCur),iCAPrev=sumCA(iardPrev);
-                  const iNb=iardCur.length,iNbPrev=iardPrev.length;
-                  const evoCA=iCAPrev>0?((iCA-iCAPrev)/iCAPrev*100):null;
-                  const evoNb=iNbPrev>0?((iNb-iNbPrev)/iNbPrev*100):null;
-                  const objVal=item.objType
-                    ?getObjPeriod(item.objType,true)||getObjPeriod(section.section,false)
-                    :getObjPeriod(section.section,false);
-                  const pct=objVal>0?Math.min(iCA/objVal*100,100):0;
-                  const pctReal=objVal>0?Math.round(iCA/objVal*100):null;
-                  return(
-                    <div key={item.label} style={{background:'#fff',padding:'12px 14px'}}>
-                      <div style={{fontSize:'11px',fontWeight:600,color:section.fam.color,marginBottom:'8px'}}>{item.label}</div>
-                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:'1px'}}>
-                        <span style={{fontSize:'16px',fontWeight:700}}>{feur0(iCA)}</span>
-                        {evoCA!==null&&<span style={{fontSize:'11px',fontWeight:700,color:evoCA>=0?'#059669':'#dc2626'}}>{evoCA>=0?'▲':'▼'} {Math.abs(evoCA).toFixed(1)}%</span>}
-                      </div>
-                      <div style={{fontSize:'10.5px',color:'#bbb',marginBottom:'6px'}}>N-1 : {feur0(iCAPrev)}</div>
-                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:'1px'}}>
-                        <span style={{fontSize:'13px',fontWeight:500,color:'#555'}}>{fnum(iNb)} contrat{iNb!==1?'s':''}</span>
-                        {evoNb!==null&&<span style={{fontSize:'10.5px',fontWeight:600,color:evoNb>=0?'#059669':'#dc2626'}}>{evoNb>=0?'▲':'▼'} {Math.abs(evoNb).toFixed(1)}%</span>}
-                      </div>
-                      <div style={{fontSize:'10.5px',color:'#bbb',marginBottom:objVal>0?'8px':'0'}}>N-1 : {fnum(iNbPrev)}</div>
-                      {objVal>0&&(
-                        <div>
-                          <div style={{display:'flex',justifyContent:'space-between',fontSize:'10px',color:'#aaa',marginBottom:'2px'}}>
-                            <span>Obj. {feur0(objVal)}</span>
-                            <span style={{fontWeight:600,color:pctReal>=100?'#059669':'#888'}}>{pctReal}%</span>
-                          </div>
-                          <div style={{height:'5px',background:'#f3f4f6',borderRadius:'3px'}}>
-                            <div style={{height:'100%',width:pct+'%',background:pctReal>=100?'#059669':section.fam.color,borderRadius:'3px',transition:'width 0.4s'}}/>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        });
+        return React.createElement(FamilleAccordions,{sections:CARTES_DETAIL,cur:cur,prev:prev,getObjPeriod:getObjPeriod,mode:mode,year:year});
       })()}
 
       <div style={{display:'flex',gap:'10px',marginBottom:'20px',flexWrap:'wrap'}}>
