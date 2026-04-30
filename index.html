@@ -1209,6 +1209,7 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
         const getFam=function(n){return FAMILIES.find(function(f){return f.name===n;})||{color:'#555',bg:'#f1f5f9'};};
         const CARTES_DETAIL=[
           {section:'IARD Particulier',fam:getFam('IARD Particulier'),items:[
+            {label:'IARD Auto/Moto MRH PJ',types:['Auto/Moto','MRH','PJ'],objType:null},
             {label:'Auto/Moto',types:['Auto/Moto'],objType:'Auto/Moto'},
             {label:'MRH',types:['MRH'],objType:'MRH'},
             {label:'PJ',types:['PJ'],objType:'PJ'},
