@@ -1018,7 +1018,7 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
       creditCAPrev=sumCA(prev.filter(function(c){return famCredits.types.includes(c.contract_type);}));
     }
     const evoCreditCA=creditCAPrev>0?((creditCA-creditCAPrev)/creditCAPrev*100):null;
-    return Object.assign({},carte,{fam:fam,ca:caCur,nb:nbCur,evoCA:evoCA,evoNB:evoNB,creditCA:creditCA,evoCreditCA:evoCreditCA});
+    return Object.assign({},carte,{fam:fam,ca:caCur,nb:nbCur,caPrev:caPr,nbPrev:nbPr,evoCA:evoCA,evoNB:evoNB,creditCA:creditCA,creditCAPrev:creditCAPrev,evoCreditCA:evoCreditCA});
   });
 
   // Objectifs depuis la base — agence ou conseiller selon filterCons
@@ -1076,9 +1076,12 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
   }
   function KPI(props){
     return <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'16px 18px',flex:1,minWidth:'140px'}}>
-      <div style={{fontSize:'11px',color:'#888',marginBottom:'6px',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.5px'}}>{props.label}</div>
-      <div style={{fontSize:'22px',fontWeight:600,marginBottom:'4px'}}>{props.value}</div>
-      <Evo val={props.evo}/>
+      <div style={{display:'flex',alignItems:'center',gap:'4px',fontSize:'11px',color:'#888',marginBottom:'6px',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.5px'}}>{props.label}</div>
+      <div style={{fontSize:'24px',fontWeight:700,marginBottom:'4px'}}>{props.value}</div>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'8px'}}>
+        <Evo val={props.evo}/>
+        {props.prevValue&&<span style={{fontSize:'11px',color:'#bbb'}}>N-1 : {props.prevValue}</span>}
+      </div>
     </div>;
   }
 
@@ -1105,8 +1108,8 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
 
       {/* KPIs */}
       <div style={{display:'flex',gap:'12px',marginBottom:'16px',flexWrap:'wrap'}}>
-        <KPI label={React.createElement('span',{style:{display:'flex',alignItems:'center',gap:'4px'}},'CA Total',React.createElement('span',{className:'tip-wrap'},React.createElement('span',{style:{display:'inline-flex',alignItems:'center',justifyContent:'center',width:'13px',height:'13px',borderRadius:'50%',background:'#e5e7eb',color:'#555',fontSize:'9px',fontWeight:700,cursor:'help'}},'?'),React.createElement('span',{className:'tip'},'Hors Banque, Épargne & Retraite, Courtage, VTC et Crédits Conso')))} value={feur0(ca)} evo={evoCa}/>
-        <KPI label="Nb contrats" value={fnum(nb)} evo={evoNb}/>
+        <KPI label={React.createElement('span',{style:{display:'flex',alignItems:'center',gap:'4px'}},'CA Total',React.createElement('span',{className:'tip-wrap'},React.createElement('span',{style:{display:'inline-flex',alignItems:'center',justifyContent:'center',width:'13px',height:'13px',borderRadius:'50%',background:'#e5e7eb',color:'#555',fontSize:'9px',fontWeight:700,cursor:'help'}},'?'),React.createElement('span',{className:'tip',style:{maxWidth:'320px',width:'320px'}},'Hors Banque, Épargne & Retraite, Courtage, VTC et Crédits Conso')))} value={feur0(ca)} evo={evoCa} prevValue={caPrev>0?feur0(caPrev):null}/>
+        <KPI label="Nb contrats" value={fnum(nb)} evo={evoNb} prevValue={nbPrev>0?fnum(nbPrev):null}/>
         <KPI label="Panier moyen" value={nb>0?feur0(Math.round(ca/nb)):'—'} evo={null}/>
         <KPI label="Écart vs N-1" value={evoCa!==null?(evoCa>=0?'+':'')+evoCa.toFixed(1)+'%':'—'} evo={evoCa}/>
       </div>
@@ -1126,32 +1129,44 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
             <div key={c.name} style={{flex:'1 1 160px',background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'12px 14px',borderTop:'3px solid '+c.fam.color}}>
               <div style={{fontSize:'11px',fontWeight:600,color:c.fam.color,marginBottom:'8px',textTransform:'uppercase',letterSpacing:'0.4px'}}>{c.label}</div>
               {showCA&&!isBanque&&(
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:showNB?'4px':'0'}}>
-                  <span style={{fontSize:'16px',fontWeight:700}}>{feur0(c.ca)}</span>
-                  <Fleche val={c.evoCA}/>
+                <div style={{marginBottom:showNB?'6px':'0'}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'2px'}}>
+                    <span style={{fontSize:'18px',fontWeight:700}}>{feur0(c.ca)}</span>
+                    <Fleche val={c.evoCA}/>
+                  </div>
+                  <div style={{fontSize:'11px',color:'#bbb'}}>N-1 : {feur0(c.caPrev)}</div>
                 </div>
               )}
               {isBanque&&(
                 <>
-                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'4px'}}>
-                    <span style={{fontSize:'13px',color:'#555'}}>{c.nb} acte{c.nb!==1?'s':''} de banque</span>
-                    <Fleche val={c.evoNB}/>
+                  <div style={{marginBottom:'4px'}}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                      <span style={{fontSize:'16px',fontWeight:700}}>{c.nb} acte{c.nb!==1?'s':''}</span>
+                      <Fleche val={c.evoNB}/>
+                    </div>
+                    <div style={{fontSize:'11px',color:'#bbb'}}>N-1 : {c.nbPrev} acte{c.nbPrev!==1?'s':''}</div>
                   </div>
-                  {c.creditCA>0&&(
-                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',borderTop:'1px solid #f3f4f6',paddingTop:'4px',marginTop:'4px'}}>
-                      <span style={{fontSize:'12px',color:'#888'}}>Crédits conso</span>
-                      <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
-                        <span style={{fontSize:'13px',fontWeight:600}}>{feur0(c.creditCA)}</span>
-                        <Fleche val={c.evoCreditCA}/>
+                  {(c.creditCA>0||c.creditCAPrev>0)&&(
+                    <div style={{borderTop:'1px solid #f3f4f6',paddingTop:'4px',marginTop:'4px'}}>
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                        <span style={{fontSize:'12px',color:'#888'}}>Crédits conso</span>
+                        <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
+                          <span style={{fontSize:'13px',fontWeight:600}}>{feur0(c.creditCA)}</span>
+                          <Fleche val={c.evoCreditCA}/>
+                        </div>
                       </div>
+                      <div style={{fontSize:'11px',color:'#bbb',textAlign:'right'}}>N-1 : {feur0(c.creditCAPrev)}</div>
                     </div>
                   )}
                 </>
               )}
               {showNB&&!isBanque&&(
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                  <span style={{fontSize:showCA?'13px':'16px',fontWeight:showCA?400:700,color:'#555'}}>{c.nb} affaire{c.nb!==1?'s':''}</span>
-                  <Fleche val={c.evoNB}/>
+                <div>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                    <span style={{fontSize:showCA?'14px':'18px',fontWeight:700,color:'#333'}}>{c.nb} affaire{c.nb!==1?'s':''}</span>
+                    <Fleche val={c.evoNB}/>
+                  </div>
+                  <div style={{fontSize:'11px',color:'#bbb'}}>N-1 : {c.nbPrev} affaire{c.nbPrev!==1?'s':''}</div>
                 </div>
               )}
             </div>
