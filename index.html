@@ -931,14 +931,14 @@ const OBJECTIFS_2026={
   'Crédits AXA':10000,
 };
 
-function Jauge({ca,objectif,label,color}){
+function Jauge({ca,objectif,label,color,bg}){
   const [hover,setHover]=useState(false);
   const pct=objectif>0?Math.min(ca/objectif*100,100):0;
   const pctReal=objectif>0?Math.round(ca/objectif*100):null;
   return(
     <div style={{marginBottom:'12px'}}>
-      <div style={{display:'flex',justifyContent:'space-between',fontSize:'12px',marginBottom:'4px'}}>
-        <span style={{color:color,fontWeight:500}}>{label}</span>
+      <div style={{display:'flex',justifyContent:'space-between',fontSize:'12px',marginBottom:'4px',alignItems:'center'}}>
+        <span style={{color:color,fontWeight:600,background:bg||'transparent',padding:bg?'2px 7px':'0',borderRadius:'4px',display:'inline-block'}}>{label}</span>
         <span style={{fontWeight:600}}>{feur0(ca)}{objectif>0&&<span style={{color:'#aaa',fontWeight:400}}> / {feur0(objectif)}</span>}</span>
       </div>
       <div style={{position:'relative',height:'8px',background:'#f3f4f6',borderRadius:'4px',overflow:'visible',cursor:'default'}}
@@ -1111,10 +1111,63 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
         <KPI label={React.createElement('span',{style:{display:'flex',alignItems:'center',gap:'4px'}},'CA Total',React.createElement('span',{className:'tip-wrap'},React.createElement('span',{style:{display:'inline-flex',alignItems:'center',justifyContent:'center',width:'13px',height:'13px',borderRadius:'50%',background:'#e5e7eb',color:'#555',fontSize:'9px',fontWeight:700,cursor:'help'}},'?'),React.createElement('span',{className:'tip',style:{maxWidth:'320px',width:'320px'}},'Hors Banque, Épargne & Retraite, Courtage, VTC et Crédits Conso')))} value={feur0(ca)} evo={evoCa} prevValue={caPrev>0?feur0(caPrev):null}/>
         <KPI label="Nb contrats" value={fnum(nb)} evo={evoNb} prevValue={nbPrev>0?fnum(nbPrev):null}/>
         <KPI label="Panier moyen" value={nb>0?feur0(Math.round(ca/nb)):'—'} evo={null}/>
-        <KPI label="Écart vs N-1" value={evoCa!==null?(evoCa>=0?'+':'')+evoCa.toFixed(1)+'%':'—'} evo={evoCa}/>
       </div>
 
-      {/* Cartes complémentaires */}
+      {/* Carte CA IARD AXA */}
+      {(function(){
+        const typesIardAxa=['Auto/Moto','MRH','PJ'];
+        const iardCur=cur.filter(function(c){return typesIardAxa.includes(c.contract_type);});
+        const iardPrev=prev.filter(function(c){return typesIardAxa.includes(c.contract_type);});
+        const iardCA=sumCA(iardCur);
+        const iardCAPrev=sumCA(iardPrev);
+        const iardNb=iardCur.length;
+        const iardNbPrev=iardPrev.length;
+        const iardEvoCA=iardCAPrev>0?((iardCA-iardCAPrev)/iardCAPrev*100):null;
+        const iardEvoNb=iardNbPrev>0?((iardNb-iardNbPrev)/iardNbPrev*100):null;
+        // Objectif IARD Particulier
+        const objIard=getObjPeriod('IARD Particulier',false);
+        const pct=objIard>0?Math.min(iardCA/objIard*100,100):0;
+        const pctReal=objIard>0?Math.round(iardCA/objIard*100):null;
+        const famIard=FAMILIES.find(function(f){return f.name==='IARD Particulier';});
+        return(
+          <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'16px 20px',marginBottom:'16px',borderLeft:'4px solid '+(famIard?famIard.color:'#1d4ed8')}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'12px',flexWrap:'wrap',gap:'8px'}}>
+              <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                <span style={{fontWeight:700,fontSize:'13px',color:famIard?famIard.color:'#1d4ed8',background:famIard?famIard.bg:'#dbeafe',padding:'3px 10px',borderRadius:'4px'}}>CA IARD AXA</span>
+                <span style={{fontSize:'11.5px',color:'#aaa'}}>Auto/Moto · MRH · PJ</span>
+              </div>
+            </div>
+            <div style={{display:'flex',gap:'32px',flexWrap:'wrap',marginBottom:'12px'}}>
+              <div>
+                <div style={{display:'flex',alignItems:'baseline',gap:'10px'}}>
+                  <span style={{fontSize:'24px',fontWeight:700}}>{feur0(iardCA)}</span>
+                  {iardEvoCA!==null&&<span style={{fontSize:'12px',fontWeight:700,color:iardEvoCA>=0?'#059669':'#dc2626'}}>{iardEvoCA>=0?'▲ ':'▼ '}{Math.abs(iardEvoCA).toFixed(1)}%</span>}
+                </div>
+                <div style={{fontSize:'11px',color:'#bbb',marginTop:'2px'}}>N-1 : {feur0(iardCAPrev)}</div>
+              </div>
+              <div style={{borderLeft:'1px solid #f3f4f6',paddingLeft:'32px'}}>
+                <div style={{display:'flex',alignItems:'baseline',gap:'10px'}}>
+                  <span style={{fontSize:'24px',fontWeight:700}}>{fnum(iardNb)}</span>
+                  <span style={{fontSize:'12px',color:'#888'}}>contrats</span>
+                  {iardEvoNb!==null&&<span style={{fontSize:'12px',fontWeight:700,color:iardEvoNb>=0?'#059669':'#dc2626'}}>{iardEvoNb>=0?'▲ ':'▼ '}{Math.abs(iardEvoNb).toFixed(1)}%</span>}
+                </div>
+                <div style={{fontSize:'11px',color:'#bbb',marginTop:'2px'}}>N-1 : {fnum(iardNbPrev)} contrats</div>
+              </div>
+            </div>
+            {objIard>0&&(
+              <div>
+                <div style={{display:'flex',justifyContent:'space-between',fontSize:'11.5px',marginBottom:'4px'}}>
+                  <span style={{color:famIard?famIard.color:'#1d4ed8',fontWeight:500}}>Objectif {mode==='mois'?'mensuel':'annuel'} : {feur0(objIard)}</span>
+                  <span style={{fontWeight:600,color:pctReal>=100?'#059669':'#555'}}>{pctReal}% réalisé</span>
+                </div>
+                <div style={{height:'8px',background:'#f3f4f6',borderRadius:'4px'}}>
+                  <div style={{height:'100%',width:pct+'%',background:pctReal>=100?'#059669':(famIard?famIard.color:'#1d4ed8'),borderRadius:'4px',transition:'width 0.4s'}}/>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
       <div style={{display:'flex',gap:'10px',marginBottom:'20px',flexWrap:'wrap'}}>
         {compData.filter(function(c){return c.fam;}).map(function(c){
           const showCA=c.mode==='ca'||c.mode==='both';
@@ -1127,7 +1180,7 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
           }
           return(
             <div key={c.name} style={{flex:'1 1 160px',background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'12px 14px',borderTop:'3px solid '+c.fam.color}}>
-              <div style={{fontSize:'11px',fontWeight:600,color:c.fam.color,marginBottom:'8px',textTransform:'uppercase',letterSpacing:'0.4px'}}>{c.label}</div>
+              <div style={{fontSize:'11px',fontWeight:600,color:c.fam.color,marginBottom:'8px',textTransform:'uppercase',letterSpacing:'0.4px',background:c.fam.bg,padding:'4px 8px',borderRadius:'4px',display:'inline-block'}}>{c.label}</div>
               {showCA&&!isBanque&&(
                 <div style={{marginBottom:showNB?'6px':'0'}}>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'2px'}}>
@@ -1177,10 +1230,10 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
         <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px'}}>
           <div style={{fontSize:'13px',fontWeight:600,marginBottom:'4px'}}>Objectifs {mode==='mois'?'mensuels (1/12)':'annuels'} {year}</div>
           <div style={{fontSize:'11px',color:'#aaa',marginBottom:'14px'}}>Survol → % réalisé</div>
-          {objTotal>0&&<Jauge label="🎯 Production totale AXA" ca={caTotal} objectif={objTotal} color="#1d4ed8"/>}
+          {objTotal>0&&<Jauge label="🎯 Production totale AXA" ca={caTotal} objectif={objTotal} color="#1d4ed8" bg="#dbeafe"/>}
           {caByFamily.length===0
             ?<div style={{color:'#aaa',fontSize:'13px',textAlign:'center',padding:'20px 0'}}>Aucune donnée</div>
-            :caByFamily.map(function(f){return <Jauge key={f.name} label={f.name} ca={f.ca} objectif={f.obj} color={f.color}/>;})
+            :caByFamily.map(function(f){return <Jauge key={f.name} label={f.name} ca={f.ca} objectif={f.obj} color={f.color} bg={f.bg}/>;})
           }
         </div>
 
