@@ -937,7 +937,7 @@ function FamilleAccordions({sections,cur,prev,getObjPeriod,mode,year}){
         const col=section.fam.color;
         const lightenH=function(hex,amt){const n=parseInt(hex.replace('#',''),16);return '#'+[((n>>16)&255),((n>>8)&255),(n&255)].map(function(v){return Math.min(255,v+amt).toString(16).padStart(2,'0');}).join('');};
         const darkenH=function(hex,amt){const n=parseInt(hex.replace('#',''),16);return '#'+[((n>>16)&255),((n>>8)&255),(n&255)].map(function(v){return Math.max(0,v-amt).toString(16).padStart(2,'0');}).join('');};
-        const gradBg='linear-gradient(to bottom, '+lightenH(col,110)+' 0%, '+lightenH(col,80)+' 40%, '+lightenH(col,50)+' 100%)';
+        const gradBg='linear-gradient(to bottom, '+lightenH(col,130)+' 0%, '+lightenH(col,105)+' 50%, '+lightenH(col,80)+' 100%)';
         const isOpen=!!open[section.section];
         return(
           <div key={section.section} style={{marginBottom:'8px'}}>
