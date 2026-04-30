@@ -1146,18 +1146,16 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
                     </div>
                     <div style={{fontSize:'11px',color:'#bbb'}}>N-1 : {c.nbPrev} acte{c.nbPrev!==1?'s':''}</div>
                   </div>
-                  {(c.creditCA>0||c.creditCAPrev>0)&&(
-                    <div style={{borderTop:'1px solid #f3f4f6',paddingTop:'4px',marginTop:'4px'}}>
-                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                        <span style={{fontSize:'12px',color:'#888'}}>Crédits conso</span>
-                        <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
-                          <span style={{fontSize:'13px',fontWeight:600}}>{feur0(c.creditCA)}</span>
-                          <Fleche val={c.evoCreditCA}/>
-                        </div>
+                  <div style={{borderTop:'1px solid #f3f4f6',paddingTop:'4px',marginTop:'4px'}}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                      <span style={{fontSize:'12px',color:'#888'}}>CA Crédits conso</span>
+                      <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
+                        <span style={{fontSize:'13px',fontWeight:600}}>{feur0(c.creditCA)}</span>
+                        {c.creditCAPrev>0&&<Fleche val={c.evoCreditCA}/>}
                       </div>
-                      <div style={{fontSize:'11px',color:'#bbb',textAlign:'right'}}>N-1 : {feur0(c.creditCAPrev)}</div>
                     </div>
-                  )}
+                    <div style={{fontSize:'11px',color:'#bbb',textAlign:'right'}}>N-1 : {feur0(c.creditCAPrev)}</div>
+                  </div>
                 </>
               )}
               {showNB&&!isBanque&&(
