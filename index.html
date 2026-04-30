@@ -931,12 +931,13 @@ function FamilleAccordions({sections,cur,prev,getObjPeriod,mode,year}){
         const totCA=sumCA(cur.filter(function(c){return allTypes.includes(c.contract_type);}));
         const totCAPrev=sumCA(prev.filter(function(c){return allTypes.includes(c.contract_type);}));
         const evo=totCAPrev>0?((totCA-totCAPrev)/totCAPrev*100):null;
-        const lightenH=function(hex,amt){const n=parseInt(hex.replace('#',''),16);return '#'+[((n>>16)&255),((n>>8)&255),(n&255)].map(function(v){return Math.min(255,v+amt).toString(16).padStart(2,'0');}).join('');};
-        const darkenH=function(hex,amt){const n=parseInt(hex.replace('#',''),16);return '#'+[((n>>16)&255),((n>>8)&255),(n&255)].map(function(v){return Math.max(0,v-amt).toString(16).padStart(2,'0');}).join('');};
-        const col=section.fam.color;
-        const gradBg='linear-gradient(to bottom, '+lightenH(col,90)+' 0%, '+lightenH(col,25)+' 30%, '+col+' 75%, '+darkenH(col,50)+' 100%)';
+        const objFam=getObjPeriod(section.section,false);
         const pctFam=objFam>0?Math.min(totCA/objFam*100,100):0;
         const pctFamReal=objFam>0?Math.round(totCA/objFam*100):null;
+        const col=section.fam.color;
+        const lightenH=function(hex,amt){const n=parseInt(hex.replace('#',''),16);return '#'+[((n>>16)&255),((n>>8)&255),(n&255)].map(function(v){return Math.min(255,v+amt).toString(16).padStart(2,'0');}).join('');};
+        const darkenH=function(hex,amt){const n=parseInt(hex.replace('#',''),16);return '#'+[((n>>16)&255),((n>>8)&255),(n&255)].map(function(v){return Math.max(0,v-amt).toString(16).padStart(2,'0');}).join('');};
+        const gradBg='linear-gradient(to bottom, '+lightenH(col,90)+' 0%, '+lightenH(col,25)+' 30%, '+col+' 75%, '+darkenH(col,50)+' 100%)';
         const isOpen=!!open[section.section];
         return(
           <div key={section.section} style={{marginBottom:'8px'}}>
