@@ -938,7 +938,7 @@ function FamilleAccordions({sections,cur,prev,getObjPeriod,mode,year}){
         return(
           <div key={section.section} style={{marginBottom:'8px'}}>
             <div onClick={function(){toggle(section.section);}} style={{cursor:'pointer',background:section.fam.bg,borderRadius:isOpen?'6px 6px 0 0':'6px',overflow:'hidden',userSelect:'none'}}>
-              <div style={{fontSize:'11px',fontWeight:700,color:section.fam.color,padding:'8px 12px',letterSpacing:'0.5px',textTransform:'uppercase',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div style={{fontSize:'11px',fontWeight:700,color:section.fam.color,padding:'13px 16px',letterSpacing:'0.5px',textTransform:'uppercase',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                 <span style={{display:'flex',alignItems:'center',gap:'8px'}}>
                   <span style={{fontSize:'13px'}}>{isOpen?'▼':'▶'}</span>
                   <span>{section.section}</span>
@@ -1207,7 +1207,7 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
           const pctCA=objCA>0?Math.min(ca/objCA*100,100):0;
           const pctCAReal=objCA>0?Math.round(ca/objCA*100):null;
           return(
-            <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'16px 18px',flex:1,minWidth:0}}>
+            <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'16px 18px',flex:1,minWidth:0,display:'flex',flexDirection:'column'}}>
               <div style={{display:'flex',alignItems:'center',gap:'4px',marginBottom:'6px',flexWrap:'wrap'}}>
                 <span style={{fontSize:'13px',fontWeight:700,color:'#111',textTransform:'uppercase',letterSpacing:'0.3px'}}>CA Total</span>
                 <span style={{fontSize:'10px',color:'#aaa',fontWeight:400}}>· IARD Part & Pro, Prév., Santé, Collective</span>
@@ -1216,7 +1216,7 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
                   <span className="tip" style={{maxWidth:'320px',width:'320px'}}>Hors Banque, Épargne & Retraite, Courtage, VTC et Crédits Conso</span>
                 </span>
               </div>
-              <div style={{display:'flex',gap:'16px',alignItems:'flex-start',flexWrap:'wrap',marginBottom:objCA>0?'10px':'0'}}>
+              <div style={{flex:1,display:'flex',gap:'16px',alignItems:'flex-start',flexWrap:'wrap',marginBottom:objCA>0?'10px':'0'}}>
                 <div>
                   <div style={{display:'flex',alignItems:'baseline',gap:'8px',marginBottom:'2px'}}>
                     <span style={{fontSize:'22px',fontWeight:700}}>{feur0(ca)}</span>
@@ -1267,8 +1267,9 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
           const pctFam=objFam>0?Math.min((isBanque?fNb/objFam*100:fCA/objFam*100),100):0;
           const pctFamReal=objFam>0?Math.round((isBanque?fNb/objFam*100:fCA/objFam*100)):null;
           return(
-            <div key={nomFam} style={{background:'#fff',border:'2px solid '+famDef.color,borderRadius:'10px',padding:'16px 18px',flex:1,minWidth:0}}>
+            <div key={nomFam} style={{background:'#fff',border:'2px solid '+famDef.color,borderRadius:'10px',padding:'16px 18px',flex:1,minWidth:0,display:'flex',flexDirection:'column'}}>
               <div style={{fontSize:'13px',fontWeight:700,color:famDef.color,textTransform:'uppercase',letterSpacing:'0.3px',marginBottom:'6px'}}>{nomFam}</div>
+              <div style={{flex:1}}>
               {isBanque?(
                 <>
                   <div style={{marginBottom:'8px'}}>
@@ -1279,7 +1280,7 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
                     </div>
                     <div style={{fontSize:'11px',color:'#bbb'}}>N-1 : {fnum(fNbPrev)} acte{fNbPrev!==1?'s':''}</div>
                   </div>
-                  <div style={{borderTop:'1px solid #f3f4f6',paddingTop:'6px',marginBottom:objFam>0?'10px':'0'}}>
+                  <div style={{borderTop:'1px solid #f3f4f6',paddingTop:'6px'}}>
                     <div style={{fontSize:'10px',color:'#aaa',marginBottom:'2px'}}>Crédits conso</div>
                     <div style={{display:'flex',alignItems:'baseline',gap:'8px',marginBottom:'2px'}}>
                       <span style={{fontSize:'22px',fontWeight:700}}>{feur0(creditCA)}</span>
@@ -1290,7 +1291,7 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
                 </>
               ):(
                 <>
-                  <div style={{marginBottom:'8px'}}>
+                  <div style={{marginBottom:'6px'}}>
                     <div style={{display:'flex',alignItems:'baseline',gap:'8px',marginBottom:'2px'}}>
                       <span style={{fontSize:'22px',fontWeight:700}}>{feur0(fCA)}</span>
                       <Evo val={fEvoCA}/>
@@ -1302,13 +1303,14 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
                         <span style={{fontSize:'11px',color:'#888'}}>affaire{fNb!==1?'s':''}</span>
                         <Evo val={fEvoNb}/>
                       </div>
-                      <div style={{fontSize:'11px',color:'#bbb',marginBottom:objFam>0?'10px':'0'}}>N-1 : {fnum(fNbPrev)}</div>
+                      <div style={{fontSize:'11px',color:'#bbb'}}>N-1 : {fnum(fNbPrev)}</div>
                     </div>
                   </div>
                 </>
               )}
+              </div>
               {objFam>0&&(
-                <div>
+                <div style={{marginTop:'10px'}}>
                   <div style={{display:'flex',justifyContent:'space-between',fontSize:'10.5px',marginBottom:'3px'}}>
                     <span style={{color:'#888'}}>Obj. {isBanque?fnum(objFam)+' actes':feur0(objFam)}</span>
                     <span style={{fontWeight:600,color:pctFamReal>=100?'#059669':famDef.color}}>{pctFamReal}%</span>
