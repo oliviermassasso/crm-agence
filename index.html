@@ -1105,7 +1105,92 @@ function DonutChart({data}){
   );
 }
 
-/* ══ TABLEAU DE BORD ══ */
+function BarChart({data,title}){
+  // data = [{label, value}] trié par value desc
+  const [hovered,setHovered]=React.useState(null);
+  if(!data||data.length===0) return null;
+  const maxVal=data[0].value||1;
+  const H=160; // hauteur max des barres
+  const barW=44;
+  const gap=14;
+  const total=data.length;
+  const svgW=total*(barW+gap)+gap;
+  const svgH=H+52;
+  const cx=svgW/2;
+
+  const lighten=function(hex,amt){
+    const n=parseInt(hex.replace('#',''),16);
+    return '#'+[((n>>16)&255),((n>>8)&255),(n&255)].map(function(v){return Math.min(255,v+amt).toString(16).padStart(2,'0');}).join('');
+  };
+  const darken=function(hex,amt){
+    const n=parseInt(hex.replace('#',''),16);
+    return '#'+[((n>>16)&255),((n>>8)&255),(n&255)].map(function(v){return Math.max(0,v-amt).toString(16).padStart(2,'0');}).join('');
+  };
+
+  const COLORS=['#6366f1','#1d4ed8','#0891b2','#059669','#7c3aed','#b45309','#dc2626'];
+
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
+      <svg width={svgW} height={svgH} viewBox={'0 0 '+svgW+' '+svgH} style={{overflow:'visible'}}>
+        <defs>
+          {data.map(function(d,i){
+            const col=COLORS[i%COLORS.length];
+            const x=gap+i*(barW+gap);
+            const h=Math.max(4,Math.round(d.value/maxVal*H));
+            const bx=x+barW/2;
+            const by=H-h+8;
+            return <linearGradient key={i} id={'bg'+i} x1={bx} y1={by} x2={bx} y2={by+h} gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor={lighten(col,90)}/>
+              <stop offset="25%" stopColor={lighten(col,25)}/>
+              <stop offset="70%" stopColor={col}/>
+              <stop offset="100%" stopColor={darken(col,50)}/>
+            </linearGradient>;
+          })}
+          <filter id="bshadow">
+            <feDropShadow dx="0" dy="3" stdDeviation="4" floodColor="#00000030"/>
+          </filter>
+        </defs>
+        {/* Lignes de grille */}
+        {[0.25,0.5,0.75,1].map(function(p,i){
+          const y=Math.round(H*(1-p))+8;
+          return <line key={i} x1={gap/2} y1={y} x2={svgW-gap/2} y2={y} stroke="#f3f4f6" strokeWidth="1"/>;
+        })}
+        {/* Barres */}
+        <g filter="url(#bshadow)">
+          {data.map(function(d,i){
+            const col=COLORS[i%COLORS.length];
+            const x=gap+i*(barW+gap);
+            const h=Math.max(4,Math.round(d.value/maxVal*H));
+            const y=H-h+8;
+            const active=hovered===i;
+            const scaleY=active?1.04:1;
+            return <g key={i}
+              onMouseEnter={function(){setHovered(i);}}
+              onMouseLeave={function(){setHovered(null);}}>
+              <rect x={x} y={y} width={barW} height={h}
+                fill={'url(#bg'+i+')'}
+                rx="4" ry="4"
+                style={{cursor:'pointer',transformOrigin:x+' '+(H+8)+'px',transform:active?'scaleY(1.04)':'scaleY(1)',transition:'transform 0.15s',opacity:hovered===null||active?1:0.6}}/>
+              {/* Valeur au survol */}
+              {active&&<text x={x+barW/2} y={y-6} textAnchor="middle" fontSize="10" fontWeight="700" fill={col}>{feur0(d.value)}</text>}
+            </g>;
+          })}
+        </g>
+        {/* Labels axe X */}
+        {data.map(function(d,i){
+          const x=gap+i*(barW+gap)+barW/2;
+          const words=d.label.split(/[\/\s]+/);
+          const line1=words.slice(0,2).join(' ');
+          const line2=words.slice(2).join(' ');
+          return <g key={i}>
+            <text x={x} y={H+22} textAnchor="middle" fontSize="8.5" fill={hovered===i?COLORS[i%COLORS.length]:'#888'} fontWeight={hovered===i?600:400}>{line1}</text>
+            {line2&&<text x={x} y={H+33} textAnchor="middle" fontSize="8.5" fill={hovered===i?COLORS[i%COLORS.length]:'#888'}>{line2}</text>}
+          </g>;
+        })}
+      </svg>
+    </div>
+  );
+}
 // Objectifs annuels 2026 par famille
 const OBJECTIFS_2026={
   'IARD Particulier':45000,
@@ -1513,17 +1598,8 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
       {/* CA par provenance */}
       {isDir&&caByProv.length>0&&(
         <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px',marginBottom:'16px'}}>
-          <div style={{fontSize:'13px',fontWeight:600,marginBottom:'14px'}}>CA par provenance</div>
-          {caByProv.map(function(e){return(
-            <div key={e[0]} style={{marginBottom:'10px'}}>
-              <div style={{display:'flex',justifyContent:'space-between',fontSize:'12px',marginBottom:'3px'}}>
-                <span style={{color:'#555'}}>{e[0]}</span><span style={{fontWeight:600}}>{feur0(e[1])}</span>
-              </div>
-              <div style={{height:'6px',background:'#f3f4f6',borderRadius:'3px'}}>
-                <div style={{height:'100%',width:(e[1]/maxProv*100)+'%',background:'#6366f1',borderRadius:'3px'}}/>
-              </div>
-            </div>
-          );})}
+          <div style={{fontSize:'13px',fontWeight:600,marginBottom:'14px',textAlign:'center'}}>CA par provenance</div>
+          <BarChart data={caByProv.map(function(e){return {label:e[0],value:e[1]};})}/>
         </div>
       )}
 
