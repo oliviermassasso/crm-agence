@@ -2152,23 +2152,28 @@ function Configuration({sb,profile,profiles,grilles,setGrilles,objectifs,setObje
 
   async function saveObj(famille,type,val){
     setSaving(true);setOk('');
-    const montant=parseFloat(val)||0;
+    const montant=val===''||val===null||val===undefined?null:parseFloat(val);
+    if(montant===null){setSaving(false);return;}
     const consId=conseillerO||null;
     const fam=famille||null;
     const typ=type||null;
 
-    // upsert avec NULLs ne fonctionne pas en PostgreSQL → select + update/insert
     let q=sb.from('objectifs').select('id').eq('annee',anneeO);
     if(consId) q=q.eq('conseiller_id',consId); else q=q.is('conseiller_id',null);
     if(fam) q=q.eq('famille',fam); else q=q.is('famille',null);
     if(typ) q=q.eq('contract_type',typ); else q=q.is('contract_type',null);
     const existing=await q.maybeSingle();
 
+    let err=null;
     if(existing.data){
-      await sb.from('objectifs').update({montant}).eq('id',existing.data.id);
+      const r=await sb.from('objectifs').update({montant}).eq('id',existing.data.id);
+      err=r.error;
     } else {
-      await sb.from('objectifs').insert({annee:anneeO,conseiller_id:consId,famille:fam,contract_type:typ,montant});
+      const r=await sb.from('objectifs').insert({annee:anneeO,conseiller_id:consId,famille:fam,contract_type:typ,montant});
+      err=r.error;
     }
+
+    if(err){alert('Erreur sauvegarde : '+err.message);setSaving(false);return;}
 
     const row={annee:anneeO,conseiller_id:consId,famille:fam,contract_type:typ,montant};
     setObjectifs(function(prev){
