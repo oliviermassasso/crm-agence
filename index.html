@@ -975,17 +975,24 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
     : allActive.filter(function(c){return c.conseiller_id===profile.id;}));
 
   const cur=visibleActive.filter(function(c){return inPeriod(c,year,month);});
-  const prevY=mode==='mois'?(month===1?year-1:year):year-1;
-  const prevM=mode==='mois'?(month===1?12:month-1):month;
+  // N-1 : même mois année-1 (vue mois) ou année-1 (vue année)
+  const prevY=year-1;
+  const prevM=month;
   const prev=visibleActive.filter(function(c){return inPeriod(c,prevY,prevM);});
 
-  // CA principal = sans les familles complémentaires
+  // CA Total = sans familles complémentaires NI crédits conso
+  const famExclues=['Courtage','VTC','AXA Banque','Épargne & Retraite','Crédits AXA'];
+  function isExclu(c){
+    const f=getFamily(c.contract_type);
+    return f&&famExclues.includes(f.name);
+  }
+  // isComplementaire reste pour les cartes complémentaires
   function isComplementaire(c){
     const f=getFamily(c.contract_type);
     return f&&FAMILLES_COMPLEMENTAIRES.includes(f.name);
   }
-  const curPrincipal=cur.filter(function(c){return !isComplementaire(c);});
-  const prevPrincipal=prev.filter(function(c){return !isComplementaire(c);});
+  const curPrincipal=cur.filter(function(c){return !isExclu(c);});
+  const prevPrincipal=prev.filter(function(c){return !isExclu(c);});
   const ca=sumCA(curPrincipal),caPrev=sumCA(prevPrincipal);
   const evoCa=caPrev>0?((ca-caPrev)/caPrev*100):null;
   const nb=curPrincipal.length,nbPrev=prevPrincipal.length;
@@ -1028,7 +1035,7 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
     return mode==='mois'?Math.round(total/12):total;
   }
 
-  const caTotal=sumCA(cur.filter(function(c){return !isComplementaire(c);}));
+  const caTotal=sumCA(cur.filter(function(c){return !isExclu(c);}));
   const objTotal=getObjPeriod('__total__',false);
   const caByFamily=FAMILLES_PRINCIPALES.map(function(f){
     const s=cur.filter(function(c){return f.types.includes(c.contract_type);}).reduce(function(a,c){return a+(c.annual_premium||0);},0);
@@ -1098,7 +1105,7 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
 
       {/* KPIs */}
       <div style={{display:'flex',gap:'12px',marginBottom:'16px',flexWrap:'wrap'}}>
-        <KPI label="CA période" value={feur0(ca)} evo={evoCa}/>
+        <KPI label={React.createElement('span',{style:{display:'flex',alignItems:'center',gap:'4px'}},'CA Total',React.createElement('span',{className:'tip-wrap'},React.createElement('span',{style:{display:'inline-flex',alignItems:'center',justifyContent:'center',width:'13px',height:'13px',borderRadius:'50%',background:'#e5e7eb',color:'#555',fontSize:'9px',fontWeight:700,cursor:'help'}},'?'),React.createElement('span',{className:'tip'},'Hors Banque, Épargne & Retraite, Courtage, VTC et Crédits Conso')))} value={feur0(ca)} evo={evoCa}/>
         <KPI label="Nb contrats" value={fnum(nb)} evo={evoNb}/>
         <KPI label="Panier moyen" value={nb>0?feur0(Math.round(ca/nb)):'—'} evo={null}/>
         <KPI label="Écart vs N-1" value={evoCa!==null?(evoCa>=0?'+':'')+evoCa.toFixed(1)+'%':'—'} evo={evoCa}/>
@@ -1210,8 +1217,8 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
         const allConseillers=profiles.filter(function(p){return p.role==='conseiller'||p.role==='manager';});
         const allActive2=(rankContracts||contracts).filter(function(c){return c.status!=='ANNULE';});
         const rankAll=allConseillers.map(function(p){
-          const mine=allActive2.filter(function(c){return c.conseiller_id===p.id&&inPeriod(c,year,month)&&!isComplementaire(c);});
-          const prevMine=allActive2.filter(function(c){return c.conseiller_id===p.id&&inPeriod(c,prevY,prevM)&&!isComplementaire(c);});
+          const mine=allActive2.filter(function(c){return c.conseiller_id===p.id&&inPeriod(c,year,month)&&!isExclu(c);});
+          const prevMine=allActive2.filter(function(c){return c.conseiller_id===p.id&&inPeriod(c,prevY,prevM)&&!isExclu(c);});
           return {id:p.id,name:p.full_name,ca:sumCA(mine),nb:mine.length,caPrev:sumCA(prevMine),nbPrev:prevMine.length};
         }).filter(function(r){return r.ca>0||r.nb>0;}).sort(function(a,b){return b.ca-a.ca;});
         if(rankAll.length===0) return null;
