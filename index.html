@@ -1008,6 +1008,60 @@ function FamilleAccordions({sections,cur,prev,getObjPeriod,mode,year}){
   );
 }
 
+function DonutChart({data}){
+  // data = [{label, value, color}]
+  const total=data.reduce(function(s,d){return s+d.value;},0);
+  if(total===0) return <div style={{color:'#aaa',fontSize:'13px',textAlign:'center',padding:'20px 0'}}>Aucune donnée</div>;
+  const cx=90,cy=90,r=70,inner=42;
+  let angle=-Math.PI/2;
+  const slices=data.filter(function(d){return d.value>0;}).map(function(d){
+    const pct=d.value/total;
+    const start=angle;
+    angle+=pct*2*Math.PI;
+    const end=angle;
+    const x1=cx+r*Math.cos(start),y1=cy+r*Math.sin(start);
+    const x2=cx+r*Math.cos(end),y2=cy+r*Math.sin(end);
+    const ix1=cx+inner*Math.cos(start),iy1=cy+inner*Math.sin(start);
+    const ix2=cx+inner*Math.cos(end),iy2=cy+inner*Math.sin(end);
+    const large=pct>0.5?1:0;
+    const path='M '+ix1+' '+iy1+' L '+x1+' '+y1+' A '+r+' '+r+' 0 '+large+' 1 '+x2+' '+y2+' L '+ix2+' '+iy2+' A '+inner+' '+inner+' 0 '+large+' 0 '+ix1+' '+iy1+' Z';
+    return Object.assign({},d,{path,pct});
+  });
+  const [hovered,setHovered]=React.useState(null);
+  return(
+    <div style={{display:'flex',gap:'16px',alignItems:'flex-start',flexWrap:'wrap'}}>
+      <svg width="180" height="180" viewBox="0 0 180 180" style={{flexShrink:0}}>
+        {slices.map(function(s,i){
+          return <path key={i} d={s.path} fill={s.color} stroke="#fff" strokeWidth="1.5"
+            style={{cursor:'pointer',opacity:hovered===null||hovered===i?1:0.5,transition:'opacity 0.15s'}}
+            onMouseEnter={function(){setHovered(i);}} onMouseLeave={function(){setHovered(null);}}/>;
+        })}
+        {hovered!==null&&slices[hovered]?(
+          <>
+            <text x={cx} y={cy-8} textAnchor="middle" fontSize="11" fontWeight="600" fill="#111">{Math.round(slices[hovered].pct*100)}%</text>
+            <text x={cx} y={cy+8} textAnchor="middle" fontSize="9.5" fill="#666">{slices[hovered].label}</text>
+          </>
+        ):(
+          <text x={cx} y={cy+4} textAnchor="middle" fontSize="10" fill="#aaa">CA / famille</text>
+        )}
+      </svg>
+      <div style={{flex:1,display:'flex',flexDirection:'column',gap:'5px',justifyContent:'center'}}>
+        {slices.map(function(s,i){
+          return(
+            <div key={i} onMouseEnter={function(){setHovered(i);}} onMouseLeave={function(){setHovered(null);}}
+              style={{display:'flex',alignItems:'center',gap:'7px',cursor:'pointer',opacity:hovered===null||hovered===i?1:0.5,transition:'opacity 0.15s'}}>
+              <div style={{width:'10px',height:'10px',borderRadius:'2px',background:s.color,flexShrink:0}}/>
+              <span style={{fontSize:'11px',color:'#555',flex:1}}>{s.label}</span>
+              <span style={{fontSize:'11px',fontWeight:600,color:'#333'}}>{feur0(s.value)}</span>
+              <span style={{fontSize:'10px',color:'#aaa',minWidth:'30px',textAlign:'right'}}>{Math.round(s.pct*100)}%</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /* ══ TABLEAU DE BORD ══ */
 // Objectifs annuels 2026 par famille
 const OBJECTIFS_2026={
@@ -1370,10 +1424,10 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
       })()}
 
 
-      {/* Jauges objectifs + CA mensuel */}
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'16px',marginBottom:'16px'}}>
+      {/* Jauges + Graphiques */}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'16px',marginBottom:'16px'}}>
         <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px'}}>
-          <div style={{fontSize:'13px',fontWeight:600,marginBottom:'4px'}}>Objectifs {mode==='mois'?'mensuels (1/12)':'annuels'} {year}</div>
+          <div style={{fontSize:'13px',fontWeight:600,marginBottom:'4px'}}>Objectifs {mode==='mois'?'mensuels':'annuels'} {year}</div>
           <div style={{fontSize:'11px',color:'#aaa',marginBottom:'14px'}}>Survol → % réalisé</div>
           {objTotal>0&&<Jauge label="🎯 Production totale AXA" ca={caTotal} objectif={objTotal} color="#1d4ed8" bg="#dbeafe"/>}
           {caByFamily.length===0
@@ -1401,6 +1455,15 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
               </div>
             );})}
           </div>
+        </div>
+
+        <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px'}}>
+          <div style={{fontSize:'13px',fontWeight:600,marginBottom:'14px'}}>Ventilation CA par famille</div>
+          <DonutChart data={FAMILIES.filter(function(f){
+            return !['Crédits AXA','AXA Banque','Épargne & Retraite'].includes(f.name);
+          }).map(function(f){
+            return {label:f.name,value:sumCA(cur.filter(function(c){return f.types.includes(c.contract_type);})),color:f.color};
+          }).filter(function(d){return d.value>0;})}/>
         </div>
       </div>
 
