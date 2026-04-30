@@ -1011,90 +1011,90 @@ function FamilleAccordions({sections,cur,prev,getObjPeriod,mode,year}){
 function DonutChart({data}){
   const total=data.reduce(function(s,d){return s+d.value;},0);
   if(total===0) return <div style={{color:'#aaa',fontSize:'13px',textAlign:'center',padding:'20px 0'}}>Aucune donnée</div>;
-  const cx=95,cy=100,r=78,inner=46;
-  const depth=8; // profondeur 3D
+  const cx=100,cy=100,r=88,inner=50,GAP=0.022;
   let angle=-Math.PI/2;
-  const slices=data.filter(function(d){return d.value>0;}).map(function(d,i){
+
+  const lighten=function(hex,amt){
+    const n=parseInt(hex.replace('#',''),16);
+    return '#'+[((n>>16)&255),((n>>8)&255),(n&255)].map(function(v){return Math.min(255,v+amt).toString(16).padStart(2,'0');}).join('');
+  };
+  const darken=function(hex,amt){
+    const n=parseInt(hex.replace('#',''),16);
+    return '#'+[((n>>16)&255),((n>>8)&255),(n&255)].map(function(v){return Math.max(0,v-amt).toString(16).padStart(2,'0');}).join('');
+  };
+
+  const slices=data.filter(function(d){return d.value>0;}).map(function(d){
     const pct=d.value/total;
-    const start=angle;
+    const start=angle+GAP;
     angle+=pct*2*Math.PI;
-    const end=angle;
+    const end=angle-GAP;
     const midAngle=(start+end)/2;
-    // Face principale
+    const large=(end-start)>Math.PI?1:0;
     const x1=cx+r*Math.cos(start),y1=cy+r*Math.sin(start);
     const x2=cx+r*Math.cos(end),y2=cy+r*Math.sin(end);
     const ix1=cx+inner*Math.cos(start),iy1=cy+inner*Math.sin(start);
     const ix2=cx+inner*Math.cos(end),iy2=cy+inner*Math.sin(end);
-    const large=pct>0.5?1:0;
     const face='M '+ix1+' '+iy1+' L '+x1+' '+y1+' A '+r+' '+r+' 0 '+large+' 1 '+x2+' '+y2+' L '+ix2+' '+iy2+' A '+inner+' '+inner+' 0 '+large+' 0 '+ix1+' '+iy1+' Z';
-    // Bord 3D (visible seulement sur la partie basse)
-    const showDepth=Math.sin(midAngle)>-0.2; // portion visible en bas
-    // Couleur assombrie pour le bord
-    const darken=function(hex,amt){
-      const n=parseInt(hex.replace('#',''),16);
-      const r=Math.max(0,((n>>16)&255)-amt);
-      const g=Math.max(0,((n>>8)&255)-amt);
-      const b=Math.max(0,(n&255)-amt);
-      return '#'+[r,g,b].map(function(v){return v.toString(16).padStart(2,'0');}).join('');
-    };
-    const darkColor=darken(d.color,50);
-    // Bord extérieur 3D
-    const outerEdge=showDepth?'M '+x1+' '+y1+' A '+r+' '+r+' 0 '+large+' 1 '+x2+' '+y2+' L '+(x2)+' '+(y2+depth)+' A '+r+' '+r+' 0 '+large+' 0 '+(x1)+' '+(y1+depth)+' Z':'';
-    // Bord intérieur 3D
-    const innerEdge=showDepth?'M '+ix1+' '+iy1+' A '+inner+' '+inner+' 0 '+large+' 1 '+ix2+' '+iy2+' L '+(ix2)+' '+(iy2+depth)+' A '+inner+' '+inner+' 0 '+large+' 0 '+(ix1)+' '+(iy1+depth)+' Z':'';
-    return {face,outerEdge,innerEdge,darkColor,showDepth,pct,midAngle,label:d.label,value:d.value,color:d.color};
+    // Point central du tube pour gradient
+    const midR=(r+inner)/2;
+    const hx=cx+midR*Math.cos(midAngle);
+    const hy=cy+midR*Math.sin(midAngle);
+    return {face,pct,midAngle,hx,hy,label:d.label,value:d.value,color:d.color,
+      light:lighten(d.color,100),mid:lighten(d.color,20),dark:darken(d.color,55)};
   });
 
   const [hovered,setHovered]=React.useState(null);
-  const EXPAND=6;
 
   return(
-    <div style={{display:'flex',gap:'12px',alignItems:'flex-start',flexWrap:'wrap'}}>
-      <svg width="190" height="210" viewBox="0 0 190 210" style={{flexShrink:0,overflow:'visible'}}>
+    <div style={{display:'flex',gap:'12px',alignItems:'center',flexWrap:'wrap'}}>
+      <svg width="200" height="200" viewBox="0 0 200 200" style={{flexShrink:0,overflow:'visible'}}>
         <defs>
           {slices.map(function(s,i){
-            return <radialGradient key={i} id={'g'+i} cx="40%" cy="35%" r="65%">
-              <stop offset="0%" stopColor={s.color} stopOpacity="1"/>
-              <stop offset="100%" stopColor={s.darkColor} stopOpacity="1"/>
+            // Gradient radial centré sur le milieu du tube → effet gonflé comme Excel
+            return <radialGradient key={i} id={'rg'+i}
+              cx={s.hx} cy={s.hy} r={(r-inner)*0.9}
+              gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor={s.light}/>
+              <stop offset="30%" stopColor={s.mid}/>
+              <stop offset="65%" stopColor={s.color}/>
+              <stop offset="100%" stopColor={s.dark}/>
             </radialGradient>;
           })}
+          <filter id="dshadow">
+            <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#00000040"/>
+          </filter>
         </defs>
-        {/* Bords 3D d'abord (fond) */}
-        {slices.map(function(s,i){
-          if(!s.showDepth||!s.outerEdge) return null;
-          const active=hovered===i;
-          const tx=active?EXPAND*Math.cos(s.midAngle):0;
-          const ty=active?EXPAND*Math.sin(s.midAngle):0;
-          return <g key={'d'+i} transform={'translate('+tx+','+ty+')'}>
-            <path d={s.outerEdge} fill={s.darkColor} opacity={active?1:0.85}/>
-          </g>;
-        })}
-        {/* Faces principales */}
-        {slices.map(function(s,i){
-          const active=hovered===i;
-          const tx=active?EXPAND*Math.cos(s.midAngle):0;
-          const ty=active?EXPAND*Math.sin(s.midAngle):0;
-          return <g key={'f'+i} transform={'translate('+tx+','+ty+')'}
-            onMouseEnter={function(){setHovered(i);}} onMouseLeave={function(){setHovered(null);}}>
-            <path d={s.face} fill={'url(#g'+i+')'} style={{cursor:'pointer',filter:active?'brightness(1.08)':'none',transition:'transform 0.15s'}}/>
-          </g>;
-        })}
-        {/* Label central */}
+        <g filter="url(#dshadow)">
+          {slices.map(function(s,i){
+            const active=hovered===i;
+            const tx=active?6*Math.cos(s.midAngle):0;
+            const ty=active?6*Math.sin(s.midAngle):0;
+            return <path key={i} d={s.face}
+              fill={'url(#rg'+i+')'}
+              transform={'translate('+tx+','+ty+')'}
+              style={{cursor:'pointer',transition:'transform 0.18s'}}
+              onMouseEnter={function(){setHovered(i);}}
+              onMouseLeave={function(){setHovered(null);}}/>;
+          })}
+        </g>
+        <circle cx={cx} cy={cy} r={inner-2} fill="#fff"/>
         {hovered!==null&&slices[hovered]?(
           <>
-            <text x={cx} y={cy-6} textAnchor="middle" fontSize="13" fontWeight="700" fill="#111">{Math.round(slices[hovered].pct*100)}%</text>
-            <text x={cx} y={cy+9} textAnchor="middle" fontSize="8.5" fill="#666">{slices[hovered].label.length>14?slices[hovered].label.substring(0,14)+'…':slices[hovered].label}</text>
+            <text x={cx} y={cy-5} textAnchor="middle" fontSize="15" fontWeight="700" fill="#111">{Math.round(slices[hovered].pct*100)}%</text>
+            <text x={cx} y={cy+11} textAnchor="middle" fontSize="8.5" fill="#666">
+              {slices[hovered].label.length>13?slices[hovered].label.substring(0,13)+'…':slices[hovered].label}
+            </text>
           </>
         ):(
-          <text x={cx} y={cy+4} textAnchor="middle" fontSize="10" fill="#bbb">par famille</text>
+          <text x={cx} y={cy+4} textAnchor="middle" fontSize="10" fill="#ccc">par famille</text>
         )}
       </svg>
-      <div style={{flex:1,display:'flex',flexDirection:'column',gap:'5px',justifyContent:'center',minWidth:'120px'}}>
+      <div style={{flex:1,display:'flex',flexDirection:'column',gap:'6px',justifyContent:'center',minWidth:'120px'}}>
         {slices.map(function(s,i){
           return(
             <div key={i} onMouseEnter={function(){setHovered(i);}} onMouseLeave={function(){setHovered(null);}}
-              style={{display:'flex',alignItems:'center',gap:'7px',cursor:'pointer',opacity:hovered===null||hovered===i?1:0.4,transition:'opacity 0.15s'}}>
-              <div style={{width:'10px',height:'10px',borderRadius:'2px',background:s.color,flexShrink:0,boxShadow:'1px 1px 0 '+s.darkColor}}/>
+              style={{display:'flex',alignItems:'center',gap:'7px',cursor:'pointer',opacity:hovered===null||hovered===i?1:0.3,transition:'opacity 0.15s'}}>
+              <div style={{width:'12px',height:'12px',borderRadius:'2px',background:s.color,flexShrink:0}}/>
               <span style={{fontSize:'11px',color:'#555',flex:1,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{s.label}</span>
               <span style={{fontSize:'10px',color:'#aaa',minWidth:'28px',textAlign:'right'}}>{Math.round(s.pct*100)}%</span>
             </div>
