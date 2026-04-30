@@ -1156,7 +1156,9 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
                   const iNb=iardCur.length,iNbPrev=iardPrev.length;
                   const evoCA=iCAPrev>0?((iCA-iCAPrev)/iCAPrev*100):null;
                   const evoNb=iNbPrev>0?((iNb-iNbPrev)/iNbPrev*100):null;
-                  const objVal=item.objType?getObjPeriod(item.objType,true):0;
+                  const objVal=item.objType
+                    ?getObjPeriod(item.objType,true)||getObjPeriod(section.section,false)
+                    :getObjPeriod(section.section,false);
                   const pct=objVal>0?Math.min(iCA/objVal*100,100):0;
                   const pctReal=objVal>0?Math.round(iCA/objVal*100):null;
                   return(
