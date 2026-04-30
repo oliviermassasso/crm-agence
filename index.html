@@ -1194,7 +1194,12 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
           <select value={year} onChange={function(e){setYear(parseInt(e.target.value));}} style={{width:'auto',padding:'6px 10px'}}>{[2021,2022,2023,2024,2025,2026].map(function(y){return <option key={y} value={y}>{y}</option>;})}</select>
           {isDir&&<select value={filterCons} onChange={function(e){setFilterCons(e.target.value);}} style={{width:'auto',padding:'6px 10px'}}>
             <option value="">Tous les conseillers</option>
-            {profiles.filter(function(p){return p.role!=='direction'&&p.actif!==false;}).map(function(p){return <option key={p.id} value={p.id}>{p.full_name}</option>;})}
+            {profiles.filter(function(p){
+              if(p.role==='direction') return false;
+              if(p.actif!==false) return true;
+              // Inactif : afficher seulement s'il a des contrats sur la période
+              return contracts.some(function(c){return c.conseiller_id===p.id&&inPeriod(c,year,months);});
+            }).map(function(p){return <option key={p.id} value={p.id}>{p.full_name}{p.actif===false?' (ancien)':''}</option>;})}
           </select>}
         </div>
       </div>
@@ -1420,7 +1425,11 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
 
       {/* Classement conseillers — visible par tous */}
       {(()=>{
-        const allConseillers=profiles.filter(function(p){return p.role==='conseiller'||p.role==='manager';});
+        const allConseillers=profiles.filter(function(p){
+          if(p.role!=='conseiller'&&p.role!=='manager') return false;
+          if(p.actif!==false) return true;
+          return (rankContracts||contracts).some(function(c){return c.conseiller_id===p.id&&inPeriod(c,year,months);});
+        });
         const allActive2=(rankContracts||contracts).filter(function(c){return c.status!=='ANNULE';});
         const rankAll=allConseillers.map(function(p){
           const mine=allActive2.filter(function(c){return c.conseiller_id===p.id&&inPeriod(c,year,months)&&!isExclu(c);});
