@@ -1046,7 +1046,7 @@ function DonutChart({data}){
   const [hovered,setHovered]=React.useState(null);
 
   return(
-    <div style={{display:'flex',gap:'12px',alignItems:'center',flexWrap:'wrap'}}>
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:'12px'}}>
       <svg width="200" height="200" viewBox="0 0 200 200" style={{flexShrink:0,overflow:'visible'}}>
         <defs>
           {slices.map(function(s,i){
@@ -1089,14 +1089,14 @@ function DonutChart({data}){
           <text x={cx} y={cy+4} textAnchor="middle" fontSize="10" fill="#ccc">par famille</text>
         )}
       </svg>
-      <div style={{flex:1,display:'flex',flexDirection:'column',gap:'6px',justifyContent:'center',minWidth:'120px'}}>
+      <div style={{width:'100%',display:'grid',gridTemplateColumns:'1fr 1fr',gap:'3px 12px'}}>
         {slices.map(function(s,i){
           return(
             <div key={i} onMouseEnter={function(){setHovered(i);}} onMouseLeave={function(){setHovered(null);}}
-              style={{display:'flex',alignItems:'center',gap:'7px',cursor:'pointer',opacity:hovered===null||hovered===i?1:0.3,transition:'opacity 0.15s'}}>
-              <div style={{width:'12px',height:'12px',borderRadius:'2px',background:s.color,flexShrink:0}}/>
-              <span style={{fontSize:'11px',color:'#555',flex:1,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{s.label}</span>
-              <span style={{fontSize:'10px',color:'#aaa',minWidth:'28px',textAlign:'right'}}>{Math.round(s.pct*100)}%</span>
+              style={{display:'flex',alignItems:'center',gap:'6px',cursor:'pointer',opacity:hovered===null||hovered===i?1:0.3,transition:'opacity 0.15s'}}>
+              <div style={{width:'10px',height:'10px',borderRadius:'2px',background:s.color,flexShrink:0}}/>
+              <span style={{fontSize:'10.5px',color:'#555',flex:1,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{s.label}</span>
+              <span style={{fontSize:'10px',color:'#aaa',minWidth:'24px',textAlign:'right'}}>{Math.round(s.pct*100)}%</span>
             </div>
           );
         })}
@@ -1501,12 +1501,12 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
         </div>
 
         <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px'}}>
-          <div style={{fontSize:'13px',fontWeight:600,marginBottom:'14px'}}>Ventilation CA par famille</div>
+          <div style={{fontSize:'13px',fontWeight:600,marginBottom:'14px',textAlign:'center'}}>Ventilation CA par famille</div>
           <DonutChart data={FAMILIES.filter(function(f){
             return !['Crédits AXA','AXA Banque','Épargne & Retraite'].includes(f.name);
           }).map(function(f){
             return {label:f.name,value:sumCA(cur.filter(function(c){return f.types.includes(c.contract_type);})),color:f.color};
-          }).filter(function(d){return d.value>0;})}/>
+          }).filter(function(d){return d.value>0;}).sort(function(a,b){return b.value-a.value;})}/>
         </div>
       </div>
 
