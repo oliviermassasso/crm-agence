@@ -643,7 +643,7 @@ function App(){
         </div>
       )}
       <div style={{flex:1,overflow:'auto',background:'#f9fafb'}}>
-        {active==='saisir-contrat'&&<FormContrat sb={sb} profile={profile} profiles={profiles} onSaved={function(){refresh();setActive(profile.role==='conseiller'?'mes-dossiers':'suivi-dossiers');}}/>}
+        {active==='saisir-contrat'&&<FormContrat sb={sb} profile={profile} profiles={profiles} grilles={grilles} onSaved={function(){refresh();setActive(profile.role==='conseiller'?'mes-dossiers':'suivi-dossiers');}}/>}
         {(active==='suivi-dossiers'||active==='mes-dossiers')&&<SuiviDossiers contracts={contracts} profile={profile} profiles={profiles} reads={reads} lastMsgMap={lastMsgMap} sort={sort} setSort={setSortP} fCons={fCons} setFCons={setFConsP} fYear={fYear} setFYear={setFYearP} fMonth={fMonth} setFMonth={setFMonthP} fType={fType} setFType={setFTypeP} fStat={fStat} setFStat={setFStatP} fDoss={fDoss} setFDoss={setFDossP} fPay={fPay} setFPay={setFPayP} fDup={fDup} setFDup={setFDupP} search={search} setSearch={setSearch} selectedId={lastSelectedId} onSelect={function(c){setSelected(c);setLastSelectedId(c.id);markRead(c.id);}} onNew={function(){setActive('saisir-contrat');}}/>}
         {active==='tableau-bord'&&<TableauBord contracts={contracts} rankContracts={rankContracts} profiles={profiles} profile={profile} objectifs={objectifs}/>}
         {active==='configuration'&&<Configuration sb={sb} profile={profile} profiles={profiles} grilles={grilles} setGrilles={setGrilles} objectifs={objectifs} setObjectifs={setObjectifs}/>}
@@ -1255,7 +1255,7 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
 
 
 /* ══ FORMULAIRE ══ */
-function FormContrat({sb,profile,profiles,onSaved}){
+function FormContrat({sb,profile,profiles,grilles,onSaved}){
   function mk(){return {client_name:'',contract_number:'',emission_date:today(),effect_date:'',contract_type:'',provenance:'',annual_premium:'',comments:'',code_portefeuille:'',conseiller_id:profile.id};}
   const [f,setF]=useState(mk());
   const [saving,setSaving]=useState(false);
@@ -1318,11 +1318,15 @@ function FormContrat({sb,profile,profiles,onSaved}){
         <div className="fg">
           <label>Prime annuelle TTC (€) *</label>
           <input type="number" min="0" step="0.01" value={f.annual_premium} onChange={function(e){u('annual_premium',e.target.value);}} placeholder="ex: 1 250"/>
-          {f.annual_premium&&parseFloat(f.annual_premium)>0&&GRILLE_2026[f.contract_type]&&(
-            <div style={{fontSize:'11.5px',color:'#1d4ed8',marginTop:'4px',fontWeight:500}}>
-              Commission estimée : {feur(GRILLE_2026[f.contract_type].fixed?GRILLE_2026[f.contract_type].rate:Math.round(parseFloat(f.annual_premium)*GRILLE_2026[f.contract_type].rate*100)/100)}
-            </div>
-          )}
+          {f.annual_premium&&parseFloat(f.annual_premium)>0&&f.contract_type&&(function(){
+            const annee=f.emission_date?new Date(f.emission_date).getFullYear():new Date().getFullYear();
+            const gr=(grilles&&grilles[annee]&&grilles[annee][f.contract_type])||null;
+            const g2026=GRILLE_2026[f.contract_type]||null;
+            const g=gr?{rate:gr.fixed?gr.montant_fixe:gr.taux,fixed:!!gr.fixed}:g2026;
+            if(!g) return null;
+            const com=g.fixed?g.rate:Math.round(parseFloat(f.annual_premium)*g.rate*100)/100;
+            return <div style={{fontSize:'11.5px',color:'#1d4ed8',marginTop:'4px',fontWeight:500}}>Commission estimée ({annee}) : {feur(com)}</div>;
+          })()}
         </div>
         <div className="fg"><label>Commentaires</label><textarea value={f.comments} onChange={function(e){u('comments',e.target.value);}} rows={3} style={{resize:'vertical'}}/></div>
         {err&&<div style={{background:'#fef2f2',color:'#b91c1c',border:'1px solid #fecaca',padding:'10px 14px',borderRadius:'8px',fontSize:'13px',marginBottom:'14px'}}>{err}</div>}
