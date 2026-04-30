@@ -2153,13 +2153,32 @@ function Configuration({sb,profile,profiles,grilles,setGrilles,objectifs,setObje
   async function saveObj(famille,type,val){
     setSaving(true);setOk('');
     const montant=parseFloat(val)||0;
-    const row={annee:anneeO,conseiller_id:conseillerO||null,famille:famille||null,contract_type:type||null,montant};
-    await sb.from('objectifs').upsert(row,{onConflict:'annee,conseiller_id,famille,contract_type'});
+    const consId=conseillerO||null;
+    const fam=famille||null;
+    const typ=type||null;
+
+    // upsert avec NULLs ne fonctionne pas en PostgreSQL → select + update/insert
+    let q=sb.from('objectifs').select('id').eq('annee',anneeO);
+    if(consId) q=q.eq('conseiller_id',consId); else q=q.is('conseiller_id',null);
+    if(fam) q=q.eq('famille',fam); else q=q.is('famille',null);
+    if(typ) q=q.eq('contract_type',typ); else q=q.is('contract_type',null);
+    const existing=await q.maybeSingle();
+
+    if(existing.data){
+      await sb.from('objectifs').update({montant}).eq('id',existing.data.id);
+    } else {
+      await sb.from('objectifs').insert({annee:anneeO,conseiller_id:consId,famille:fam,contract_type:typ,montant});
+    }
+
+    const row={annee:anneeO,conseiller_id:consId,famille:fam,contract_type:typ,montant};
     setObjectifs(function(prev){
       const filtered=(prev||[]).filter(function(o){
-        return !(o.annee===anneeO&&(conseillerO?o.conseiller_id===conseillerO:!o.conseiller_id)&&o.famille===(famille||null)&&o.contract_type===(type||null));
+        const famMatch=fam?(o.famille===fam):(o.famille===null||o.famille===undefined);
+        const typMatch=typ?(o.contract_type===typ):(o.contract_type===null||o.contract_type===undefined);
+        const consMatch=consId?(o.conseiller_id===consId):(o.conseiller_id===null||o.conseiller_id===undefined);
+        return !(o.annee===anneeO&&consMatch&&famMatch&&typMatch);
       });
-      return filtered.concat([Object.assign({},row)]);
+      return filtered.concat([row]);
     });
     setSaving(false);setOk('Sauvegardé');
     setTimeout(function(){setOk('');},2000);
