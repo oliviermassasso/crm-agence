@@ -1201,9 +1201,33 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
 
       {/* KPIs */}
       <div style={{display:'flex',gap:'12px',marginBottom:'16px',flexWrap:'wrap'}}>
-        <KPI label={React.createElement('span',{style:{display:'flex',alignItems:'center',gap:'4px'}},'CA Total',React.createElement('span',{className:'tip-wrap'},React.createElement('span',{style:{display:'inline-flex',alignItems:'center',justifyContent:'center',width:'13px',height:'13px',borderRadius:'50%',background:'#e5e7eb',color:'#555',fontSize:'9px',fontWeight:700,cursor:'help'}},'?'),React.createElement('span',{className:'tip',style:{maxWidth:'320px',width:'320px'}},'Hors Banque, Épargne & Retraite, Courtage, VTC et Crédits Conso')))} value={feur0(ca)} evo={evoCa} prevValue={caPrev>0?feur0(caPrev):null}/>
-        <KPI label="Nb contrats" value={fnum(nb)} evo={evoNb} prevValue={nbPrev>0?fnum(nbPrev):null}/>
-        <KPI label="Panier moyen" value={nb>0?feur0(Math.round(ca/nb)):'—'} evo={null}/>
+        <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'16px 18px',flex:2,minWidth:'220px'}}>
+          <div style={{display:'flex',alignItems:'center',gap:'4px',fontSize:'11px',color:'#888',marginBottom:'6px',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.5px'}}>
+            CA Total
+            <span style={{fontSize:'10px',color:'#aaa',fontWeight:400,textTransform:'none',letterSpacing:0}}>· IARD Part & Pro, Prév., Santé, Collective</span>
+            <span className="tip-wrap" style={{marginLeft:'2px'}}>
+              <span style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:'13px',height:'13px',borderRadius:'50%',background:'#e5e7eb',color:'#555',fontSize:'9px',fontWeight:700,cursor:'help'}}>?</span>
+              <span className="tip" style={{maxWidth:'320px',width:'320px'}}>Hors Banque, Épargne & Retraite, Courtage, VTC et Crédits Conso</span>
+            </span>
+          </div>
+          <div style={{display:'flex',gap:'24px',alignItems:'flex-start',flexWrap:'wrap'}}>
+            <div>
+              <div style={{display:'flex',alignItems:'baseline',gap:'10px',marginBottom:'2px'}}>
+                <span style={{fontSize:'24px',fontWeight:700}}>{feur0(ca)}</span>
+                <Evo val={evoCa}/>
+              </div>
+              <div style={{fontSize:'11px',color:'#bbb'}}>N-1 : {caPrev>0?feur0(caPrev):'—'}</div>
+            </div>
+            <div style={{borderLeft:'1px solid #f3f4f6',paddingLeft:'24px'}}>
+              <div style={{display:'flex',alignItems:'baseline',gap:'10px',marginBottom:'2px'}}>
+                <span style={{fontSize:'24px',fontWeight:700}}>{fnum(nb)}</span>
+                <span style={{fontSize:'12px',color:'#888'}}>contrats</span>
+                <Evo val={evoNb}/>
+              </div>
+              <div style={{fontSize:'11px',color:'#bbb'}}>N-1 : {nbPrev>0?fnum(nbPrev):'—'}</div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* ── Cartes détaillées par famille ── */}
