@@ -1310,8 +1310,8 @@ function BarChart({data,title}){
           const line1=words.slice(0,2).join(' ');
           const line2=words.slice(2).join(' ');
           return <g key={i}>
-            <text x={x} y={H+20} textAnchor="middle" fontSize="5.5" fill={hovered===i?COLORS[i%COLORS.length]:'#888'} fontWeight={hovered===i?600:400}>{line1}</text>
-            {line2&&<text x={x} y={H+29} textAnchor="middle" fontSize="5.5" fill={hovered===i?COLORS[i%COLORS.length]:'#888'}>{line2}</text>}
+            <text x={x} y={H+20} textAnchor="middle" fontSize="8.5" fill={hovered===i?COLORS[i%COLORS.length]:'#888'} fontWeight={hovered===i?600:400}>{line1}</text>
+            {line2&&<text x={x} y={H+30} textAnchor="middle" fontSize="8.5" fill={hovered===i?COLORS[i%COLORS.length]:'#888'}>{line2}</text>}
           </g>;
         })}
       </svg>
@@ -1574,16 +1574,16 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
           const pctCA=objCA>0?Math.min(ca/objCA*100,100):0;
           const pctCAReal=objCA>0?Math.round(ca/objCA*100):null;
           return(
-            <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'16px 18px',flex:1,minWidth:0,display:'flex',flexDirection:'column'}}>
-              <div style={{display:'flex',alignItems:'center',gap:'4px',marginBottom:'6px',flexWrap:'wrap'}}>
+            <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'16px 18px',flex:'0 0 auto',display:'flex',flexDirection:'column'}}>
+              <div style={{display:'flex',alignItems:'center',gap:'4px',marginBottom:'10px',flexWrap:'wrap'}}>
                 <span style={{fontSize:'13px',fontWeight:700,color:'#111',textTransform:'uppercase',letterSpacing:'0.3px'}}>CA Total</span>
                 <span style={{fontSize:'10px',color:'#aaa',fontWeight:400}}>· IARD Part & Pro, Prév., Santé, Collective</span>
                 <span className="tip-wrap" style={{marginLeft:'2px'}}>
                   <span style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:'13px',height:'13px',borderRadius:'50%',background:'#e5e7eb',color:'#555',fontSize:'9px',fontWeight:700,cursor:'help'}}>?</span>
-                  <span className="tip" style={{maxWidth:'320px',width:'320px'}}>Hors Banque, Épargne & Retraite, Courtage, VTC et Crédits Conso</span>
+                  <span className="tip" style={{maxWidth:'320px',width:'320px'}}>Hors Banque, Épargne & Retraite, Courtage et Crédits Conso</span>
                 </span>
               </div>
-              <div style={{flex:1,display:'flex',gap:'16px',alignItems:'flex-start',flexWrap:'wrap',marginBottom:objCA>0?'10px':'0'}}>
+              <div style={{flex:1,display:'flex',gap:'16px',alignItems:'flex-start',flexWrap:'nowrap',marginBottom:objCA>0?'10px':'0'}}>
                 <div>
                   <div style={{display:'flex',alignItems:'baseline',gap:'8px',marginBottom:'2px'}}>
                     <span style={{fontSize:'22px',fontWeight:700}}>{feur0(ca)}</span>
@@ -1636,7 +1636,7 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
           const lightenS=function(hex,amt){const n=parseInt(hex.replace('#',''),16);return '#'+[((n>>16)&255),((n>>8)&255),(n&255)].map(function(v){return Math.min(255,v+amt).toString(16).padStart(2,'0');}).join('');};
           const darkenS=function(hex,amt){const n=parseInt(hex.replace('#',''),16);return '#'+[((n>>16)&255),((n>>8)&255),(n&255)].map(function(v){return Math.max(0,v-amt).toString(16).padStart(2,'0');}).join('');};
           return(
-            <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'14px 16px',flex:2,minWidth:0}}>
+            <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'14px 16px',flex:1,minWidth:0}}>
               <div style={{fontSize:'13px',fontWeight:600,marginBottom:'20px',textAlign:'center'}}>CA mensuel par famille {year}</div>
               <svg width="100%" viewBox={'0 0 '+svgW+' '+(H+16)} style={{overflow:'visible',display:'block'}}>
                 <defs>
