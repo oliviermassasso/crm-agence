@@ -302,6 +302,7 @@ function App(){
   const [profile,setProfile]=useState(null);
   const [sb,setSb]=useState(null);
   const [contracts,setContracts]=useState([]);
+  const [hasUpdate,setHasUpdate]=useState(false);
   const [grilles,setGrilles]=useState({});   // {annee: {type: {taux, fixed, montant_fixe}}}
   const [objectifs,setObjectifs]=useState([]); // raw rows
   const [rankContracts,setRankContracts]=useState([]);
@@ -531,8 +532,6 @@ function App(){
     await sb.from('message_reads').upsert({user_id:profile.id,contract_id:cid,read_at:now},{onConflict:'user_id,contract_id'});
     setReads(function(r){return Object.assign({},r,{[cid]:now});});
   },[sb,profile]);
-
-  const [hasUpdate,setHasUpdate]=useState(false);
 
   // Realtime — signale silencieusement qu'une mise à jour est disponible
   useEffect(function(){
