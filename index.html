@@ -620,8 +620,8 @@ function App(){
               <div style={{fontSize:'15px',fontWeight:600}}>CRM Agence</div>
               <div style={{fontSize:'11px',color:'#999',marginTop:'2px'}}>Assurance AXA</div>
             </div>
-            <button className="btn-refresh" onClick={function(){refresh();setHasUpdate(false);}} title="Mettre à jour" style={{padding:'10px 14px',fontSize:'20px',border:'none',outline:'none',borderRadius:'10px',background:hasUpdate?'#1d4ed8':'#f3f4f6',color:hasUpdate?'#fff':'#ccc',position:'relative',flexShrink:0,transition:'all 0.2s',cursor:'pointer',boxShadow:'none'}}>
-              🔄{hasUpdate&&<span style={{position:'absolute',top:'-4px',right:'-4px',width:'10px',height:'10px',borderRadius:'50%',background:'#dc2626',border:'2px solid #fff'}}/>}
+            <button className="btn-refresh" onClick={function(){refresh();setHasUpdate(false);}} title="Mettre à jour" style={{width:'40px',height:'40px',padding:0,border:'none',outline:'none',borderRadius:'8px',background:'#1d4ed8',color:'#fff',position:'relative',flexShrink:0,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'18px',opacity:hasUpdate?1:0.45,transition:'opacity 0.2s'}}>
+              🔄{hasUpdate&&<span style={{position:'absolute',top:'-3px',right:'-3px',width:'9px',height:'9px',borderRadius:'50%',background:'#dc2626',border:'2px solid #fff'}}/>}
             </button>
           </div>
         </div>
