@@ -619,8 +619,8 @@ function App(){
               <div style={{fontSize:'15px',fontWeight:600}}>CRM Agence</div>
               <div style={{fontSize:'11px',color:'#999',marginTop:'2px'}}>Assurance AXA</div>
             </div>
-            <button onClick={function(){refresh();setHasUpdate(false);}} title="Mettre à jour" style={{padding:'5px 8px',fontSize:'12px',border:'1px solid '+(hasUpdate?'#1d4ed8':'#e5e7eb'),borderRadius:'8px',background:hasUpdate?'#eff6ff':'#fff',color:hasUpdate?'#1d4ed8':'#aaa',position:'relative',flexShrink:0}}>
-              🔄{hasUpdate&&<span style={{position:'absolute',top:'-3px',right:'-3px',width:'8px',height:'8px',borderRadius:'50%',background:'#dc2626'}}/>}
+            <button onClick={function(){refresh();setHasUpdate(false);}} title="Mettre à jour" style={{padding:'7px 10px',fontSize:'13px',fontWeight:600,border:'2px solid '+(hasUpdate?'#1d4ed8':'#e5e7eb'),borderRadius:'8px',background:hasUpdate?'#1d4ed8':'#f9fafb',color:hasUpdate?'#fff':'#aaa',position:'relative',flexShrink:0,transition:'all 0.2s'}}>
+              🔄{hasUpdate&&<span style={{position:'absolute',top:'-4px',right:'-4px',width:'10px',height:'10px',borderRadius:'50%',background:'#dc2626',border:'2px solid #fff'}}/>}
             </button>
           </div>
         </div>
