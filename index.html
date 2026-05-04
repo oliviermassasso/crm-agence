@@ -927,10 +927,21 @@ function FamilleAccordions({sections,cur,prev,getObjPeriod,mode,year}){
   return(
     <div>
       {sections.map(function(section){
-        const allTypes=section.items.flatMap(function(i){return i.types;});
-        const totCA=sumCA(cur.filter(function(c){return allTypes.includes(c.contract_type);}));
-        const totCAPrev=sumCA(prev.filter(function(c){return allTypes.includes(c.contract_type);}));
-        const evo=totCAPrev>0?((totCA-totCAPrev)/totCAPrev*100):null;
+        const allTypes=section.banque
+          ?['AXA Banque CB Visa','AXA Banque CB Premier','AXA Banque CB Infinite','Ogoon','Mobilité bancaire','Epargne (réserve, livret A, PEA, etc.)']
+          :section.items.flatMap(function(i){return i.types;});
+        const creditTypes=['Crédit Conso. Hors Ass AXA','Crédit Conso. Avec Ass AXA'];
+        const totCA=section.banque
+          ?sumCA(cur.filter(function(c){return creditTypes.includes(c.contract_type);}))
+          :sumCA(cur.filter(function(c){return allTypes.includes(c.contract_type);}));
+        const totCAPrev=section.banque
+          ?sumCA(prev.filter(function(c){return creditTypes.includes(c.contract_type);}))
+          :sumCA(prev.filter(function(c){return allTypes.includes(c.contract_type);}));
+        const totNb=section.banque?cur.filter(function(c){return allTypes.includes(c.contract_type);}).length:0;
+        const totNbPrev=section.banque?prev.filter(function(c){return allTypes.includes(c.contract_type);}).length:0;
+        const evo=section.banque
+          ?(totNbPrev>0?((totNb-totNbPrev)/totNbPrev*100):null)
+          :(totCAPrev>0?((totCA-totCAPrev)/totCAPrev*100):null);
         const objFam=getObjPeriod(section.section,false);
         const pctFam=objFam>0?Math.min(totCA/objFam*100,100):0;
         const pctFamReal=objFam>0?Math.round(totCA/objFam*100):null;
@@ -948,10 +959,21 @@ function FamilleAccordions({sections,cur,prev,getObjPeriod,mode,year}){
                   <span>{section.section}</span>
                 </span>
                 <span style={{display:'flex',alignItems:'center',gap:'8px'}}>
-                  <span style={{fontSize:'13px',fontWeight:700}}>{feur0(totCA)}</span>
-                  {evo!==null&&<span style={{fontSize:'11px',fontWeight:700,color:evo>=0?'#bbf7d0':'#fecaca'}}>{evo>=0?'▲':'▼'} {Math.abs(evo).toFixed(1)}%</span>}
-                  <span style={{fontSize:'10.5px',color:'rgba(255,255,255,0.65)'}}>N-1 : {feur0(totCAPrev)}</span>
-                  {pctFamReal!==null&&<span style={{fontSize:'10.5px',fontWeight:600,color:'#fff',background:'rgba(0,0,0,0.2)',padding:'1px 6px',borderRadius:'4px'}}>{pctFamReal}% obj.</span>}
+                  {section.banque?(
+                    <>
+                      <span style={{fontSize:'13px',fontWeight:700}}>{fnum(totNb)} acte{totNb!==1?'s':''}</span>
+                      {evo!==null&&<span style={{fontSize:'11px',fontWeight:700,color:evo>=0?'#bbf7d0':'#fecaca'}}>{evo>=0?'▲':'▼'} {Math.abs(evo).toFixed(1)}%</span>}
+                      <span style={{fontSize:'10.5px',color:'rgba(255,255,255,0.65)'}}>N-1 : {fnum(totNbPrev)}</span>
+                      <span style={{fontSize:'10.5px',color:'rgba(255,255,255,0.75)',borderLeft:'1px solid rgba(255,255,255,0.3)',paddingLeft:'8px'}}>Crédits : {feur0(totCA)}</span>
+                    </>
+                  ):(
+                    <>
+                      <span style={{fontSize:'13px',fontWeight:700}}>{feur0(totCA)}</span>
+                      {evo!==null&&<span style={{fontSize:'11px',fontWeight:700,color:evo>=0?'#bbf7d0':'#fecaca'}}>{evo>=0?'▲':'▼'} {Math.abs(evo).toFixed(1)}%</span>}
+                      <span style={{fontSize:'10.5px',color:'rgba(255,255,255,0.65)'}}>N-1 : {feur0(totCAPrev)}</span>
+                      {pctFamReal!==null&&<span style={{fontSize:'10.5px',fontWeight:600,color:'#fff',background:'rgba(0,0,0,0.2)',padding:'1px 6px',borderRadius:'4px'}}>{pctFamReal}% obj.</span>}
+                    </>
+                  )}
                 </span>
               </div>
               {objFam>0&&(
@@ -961,6 +983,69 @@ function FamilleAccordions({sections,cur,prev,getObjPeriod,mode,year}){
               )}
             </div>
             {isOpen&&(
+              section.banque?(
+                <div style={{border:'1px solid #e5e7eb',borderTop:'none',borderRadius:'0 0 6px 6px',overflow:'hidden'}}>
+                  {(function(){
+                    const famB=FAMILIES.find(function(f){return f.name==='AXA Banque';});
+                    const col=section.fam.color;
+                    // Actes
+                    const typesB=['AXA Banque CB Visa','AXA Banque CB Premier','AXA Banque CB Infinite','Ogoon','Mobilité bancaire','Epargne (réserve, livret A, PEA, etc.)'];
+                    const nbCur=cur.filter(function(c){return typesB.includes(c.contract_type);}).length;
+                    const nbPrev=prev.filter(function(c){return typesB.includes(c.contract_type);}).length;
+                    const evoNb=nbPrev>0?((nbCur-nbPrev)/nbPrev*100):null;
+                    // Détail actes
+                    const nbCB=cur.filter(function(c){return ['AXA Banque CB Visa','AXA Banque CB Premier','AXA Banque CB Infinite'].includes(c.contract_type);}).length;
+                    const nbOgoon=cur.filter(function(c){return c.contract_type==='Ogoon';}).length;
+                    const nbMob=cur.filter(function(c){return c.contract_type==='Mobilité bancaire';}).length;
+                    const nbEp=cur.filter(function(c){return c.contract_type==='Epargne (réserve, livret A, PEA, etc.)';}).length;
+                    // Crédits conso
+                    const creditTypes=['Crédit Conso. Hors Ass AXA','Crédit Conso. Avec Ass AXA'];
+                    const caCred=sumCA(cur.filter(function(c){return creditTypes.includes(c.contract_type);}));
+                    const caCredPrev=sumCA(prev.filter(function(c){return creditTypes.includes(c.contract_type);}));
+                    const evoCred=caCredPrev>0?((caCred-caCredPrev)/caCredPrev*100):null;
+                    const objCred=getObjPeriod('AXA Banque',false);
+                    const pctCred=objCred>0?Math.min(caCred/objCred*100,100):0;
+                    const pctCredReal=objCred>0?Math.round(caCred/objCred*100):null;
+                    return <>
+                      {/* Ligne 1 : Actes de banque */}
+                      <div style={{display:'flex',alignItems:'center',gap:'12px',padding:'10px 14px',borderBottom:'1px solid #f3f4f6',background:'#fff'}}>
+                        <div style={{width:'180px',fontSize:'12px',fontWeight:600,color:col,flexShrink:0}}>Actes de banque</div>
+                        <div style={{flex:1,display:'flex',alignItems:'center',gap:'6px'}}>
+                          <span style={{fontSize:'13px',fontWeight:600}}>{fnum(nbCur)} acte{nbCur!==1?'s':''}</span>
+                          {evoNb!==null&&<span style={{fontSize:'10.5px',fontWeight:700,color:evoNb>=0?'#059669':'#dc2626'}}>{evoNb>=0?'▲':'▼'}{Math.abs(evoNb).toFixed(1)}%</span>}
+                          <span style={{fontSize:'10.5px',color:'#bbb'}}>N-1 : {fnum(nbPrev)}</span>
+                        </div>
+                        <div style={{display:'flex',gap:'10px',fontSize:'11px',color:'#888',flexShrink:0,flexWrap:'wrap'}}>
+                          {nbCB>0&&<span>CB : <b>{nbCB}</b></span>}
+                          {nbOgoon>0&&<span>Ogoon : <b>{nbOgoon}</b></span>}
+                          {nbMob>0&&<span>Mobilité : <b>{nbMob}</b></span>}
+                          {nbEp>0&&<span>Épargne : <b>{nbEp}</b></span>}
+                        </div>
+                      </div>
+                      {/* Ligne 2 : Crédit Conso */}
+                      <div style={{display:'flex',alignItems:'center',gap:'12px',padding:'10px 14px',background:'#fff'}}>
+                        <div style={{width:'180px',fontSize:'12px',fontWeight:400,color:'#444',flexShrink:0}}>Crédit Conso</div>
+                        <div style={{flex:1,display:'flex',alignItems:'center',gap:'6px'}}>
+                          <span style={{fontSize:'13px',fontWeight:600}}>{feur0(caCred)}</span>
+                          {evoCred!==null&&<span style={{fontSize:'10.5px',fontWeight:700,color:evoCred>=0?'#059669':'#dc2626'}}>{evoCred>=0?'▲':'▼'}{Math.abs(evoCred).toFixed(1)}%</span>}
+                          <span style={{fontSize:'10.5px',color:'#bbb'}}>N-1 : {feur0(caCredPrev)}</span>
+                        </div>
+                        {objCred>0&&(
+                          <div style={{width:'120px',flexShrink:0}}>
+                            <div style={{display:'flex',justifyContent:'space-between',fontSize:'9.5px',color:'#aaa',marginBottom:'2px'}}>
+                              <span>Obj. {feur0(objCred)}</span>
+                              <span style={{fontWeight:600,color:pctCredReal>=100?'#059669':'#888'}}>{pctCredReal}%</span>
+                            </div>
+                            <div style={{height:'4px',background:'#f3f4f6',borderRadius:'3px'}}>
+                              <div style={{height:'100%',width:pctCred+'%',background:pctCredReal>=100?'#059669':col,borderRadius:'3px',transition:'width 0.4s'}}/>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </>;
+                  })()}
+                </div>
+              ):(
               <div style={{border:'1px solid #e5e7eb',borderTop:'none',borderRadius:'0 0 6px 6px',overflow:'hidden'}}>
                 {section.items.map(function(item,idx){
                   const iCur=cur.filter(function(c){return item.types.includes(c.contract_type);});
@@ -1004,6 +1089,7 @@ function FamilleAccordions({sections,cur,prev,getObjPeriod,mode,year}){
                   );
                 })}
               </div>
+              )
             )}
           </div>
         );
@@ -1437,7 +1523,7 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
         })()}
 
         {/* AXA Banque, Courtage, VTC */}
-        {['AXA Banque','Courtage','VTC'].map(function(nomFam){
+        {['Courtage','VTC'].map(function(nomFam){
           const famDef=FAMILIES.find(function(f){return f.name===nomFam;});
           if(!famDef) return null;
           const contratsCur=cur.filter(function(c){return famDef.types.includes(c.contract_type);});
@@ -1543,6 +1629,7 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
           {section:'Collectives',fam:getFam('Collectives'),items:[
             {label:'Collectives',types:['Collectives'],objType:null},
           ]},
+          {section:'AXA Banque',fam:getFam('AXA Banque'),banque:true,items:[]},
           {section:'Épargne & Retraite',fam:getFam('Épargne & Retraite'),items:[
             {label:'Retraite',types:['FAR Retraite (apport affaire)','FAR Retraite VLP sup 1000€/an'],objType:null},
             {label:'Épargne',types:['Assurance Vie (apport affaire)','Ass Vie & Retraite PUVL sup 5000€','Ass Vie & Retraite PUVL sup 100000€'],objType:null},
