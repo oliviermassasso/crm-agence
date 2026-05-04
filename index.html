@@ -1308,6 +1308,75 @@ function Jauge({ca,objectif,label,color,bg}){
   );
 }
 
+function CumulChart({data,years}){
+  const [hovered,setHovered]=React.useState(null);
+  if(!years||years.length===0) return <div style={{color:'#aaa',fontSize:'13px',textAlign:'center',padding:'20px 0'}}>Aucune donnée</div>;
+  const YEAR_COLORS=['#1d4ed8','#0891b2','#059669','#7c3aed','#b45309','#dc2626','#6366f1'];
+  const lightenC=function(hex,amt){const n=parseInt(hex.replace('#',''),16);return '#'+[((n>>16)&255),((n>>8)&255),(n&255)].map(function(v){return Math.min(255,v+amt).toString(16).padStart(2,'0');}).join('');};
+  const darkenC=function(hex,amt){const n=parseInt(hex.replace('#',''),16);return '#'+[((n>>16)&255),((n>>8)&255),(n&255)].map(function(v){return Math.max(0,v-amt).toString(16).padStart(2,'0');}).join('');};
+  const monthIndices=MONTHS.map(function(m,i){return i;}).filter(function(i){
+    return years.some(function(y){return (data[y]&&data[y][i]||0)>0;});
+  });
+  if(monthIndices.length===0) return <div style={{color:'#aaa',fontSize:'13px',textAlign:'center',padding:'20px 0'}}>Aucune donnée</div>;
+  const maxVal=Math.max.apply(null,monthIndices.flatMap(function(mi){return years.map(function(y){return data[y]&&data[y][mi]||0;});})) ||1;
+  const H=150,barW=Math.max(4,Math.min(10,Math.floor(300/(monthIndices.length*years.length+monthIndices.length))));
+  const barGap=1,groupGap=Math.max(5,barW+2);
+  const groupW=years.length*(barW+barGap)-barGap+groupGap;
+  const svgW=monthIndices.length*groupW+30;
+  const svgH=H+44;
+  return(
+    <div style={{display:'flex',flexDirection:'column',gap:'8px'}}>
+      <svg width="100%" viewBox={'0 0 '+svgW+' '+svgH} style={{overflow:'visible',display:'block'}}>
+        <defs>
+          {years.map(function(y,yi){
+            const col=YEAR_COLORS[yi%YEAR_COLORS.length];
+            return <linearGradient key={y} id={'cg'+y} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={lightenC(col,90)}/>
+              <stop offset="25%" stopColor={lightenC(col,25)}/>
+              <stop offset="70%" stopColor={col}/>
+              <stop offset="100%" stopColor={darkenC(col,40)}/>
+            </linearGradient>;
+          })}
+          <filter id="cshadow"><feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#00000022"/></filter>
+        </defs>
+        {[0.25,0.5,0.75,1].map(function(p,i){
+          const y=Math.round(H*(1-p))+4;
+          return <line key={i} x1="14" y1={y} x2={svgW-4} y2={y} stroke="#f3f4f6" strokeWidth="1"/>;
+        })}
+        <g filter="url(#cshadow)">
+          {monthIndices.map(function(mi,gi){
+            const gx=14+gi*groupW;
+            return <g key={mi}>
+              {years.map(function(y,yi){
+                const val=data[y]&&data[y][mi]||0;
+                if(val===0) return null;
+                const col=YEAR_COLORS[yi%YEAR_COLORS.length];
+                const h=Math.max(2,Math.round(val/maxVal*H));
+                const x=gx+yi*(barW+barGap);
+                const barY=H-h+4;
+                const active=hovered&&hovered.year===y&&hovered.month===mi;
+                return <g key={y} onMouseEnter={function(){setHovered({year:y,month:mi,val:val,col:col});}} onMouseLeave={function(){setHovered(null);}}>
+                  <rect x={x} y={barY} width={barW} height={h} fill={'url(#cg'+y+')'} rx="1" style={{cursor:'pointer',opacity:hovered&&!active?0.5:1,transition:'opacity 0.15s'}}/>
+                  {active&&<text x={x+barW/2} y={barY-4} textAnchor="middle" fontSize="7.5" fontWeight="700" fill={col}>{feur0(val)}</text>}
+                </g>;
+              })}
+              <text x={gx+groupW/2-groupGap/2} y={H+15} textAnchor="middle" fontSize="8.5" fill="#bbb">{MONTHS[mi]}</text>
+            </g>;
+          })}
+        </g>
+      </svg>
+      <div style={{display:'flex',gap:'10px',justifyContent:'center',flexWrap:'wrap'}}>
+        {years.map(function(y,yi){
+          const col=YEAR_COLORS[yi%YEAR_COLORS.length];
+          return <div key={y} style={{display:'flex',alignItems:'center',gap:'4px',fontSize:'10.5px',color:'#555',opacity:hovered&&hovered.year!==y?0.35:1,transition:'opacity 0.15s'}}>
+            <div style={{width:'10px',height:'10px',borderRadius:'2px',background:col}}/>{y}
+          </div>;
+        })}
+      </div>
+    </div>
+  );
+}
+
 function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
   const now=new Date();
   const [year,setYear]=useState(now.getFullYear());
@@ -1357,29 +1426,6 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
   const nb=curPrincipal.length,nbPrev=prevPrincipal.length;
   const evoNb=nbPrev>0?((nb-nbPrev)/nbPrev*100):null;
 
-  // Données cartes complémentaires
-  const famCredits=FAMILIES.find(function(f){return f.name==='Crédits AXA';});
-  const compData=CARTES_COMP.map(function(carte){
-    const fam=FAMILIES.find(function(f){return f.name===carte.name;});
-    if(!fam) return carte;
-    const contrats=cur.filter(function(c){return fam.types.includes(c.contract_type);});
-    const contratsPrev=prev.filter(function(c){return fam.types.includes(c.contract_type);});
-    const caCur=sumCA(contrats);
-    const caPr=sumCA(contratsPrev);
-    const nbCur=contrats.length;
-    const nbPr=contratsPrev.length;
-    const evoCA=caPr>0?((caCur-caPr)/caPr*100):null;
-    const evoNB=nbPr>0?((nbCur-nbPr)/nbPr*100):null;
-    // Crédits conso pour la carte Banque
-    let creditCA=0,creditCAPrev=0;
-    if(carte.mode==='banque'&&famCredits){
-      creditCA=sumCA(cur.filter(function(c){return famCredits.types.includes(c.contract_type);}));
-      creditCAPrev=sumCA(prev.filter(function(c){return famCredits.types.includes(c.contract_type);}));
-    }
-    const evoCreditCA=creditCAPrev>0?((creditCA-creditCAPrev)/creditCAPrev*100):null;
-    return Object.assign({},carte,{fam:fam,ca:caCur,nb:nbCur,caPrev:caPr,nbPrev:nbPr,evoCA:evoCA,evoNB:evoNB,creditCA:creditCA,creditCAPrev:creditCAPrev,evoCreditCA:evoCreditCA});
-  });
-
   // Objectifs depuis la base — agence ou conseiller selon filterCons
   function getObjPeriod(familleOrType,isType){
     // Pour un conseiller : utiliser son propre ID. Pour direction/manager : utiliser le filtre ou agence
@@ -1411,15 +1457,21 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
   const caByProv=Object.entries(provMap).sort(function(a,b){return b[1]-a[1];});
   const maxProv=caByProv.length>0?caByProv[0][1]:1;
 
-  // Graphique mensuel
-  const monthlyData=MONTHS.map(function(ml,i){
-    const c=visibleActive.filter(function(c){const d=new Date(c.emission_date);return d.getFullYear()===year&&d.getMonth()===i;});
-    const p=visibleActive.filter(function(c){const d=new Date(c.emission_date);return d.getFullYear()===year-1&&d.getMonth()===i;});
-    return {m:ml,cur:sumCA(c),prev:sumCA(p)};
+  // Graphique cumulatif multi-années
+  const allYears=[...new Set(visibleActive.map(function(c){return new Date(c.emission_date).getFullYear();}))].sort();
+  const cumulData={};
+  allYears.forEach(function(y){
+    let cumul=0;
+    cumulData[y]=MONTHS.map(function(m,mi){
+      const monthCA=visibleActive.filter(function(c){
+        if(isExclu(c)) return false;
+        const d=new Date(c.emission_date);
+        return d.getFullYear()===y&&d.getMonth()===mi;
+      }).reduce(function(s,c){return s+(c.annual_premium||0);},0);
+      cumul+=monthCA;
+      return cumul;
+    });
   });
-  const maxM=Math.max.apply(null,monthlyData.map(function(d){return Math.max(d.cur,d.prev);}));
-  const maxMV=maxM>0?maxM:1;
-
   // Classement conseillers
   const conseillers=profiles.filter(function(p){return p.role==='conseiller'||p.role==='manager';});
   const rankData=(isDir?conseillers:[profiles.find(function(p){return p.id===profile.id;})||profile]).map(function(p){
@@ -1571,6 +1623,23 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
         return React.createElement(FamilleAccordions,{sections:CARTES_DETAIL,cur:cur,prev:prev,getObjPeriod:getObjPeriod,mode:mode,year:year});
       })()}
 
+
+      {/* Jauges + CA cumulé */}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 2fr',gap:'16px',marginBottom:'16px'}}>
+        <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px'}}>
+          <div style={{fontSize:'13px',fontWeight:600,marginBottom:'4px'}}>Objectifs {mode==='mois'?'mensuels':'annuels'} {year}</div>
+          <div style={{fontSize:'11px',color:'#aaa',marginBottom:'14px'}}>Survol → % réalisé</div>
+          {objTotal>0&&<Jauge label="🎯 Production totale AXA" ca={caTotal} objectif={objTotal} color="#1d4ed8" bg="#dbeafe"/>}
+          {caByFamily.length===0
+            ?<div style={{color:'#aaa',fontSize:'13px',textAlign:'center',padding:'20px 0'}}>Aucune donnée</div>
+            :caByFamily.map(function(f){return <Jauge key={f.name} label={f.name} ca={f.ca} objectif={f.obj} color={f.color} bg={f.bg}/>;})
+          }
+        </div>
+        <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px'}}>
+          <div style={{fontSize:'13px',fontWeight:600,marginBottom:'14px',textAlign:'center'}}>CA cumulé mensuel par année</div>
+          <CumulChart data={cumulData} years={allYears}/>
+        </div>
+      </div>
 
       {/* ── 3 graphiques sur une ligne ── */}
       {(function(){
