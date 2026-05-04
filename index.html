@@ -1552,100 +1552,73 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
       })()}
 
 
-      {/* Jauges + Graphiques */}
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'16px',marginBottom:'16px'}}>
-        <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px'}}>
-          <div style={{fontSize:'13px',fontWeight:600,marginBottom:'4px'}}>Objectifs {mode==='mois'?'mensuels':'annuels'} {year}</div>
-          <div style={{fontSize:'11px',color:'#aaa',marginBottom:'14px'}}>Survol → % réalisé</div>
-          {objTotal>0&&<Jauge label="🎯 Production totale AXA" ca={caTotal} objectif={objTotal} color="#1d4ed8" bg="#dbeafe"/>}
-          {caByFamily.length===0
-            ?<div style={{color:'#aaa',fontSize:'13px',textAlign:'center',padding:'20px 0'}}>Aucune donnée</div>
-            :caByFamily.map(function(f){return <Jauge key={f.name} label={f.name} ca={f.ca} objectif={f.obj} color={f.color} bg={f.bg}/>;})
-          }
-        </div>
-
-        <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px'}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'14px'}}>
-            <div style={{fontSize:'13px',fontWeight:600}}>CA mensuel {year}</div>
-            <div style={{display:'flex',gap:'10px',fontSize:'11px',color:'#666'}}>
-              <span style={{display:'flex',alignItems:'center',gap:'4px'}}><span style={{width:'10px',height:'10px',borderRadius:'2px',background:'#1d4ed8',display:'inline-block'}}/>{year}</span>
-              <span style={{display:'flex',alignItems:'center',gap:'4px'}}><span style={{width:'10px',height:'10px',borderRadius:'2px',background:'#bfdbfe',display:'inline-block'}}/>{year-1}</span>
-            </div>
-          </div>
-          <div style={{display:'flex',alignItems:'flex-end',gap:'3px',height:'130px'}}>
-            {monthlyData.map(function(d,i){return(
-              <div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',height:'100%',justifyContent:'flex-end'}}>
-                <div style={{width:'100%',display:'flex',gap:'1px',alignItems:'flex-end',height:'110px'}}>
-                  <div style={{flex:1,background:'#bfdbfe',borderRadius:'2px 2px 0 0',height:(d.prev/maxMV*100)+'%',minHeight:d.prev>0?'2px':'0'}}/>
-                  <div style={{flex:1,background:'#1d4ed8',borderRadius:'2px 2px 0 0',height:(d.cur/maxMV*100)+'%',minHeight:d.cur>0?'2px':'0'}}/>
-                </div>
-                <div style={{fontSize:'9px',color:'#aaa',marginTop:'3px'}}>{d.m}</div>
-              </div>
-            );})}
-          </div>
-        </div>
-
-        <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px'}}>
-          <div style={{fontSize:'13px',fontWeight:600,marginBottom:'14px',textAlign:'center'}}>Ventilation CA par famille</div>
-          <DonutChart data={FAMILIES.filter(function(f){
-            return !['Crédits AXA','AXA Banque','Épargne & Retraite'].includes(f.name);
-          }).map(function(f){
-            return {label:f.name,value:sumCA(cur.filter(function(c){return f.types.includes(c.contract_type);})),color:f.color};
-          }).filter(function(d){return d.value>0;}).sort(function(a,b){return b.value-a.value;})}/>
-        </div>
-      </div>
-
-      {/* CA par provenance */}
-      {isDir&&caByProv.length>0&&(
-        <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px',marginBottom:'16px'}}>
-          <div style={{fontSize:'13px',fontWeight:600,marginBottom:'14px',textAlign:'center'}}>CA par provenance</div>
-          <BarChart data={caByProv.map(function(e){return {label:e[0],value:e[1]};})}/>
-        </div>
-      )}
-
-      {/* Classement conseillers */}
-      {(()=>{
-        const allConseillers=profiles.filter(function(p){
+      {/* ── 3 graphiques sur une ligne ── */}
+      {(function(){
+        const allConseillers2=profiles.filter(function(p){
           if(p.role!=='conseiller'&&p.role!=='manager') return false;
           if(p.actif!==false) return true;
           return (rankContracts||contracts).some(function(c){return c.conseiller_id===p.id&&inPeriod(c,year,months);});
         });
         const allActive2=(rankContracts||contracts).filter(function(c){return c.status!=='ANNULE';});
-        const rankAll=allConseillers.map(function(p){
+        const rankAll=allConseillers2.map(function(p){
           const mine=allActive2.filter(function(c){return c.conseiller_id===p.id&&inPeriod(c,year,months)&&!isExclu(c);});
           const prevMine=allActive2.filter(function(c){return c.conseiller_id===p.id&&inPeriod(c,prevY,months)&&!isExclu(c);});
           return {id:p.id,name:p.full_name,ca:sumCA(mine),caPrev:sumCA(prevMine)};
         }).filter(function(r){return r.ca>0;}).sort(function(a,b){return b.ca-a.ca;});
-        if(rankAll.length===0) return null;
-        const maxCA=rankAll[0].ca||1;
+        const maxCA=rankAll.length>0?rankAll[0].ca||1:1;
         const lightenR=function(hex,amt){const n=parseInt(hex.replace('#',''),16);return '#'+[((n>>16)&255),((n>>8)&255),(n&255)].map(function(v){return Math.min(255,v+amt).toString(16).padStart(2,'0');}).join('');};
         const darkenR=function(hex,amt){const n=parseInt(hex.replace('#',''),16);return '#'+[((n>>16)&255),((n>>8)&255),(n&255)].map(function(v){return Math.max(0,v-amt).toString(16).padStart(2,'0');}).join('');};
         const RANK_COLORS=['#1d4ed8','#0891b2','#16a34a','#7c3aed','#dc2626','#b45309','#6366f1'];
         const medals=['🥇','🥈','🥉'];
         return(
-          <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px 20px',marginBottom:'16px'}}>
-            <div style={{fontSize:'13px',fontWeight:600,marginBottom:'16px',textAlign:'center'}}>Classement conseillers · CA Total</div>
-            <div style={{display:'flex',flexDirection:'column',gap:'8px'}}>
-              {rankAll.map(function(r,i){
-                const col=RANK_COLORS[i%RANK_COLORS.length];
-                const pct=Math.max(4,Math.round(r.ca/maxCA*100));
-                const evo=r.caPrev>0?((r.ca-r.caPrev)/r.caPrev*100):null;
-                const isMe=r.id===profile.id;
-                const grad='linear-gradient(to right, '+lightenR(col,90)+' 0%, '+lightenR(col,25)+' 40%, '+col+' 80%, '+darkenR(col,40)+' 100%)';
-                return(
-                  <div key={r.id} style={{display:'flex',alignItems:'center',gap:'10px',padding:'6px 10px',borderRadius:'8px',background:isMe?'#f8faff':'',border:isMe?'1px solid #dbeafe':'1px solid transparent'}}>
-                    <div style={{width:'22px',textAlign:'center',fontSize:'14px',flexShrink:0}}>{i<3?medals[i]:<span style={{fontSize:'12px',fontWeight:700,color:'#aaa'}}>{i+1}</span>}</div>
-                    <div style={{width:'120px',fontSize:'12.5px',fontWeight:isMe?600:400,flexShrink:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.name}{isMe&&<span style={{marginLeft:'5px',fontSize:'10px',color:'#1d4ed8',background:'#dbeafe',padding:'1px 5px',borderRadius:'100px'}}>moi</span>}</div>
-                    <div style={{flex:1,position:'relative',height:'22px'}}>
-                      <div style={{position:'absolute',inset:0,borderRadius:'4px',background:grad,width:pct+'%',minWidth:'4px',transition:'width 0.4s'}}/>
-                    </div>
-                    <div style={{width:'80px',textAlign:'right',fontSize:'12.5px',fontWeight:600,flexShrink:0,color:col}}>{feur0(r.ca)}</div>
-                    <div style={{width:'60px',textAlign:'right',fontSize:'11px',flexShrink:0}}>
-                      {evo!==null?<span style={{fontWeight:600,color:evo>=0?'#059669':'#dc2626'}}>{evo>=0?'▲':'▼'} {Math.abs(evo).toFixed(1)}%</span>:<span style={{color:'#ddd'}}>—</span>}
-                    </div>
-                  </div>
-                );
-              })}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'16px',marginBottom:'16px'}}>
+            {/* Ventilation par famille */}
+            <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px'}}>
+              <div style={{fontSize:'13px',fontWeight:600,marginBottom:'14px',textAlign:'center'}}>Ventilation CA par famille</div>
+              <DonutChart data={FAMILIES.filter(function(f){
+                return !['Crédits AXA','AXA Banque','Épargne & Retraite'].includes(f.name);
+              }).map(function(f){
+                return {label:f.name,value:sumCA(cur.filter(function(c){return f.types.includes(c.contract_type);})),color:f.color};
+              }).filter(function(d){return d.value>0;}).sort(function(a,b){return b.value-a.value;})}/>
+            </div>
+
+            {/* CA par provenance */}
+            <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px'}}>
+              <div style={{fontSize:'13px',fontWeight:600,marginBottom:'14px',textAlign:'center'}}>CA par provenance</div>
+              {caByProv.length>0
+                ?<BarChart data={caByProv.map(function(e){return {label:e[0],value:e[1]};})}/>
+                :<div style={{color:'#aaa',fontSize:'13px',textAlign:'center',padding:'20px 0'}}>Aucune donnée</div>
+              }
+            </div>
+
+            {/* Classement conseillers */}
+            <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px 20px'}}>
+              <div style={{fontSize:'13px',fontWeight:600,marginBottom:'16px',textAlign:'center'}}>Classement · CA Total</div>
+              {rankAll.length===0
+                ?<div style={{color:'#aaa',fontSize:'13px',textAlign:'center',padding:'20px 0'}}>Aucune donnée</div>
+                :<div style={{display:'flex',flexDirection:'column',gap:'8px'}}>
+                  {rankAll.map(function(r,i){
+                    const col=RANK_COLORS[i%RANK_COLORS.length];
+                    const pct=Math.max(4,Math.round(r.ca/maxCA*100));
+                    const evo=r.caPrev>0?((r.ca-r.caPrev)/r.caPrev*100):null;
+                    const isMe=r.id===profile.id;
+                    const grad='linear-gradient(to right, '+lightenR(col,90)+' 0%, '+lightenR(col,25)+' 40%, '+col+' 80%, '+darkenR(col,40)+' 100%)';
+                    return(
+                      <div key={r.id} style={{display:'flex',alignItems:'center',gap:'8px',padding:'5px 8px',borderRadius:'8px',background:isMe?'#f8faff':'',border:isMe?'1px solid #dbeafe':'1px solid transparent'}}>
+                        <div style={{width:'20px',textAlign:'center',fontSize:'13px',flexShrink:0}}>{i<3?medals[i]:<span style={{fontSize:'11px',fontWeight:700,color:'#aaa'}}>{i+1}</span>}</div>
+                        <div style={{width:'100px',fontSize:'12px',fontWeight:isMe?600:400,flexShrink:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.name}{isMe&&<span style={{marginLeft:'4px',fontSize:'9px',color:'#1d4ed8',background:'#dbeafe',padding:'1px 4px',borderRadius:'100px'}}>moi</span>}</div>
+                        <div style={{flex:1,position:'relative',height:'20px'}}>
+                          <div style={{position:'absolute',inset:0,borderRadius:'4px',background:grad,width:pct+'%',minWidth:'4px',transition:'width 0.4s'}}/>
+                        </div>
+                        <div style={{width:'72px',textAlign:'right',fontSize:'12px',fontWeight:600,flexShrink:0,color:col}}>{feur0(r.ca)}</div>
+                        <div style={{width:'52px',textAlign:'right',fontSize:'10.5px',flexShrink:0}}>
+                          {evo!==null?<span style={{fontWeight:600,color:evo>=0?'#059669':'#dc2626'}}>{evo>=0?'▲':'▼'} {Math.abs(evo).toFixed(1)}%</span>:<span style={{color:'#ddd'}}>—</span>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              }
             </div>
           </div>
         );
