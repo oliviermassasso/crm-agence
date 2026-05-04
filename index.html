@@ -1310,8 +1310,8 @@ function BarChart({data,title}){
           const line1=words.slice(0,2).join(' ');
           const line2=words.slice(2).join(' ');
           return <g key={i}>
-            <text x={x} y={H+22} textAnchor="middle" fontSize="8.5" fill={hovered===i?COLORS[i%COLORS.length]:'#888'} fontWeight={hovered===i?600:400}>{line1}</text>
-            {line2&&<text x={x} y={H+33} textAnchor="middle" fontSize="8.5" fill={hovered===i?COLORS[i%COLORS.length]:'#888'}>{line2}</text>}
+            <text x={x} y={H+20} textAnchor="middle" fontSize="6.5" fill={hovered===i?COLORS[i%COLORS.length]:'#888'} fontWeight={hovered===i?600:400}>{line1}</text>
+            {line2&&<text x={x} y={H+29} textAnchor="middle" fontSize="6.5" fill={hovered===i?COLORS[i%COLORS.length]:'#888'}>{line2}</text>}
           </g>;
         })}
       </svg>
@@ -1402,12 +1402,12 @@ function CumulChart({data,years}){
                   {active&&<text x={x+barW/2} y={barY-4} textAnchor="middle" fontSize="7.5" fontWeight="700" fill={col}>{feur0(val)}</text>}
                 </g>;
               })}
-              <text x={gx+groupW/2-groupGap/2} y={H+15} textAnchor="middle" fontSize="8.5" fill="#bbb">{MONTHS[mi]}</text>
+              <text x={gx+groupW/2-groupGap/2} y={H+12} textAnchor="middle" fontSize="6.5" fill="#bbb">{MONTHS[mi]}</text>
             </g>;
           })}
         </g>
       </svg>
-      <div style={{display:'flex',gap:'10px',justifyContent:'center',flexWrap:'wrap'}}>
+      <div style={{display:'flex',gap:'10px',justifyContent:'center',flexWrap:'wrap',marginTop:'4px'}}>
         {years.map(function(y,yi){
           const col=YEAR_COLORS[yi%YEAR_COLORS.length];
           return <div key={y} style={{display:'flex',alignItems:'center',gap:'4px',fontSize:'10.5px',color:'#555',opacity:hovered&&hovered.year!==y?0.35:1,transition:'opacity 0.15s'}}>
@@ -1637,7 +1637,7 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
           const darkenS=function(hex,amt){const n=parseInt(hex.replace('#',''),16);return '#'+[((n>>16)&255),((n>>8)&255),(n&255)].map(function(v){return Math.max(0,v-amt).toString(16).padStart(2,'0');}).join('');};
           return(
             <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'14px 16px',flex:2,minWidth:0}}>
-              <div style={{fontSize:'12px',fontWeight:600,marginBottom:'8px',color:'#555'}}>CA mensuel par famille {year}</div>
+              <div style={{fontSize:'11px',fontWeight:600,marginBottom:'6px',textAlign:'center',color:'#555'}}>CA mensuel par famille {year}</div>
               <svg width="100%" viewBox={'0 0 '+svgW+' '+(H+16)} style={{overflow:'visible',display:'block'}}>
                 <defs>
                   {familles.map(function(f,fi){
@@ -1660,11 +1660,11 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
                       return <rect key={si} x={x} y={y} width={barW} height={h} fill={'url(#sg'+fi+')'} style={{cursor:'pointer',opacity:active?1:0.85}}/>;
                     })}
                     {active&&d.total>0&&<text x={x+barW/2} y={H-Math.round(d.total/maxVal*H)-3} textAnchor="middle" fontSize="7" fontWeight="700" fill="#333">{feur0(d.total)}</text>}
-                    <text x={x+barW/2} y={H+11} textAnchor="middle" fontSize="7.5" fill="#bbb">{d.m}</text>
+                    <text x={x+barW/2} y={H+9} textAnchor="middle" fontSize="6.5" fill="#bbb">{d.m}</text>
                   </g>;
                 })}
               </svg>
-              <div style={{display:'flex',gap:'6px',flexWrap:'wrap',marginTop:'4px'}}>
+              <div style={{display:'flex',gap:'6px',flexWrap:'wrap',marginTop:'4px',justifyContent:'center'}}>
                 {familles.map(function(f,fi){return <div key={f.name} style={{display:'flex',alignItems:'center',gap:'3px'}}>
                   <div style={{width:'7px',height:'7px',borderRadius:'1px',background:'url(#sg'+fi+')',backgroundColor:f.color}}/>
                   <span style={{fontSize:'9px',color:'#888'}}>{f.name}</span>
@@ -1757,7 +1757,7 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
 
             {/* CA par provenance */}
             <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px'}}>
-              <div style={{fontSize:'13px',fontWeight:600,marginBottom:'14px',textAlign:'center'}}>CA par provenance</div>
+              <div style={{fontSize:'11px',fontWeight:600,marginBottom:'10px',textAlign:'center',color:'#555'}}>CA par provenance</div>
               {caByProv.length>0
                 ?<BarChart data={caByProv.map(function(e){return {label:e[0],value:e[1]};})}/>
                 :<div style={{color:'#aaa',fontSize:'13px',textAlign:'center',padding:'20px 0'}}>Aucune donnée</div>
@@ -1766,7 +1766,7 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
 
             {/* Classement conseillers */}
             <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px 20px'}}>
-              <div style={{fontSize:'13px',fontWeight:600,marginBottom:'16px',textAlign:'center'}}>Classement · CA Total</div>
+              <div style={{fontSize:'11px',fontWeight:600,marginBottom:'10px',textAlign:'center',color:'#555'}}>Classement · CA Total</div>
               {rankAll.length===0
                 ?<div style={{color:'#aaa',fontSize:'13px',textAlign:'center',padding:'20px 0'}}>Aucune donnée</div>
                 :<div style={{display:'flex',flexDirection:'column',gap:'8px'}}>
@@ -1798,7 +1798,7 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
       })()}
       {/* CA cumulé mensuel par année — en bas */}
       <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px',marginTop:'16px'}}>
-        <div style={{fontSize:'13px',fontWeight:600,marginBottom:'14px',textAlign:'center'}}>CA cumulé mensuel par année</div>
+        <div style={{fontSize:'11px',fontWeight:600,marginBottom:'10px',textAlign:'center',color:'#555'}}>CA cumulé mensuel par année</div>
         <CumulChart data={cumulData} years={allYears}/>
       </div>
     </div>
