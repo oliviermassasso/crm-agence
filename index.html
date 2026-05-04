@@ -1620,56 +1620,55 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
           const familles=FAMILIES.filter(function(f){
             return !['AXA Banque','Épargne & Retraite','Courtage','Crédits AXA'].includes(f.name);
           });
-          const H=80,barW=18,gap=6;
+          const H=55,barW=16,gap=5;
           const monthData=MONTHS.map(function(ml,mi){
             const segs=familles.map(function(f){
-              return {
-                color:f.color,
-                val:sumCA(visibleActive.filter(function(c){
-                  const d=new Date(c.emission_date);
-                  return d.getFullYear()===year&&d.getMonth()===mi&&f.types.includes(c.contract_type);
-                }))
-              };
+              return {color:f.color,name:f.name,val:sumCA(visibleActive.filter(function(c){
+                const d=new Date(c.emission_date);
+                return d.getFullYear()===year&&d.getMonth()===mi&&f.types.includes(c.contract_type);
+              }))};
             }).filter(function(s){return s.val>0;});
             return {m:ml,segs:segs,total:segs.reduce(function(s,x){return s+x.val;},0)};
           });
           const maxVal=Math.max.apply(null,monthData.map(function(d){return d.total;}))||1;
           const svgW=12*(barW+gap)+gap;
           const [hov,setHov]=React.useState(null);
-
           const lightenS=function(hex,amt){const n=parseInt(hex.replace('#',''),16);return '#'+[((n>>16)&255),((n>>8)&255),(n&255)].map(function(v){return Math.min(255,v+amt).toString(16).padStart(2,'0');}).join('');};
-
+          const darkenS=function(hex,amt){const n=parseInt(hex.replace('#',''),16);return '#'+[((n>>16)&255),((n>>8)&255),(n&255)].map(function(v){return Math.max(0,v-amt).toString(16).padStart(2,'0');}).join('');};
           return(
-            <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'14px 16px',flex:2,minWidth:0,display:'flex',flexDirection:'column'}}>
-              <div style={{fontSize:'12px',fontWeight:600,marginBottom:'10px',color:'#555'}}>CA mensuel par famille {year}</div>
-              <div style={{flex:1,display:'flex',alignItems:'flex-end'}}>
-                <svg width="100%" viewBox={'0 0 '+svgW+' '+(H+20)} style={{overflow:'visible',display:'block'}}>
-                  {monthData.map(function(d,mi){
-                    const x=gap+mi*(barW+gap);
-                    let y=H;
-                    const active=hov===mi;
-                    return <g key={mi} onMouseEnter={function(){setHov(mi);}} onMouseLeave={function(){setHov(null);}}>
-                      {d.segs.map(function(s,si){
-                        const h=Math.max(1,Math.round(s.val/maxVal*H));
-                        y-=h;
-                        return <rect key={si} x={x} y={y} width={barW} height={h}
-                          fill={active?lightenS(s.color,30):s.color}
-                          style={{cursor:'pointer',transition:'fill 0.15s'}}/>;
-                      })}
-                      {active&&d.total>0&&<text x={x+barW/2} y={H-Math.round(d.total/maxVal*H)-4} textAnchor="middle" fontSize="7.5" fontWeight="700" fill="#333">{feur0(d.total)}</text>}
-                      <text x={x+barW/2} y={H+12} textAnchor="middle" fontSize="8" fill="#bbb">{d.m}</text>
-                    </g>;
+            <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'14px 16px',flex:2,minWidth:0}}>
+              <div style={{fontSize:'12px',fontWeight:600,marginBottom:'8px',color:'#555'}}>CA mensuel par famille {year}</div>
+              <svg width="100%" viewBox={'0 0 '+svgW+' '+(H+16)} style={{overflow:'visible',display:'block'}}>
+                <defs>
+                  {familles.map(function(f,fi){
+                    return <linearGradient key={fi} id={'sg'+fi} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={lightenS(f.color,80)}/>
+                      <stop offset="40%" stopColor={lightenS(f.color,20)}/>
+                      <stop offset="100%" stopColor={darkenS(f.color,40)}/>
+                    </linearGradient>;
                   })}
-                </svg>
-              </div>
-              {/* Légende */}
-              <div style={{display:'flex',gap:'8px',flexWrap:'wrap',marginTop:'6px'}}>
-                {familles.map(function(f){
-                  return <div key={f.name} style={{display:'flex',alignItems:'center',gap:'3px'}}>
-                    <div style={{width:'8px',height:'8px',borderRadius:'1px',background:f.color,flexShrink:0}}/>
-                    <span style={{fontSize:'9.5px',color:'#888'}}>{f.name}</span>
-                  </div>;
+                </defs>
+                {monthData.map(function(d,mi){
+                  const x=gap+mi*(barW+gap);
+                  let y=H;
+                  const active=hov===mi;
+                  return <g key={mi} onMouseEnter={function(){setHov(mi);}} onMouseLeave={function(){setHov(null);}}>
+                    {d.segs.map(function(s,si){
+                      const fi=familles.findIndex(function(f){return f.name===s.name;});
+                      const h=Math.max(1,Math.round(s.val/maxVal*H));
+                      y-=h;
+                      return <rect key={si} x={x} y={y} width={barW} height={h} fill={'url(#sg'+fi+')'} style={{cursor:'pointer',opacity:active?1:0.85}}/>;
+                    })}
+                    {active&&d.total>0&&<text x={x+barW/2} y={H-Math.round(d.total/maxVal*H)-3} textAnchor="middle" fontSize="7" fontWeight="700" fill="#333">{feur0(d.total)}</text>}
+                    <text x={x+barW/2} y={H+11} textAnchor="middle" fontSize="7.5" fill="#bbb">{d.m}</text>
+                  </g>;
                 })}
+              </svg>
+              <div style={{display:'flex',gap:'6px',flexWrap:'wrap',marginTop:'4px'}}>
+                {familles.map(function(f,fi){return <div key={f.name} style={{display:'flex',alignItems:'center',gap:'3px'}}>
+                  <div style={{width:'7px',height:'7px',borderRadius:'1px',background:'url(#sg'+fi+')',backgroundColor:f.color}}/>
+                  <span style={{fontSize:'9px',color:'#888'}}>{f.name}</span>
+                </div>;})}
               </div>
             </div>
           );
@@ -1725,12 +1724,6 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
         return React.createElement(FamilleAccordions,{sections:CARTES_DETAIL,cur:cur,prev:prev,getObjPeriod:getObjPeriod,mode:mode,year:year});
       })()}
 
-
-      {/* CA cumulé mensuel par année */}
-      <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px',marginBottom:'16px'}}>
-        <div style={{fontSize:'13px',fontWeight:600,marginBottom:'14px',textAlign:'center'}}>CA cumulé mensuel par année</div>
-        <CumulChart data={cumulData} years={allYears}/>
-      </div>
 
       {/* ── 3 graphiques sur une ligne ── */}
       {(function(){
@@ -1803,12 +1796,14 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
           </div>
         );
       })()}
+      {/* CA cumulé mensuel par année — en bas */}
+      <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px',marginTop:'16px'}}>
+        <div style={{fontSize:'13px',fontWeight:600,marginBottom:'14px',textAlign:'center'}}>CA cumulé mensuel par année</div>
+        <CumulChart data={cumulData} years={allYears}/>
+      </div>
     </div>
   );
 }
-
-
-/* ══ FORMULAIRE ══ */
 function FormContrat({sb,profile,profiles,grilles,onSaved}){
   function mk(){return {client_name:'',contract_number:'',emission_date:today(),effect_date:'',contract_type:'',provenance:'',annual_premium:'',comments:'',code_portefeuille:'',conseiller_id:profile.id};}
   const [f,setF]=useState(mk());
