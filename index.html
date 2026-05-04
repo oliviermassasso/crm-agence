@@ -1624,21 +1624,10 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
       })()}
 
 
-      {/* Jauges + CA cumulé */}
-      <div style={{display:'grid',gridTemplateColumns:'1fr 2fr',gap:'16px',marginBottom:'16px'}}>
-        <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px'}}>
-          <div style={{fontSize:'13px',fontWeight:600,marginBottom:'4px'}}>Objectifs {mode==='mois'?'mensuels':'annuels'} {year}</div>
-          <div style={{fontSize:'11px',color:'#aaa',marginBottom:'14px'}}>Survol → % réalisé</div>
-          {objTotal>0&&<Jauge label="🎯 Production totale AXA" ca={caTotal} objectif={objTotal} color="#1d4ed8" bg="#dbeafe"/>}
-          {caByFamily.length===0
-            ?<div style={{color:'#aaa',fontSize:'13px',textAlign:'center',padding:'20px 0'}}>Aucune donnée</div>
-            :caByFamily.map(function(f){return <Jauge key={f.name} label={f.name} ca={f.ca} objectif={f.obj} color={f.color} bg={f.bg}/>;})
-          }
-        </div>
-        <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px'}}>
-          <div style={{fontSize:'13px',fontWeight:600,marginBottom:'14px',textAlign:'center'}}>CA cumulé mensuel par année</div>
-          <CumulChart data={cumulData} years={allYears}/>
-        </div>
+      {/* CA cumulé mensuel par année */}
+      <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px',marginBottom:'16px'}}>
+        <div style={{fontSize:'13px',fontWeight:600,marginBottom:'14px',textAlign:'center'}}>CA cumulé mensuel par année</div>
+        <CumulChart data={cumulData} years={allYears}/>
       </div>
 
       {/* ── 3 graphiques sur une ligne ── */}
