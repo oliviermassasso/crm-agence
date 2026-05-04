@@ -179,6 +179,8 @@ function calcMonthCommissions(contracts,profiles,year,month,paidAtMap,grillesMap
   const monthContracts=contracts.filter(function(c){
     const dt=c.document_tracking||{};
     if(!dt.eligible_since) return false;
+    if(c.status==='ANNULE') return false;
+    if(c.status==='PAYE') return false; // déjà traité dans un mois gelé
     const d=new Date(dt.eligible_since);
     const consId=c.conseiller_id;
 
@@ -796,6 +798,7 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh,year,setY
           : contracts.filter(function(c){
           if(c.conseiller_id!==p.id) return false;
           if(c.status==='ANNULE') return false;
+          if(c.status==='PAYE') return false; // déjà traité dans un mois gelé
           const dt=c.document_tracking||{};
           if(!dt.eligible_since) return false;
           const es=new Date(dt.eligible_since);
