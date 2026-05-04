@@ -1620,7 +1620,7 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
           const familles=FAMILIES.filter(function(f){
             return !['AXA Banque','Épargne & Retraite','Courtage','Crédits AXA'].includes(f.name);
           });
-          const H=55,barW=16,gap=5;
+          const H=33,barW=16,gap=5;
           const monthData=MONTHS.map(function(ml,mi){
             const segs=familles.map(function(f){
               return {color:f.color,name:f.name,val:sumCA(visibleActive.filter(function(c){
