@@ -536,12 +536,27 @@ function App(){
   useEffect(function(){
     if(!sb||!profile) return;
     const channel=sb.channel('crm-live')
-      .on('postgres_changes',{event:'*',schema:'public',table:'contracts'},function(){refresh();})
-      .on('postgres_changes',{event:'*',schema:'public',table:'document_tracking'},function(){refresh();})
-      .on('postgres_changes',{event:'*',schema:'public',table:'commission_payments'},function(){refresh();})
+      .on('postgres_changes',{event:'*',schema:'public',table:'contracts'},function(){
+        if(active==='saisir-contrat') return;
+        if(active==='utilisateurs') return;
+        if(active==='configuration') return;
+        if(selected) return;
+        refresh();
+      })
+      .on('postgres_changes',{event:'*',schema:'public',table:'document_tracking'},function(){
+        if(active==='saisir-contrat') return;
+        if(active==='configuration') return;
+        if(selected) return;
+        refresh();
+      })
+      .on('postgres_changes',{event:'*',schema:'public',table:'commission_payments'},function(){
+        if(active==='saisir-contrat') return;
+        if(active==='configuration') return;
+        refresh();
+      })
       .subscribe();
     return function(){sb.removeChannel(channel);};
-  },[sb,profile]);
+  },[sb,profile,active,selected]);
   const [mdpF,setMdpF]=useState({ancien:'',nouveau:'',confirm:''});
   const [mdpErr,setMdpErr]=useState('');
   const [mdpOk,setMdpOk]=useState('');
