@@ -1297,7 +1297,8 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
 
   // Objectifs depuis la base — agence ou conseiller selon filterCons
   function getObjPeriod(familleOrType,isType){
-    const consId=filterCons||null;
+    // Pour un conseiller : utiliser son propre ID. Pour direction/manager : utiliser le filtre ou agence
+    const consId=isDir?(filterCons||null):profile.id;
     const rows=(objectifs||[]).filter(function(o){
       return o.annee===year&&
         (consId?o.conseiller_id===consId:!o.conseiller_id)&&
