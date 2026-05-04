@@ -532,31 +532,18 @@ function App(){
     setReads(function(r){return Object.assign({},r,{[cid]:now});});
   },[sb,profile]);
 
-  // Realtime — mise à jour automatique sur toutes les sessions
+  const [hasUpdate,setHasUpdate]=useState(false);
+
+  // Realtime — signale silencieusement qu'une mise à jour est disponible
   useEffect(function(){
     if(!sb||!profile) return;
     const channel=sb.channel('crm-live')
-      .on('postgres_changes',{event:'*',schema:'public',table:'contracts'},function(){
-        if(active==='saisir-contrat') return;
-        if(active==='utilisateurs') return;
-        if(active==='configuration') return;
-        if(selected) return;
-        refresh();
-      })
-      .on('postgres_changes',{event:'*',schema:'public',table:'document_tracking'},function(){
-        if(active==='saisir-contrat') return;
-        if(active==='configuration') return;
-        if(selected) return;
-        refresh();
-      })
-      .on('postgres_changes',{event:'*',schema:'public',table:'commission_payments'},function(){
-        if(active==='saisir-contrat') return;
-        if(active==='configuration') return;
-        refresh();
-      })
+      .on('postgres_changes',{event:'*',schema:'public',table:'contracts'},function(){setHasUpdate(true);})
+      .on('postgres_changes',{event:'*',schema:'public',table:'document_tracking'},function(){setHasUpdate(true);})
+      .on('postgres_changes',{event:'*',schema:'public',table:'commission_payments'},function(){setHasUpdate(true);})
       .subscribe();
     return function(){sb.removeChannel(channel);};
-  },[sb,profile,active,selected]);
+  },[sb,profile]);
   const [mdpF,setMdpF]=useState({ancien:'',nouveau:'',confirm:''});
   const [mdpErr,setMdpErr]=useState('');
   const [mdpOk,setMdpOk]=useState('');
@@ -627,8 +614,15 @@ function App(){
     <div style={{display:'flex',height:'100vh',overflow:'hidden'}}>
       <div style={{width:'220px',background:'#fff',borderRight:'1px solid #e5e7eb',display:'flex',flexDirection:'column',flexShrink:0}}>
         <div style={{padding:'18px 20px 14px',borderBottom:'1px solid #e5e7eb'}}>
-          <div style={{fontSize:'15px',fontWeight:600}}>CRM Agence</div>
-          <div style={{fontSize:'11px',color:'#999',marginTop:'2px'}}>Assurance AXA</div>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'6px'}}>
+            <div>
+              <div style={{fontSize:'15px',fontWeight:600}}>CRM Agence</div>
+              <div style={{fontSize:'11px',color:'#999',marginTop:'2px'}}>Assurance AXA</div>
+            </div>
+            <button onClick={function(){refresh();setHasUpdate(false);}} title="Mettre à jour" style={{padding:'5px 8px',fontSize:'12px',border:'1px solid '+(hasUpdate?'#1d4ed8':'#e5e7eb'),borderRadius:'8px',background:hasUpdate?'#eff6ff':'#fff',color:hasUpdate?'#1d4ed8':'#aaa',position:'relative',flexShrink:0}}>
+              🔄{hasUpdate&&<span style={{position:'absolute',top:'-3px',right:'-3px',width:'8px',height:'8px',borderRadius:'50%',background:'#dc2626'}}/>}
+            </button>
+          </div>
         </div>
         <nav style={{flex:1,padding:'10px 0',overflowY:'auto'}}>
           {nav.map(function(n){return(
