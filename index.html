@@ -245,10 +245,9 @@ function calcMonthCommissions(contracts,profiles,year,month,paidAtMap,grillesMap
 
 const FAMILIES=[
   {name:'IARD Particulier',color:'#1d4ed8',bg:'#dbeafe',types:['Auto/Moto','MRH','PJ','Caravane/Camping-car/Remorque','EDPM','Plaisance','Scolaire','Voyage']},
-  {name:'Courtage',color:'#7c3aed',bg:'#ede9fe',types:['Courtage Auto/Moto','Courtage IARD Part','Courtage Prévoyance','Courtage Santé','Courtage IARD Pro']},
+  {name:'Courtage',color:'#7c3aed',bg:'#ede9fe',types:['Courtage Auto/Moto','Courtage IARD Part','Courtage Prévoyance','Courtage Santé','Courtage IARD Pro','VTC']},
   {name:'Prévoyance',color:'#0891b2',bg:'#cffafe',types:['Ma PA','Prévoyance Pro.','Prévoyance Part.','ARC','ENTOURAGE','ESSENCIEL']},
   {name:'Santé',color:'#059669',bg:'#d1fae5',types:['Ma Santé TNS & Retraités','Ma Santé HORS TNS & Retraités','Santé AGIPI']},
-  {name:'VTC',color:'#b45309',bg:'#fef3c7',types:['VTC']},
   {name:'Collectives',color:'#6366f1',bg:'#e0e7ff',types:['Collectives']},
   {name:'IARD Pro & Entreprise',color:'#dc2626',bg:'#fee2e2',types:['MRP','MRI','MRE','RC Pro.','Décennale','Bris Machine','Garages','Flotte']},
   {name:'Crédits AXA',color:'#ea580c',bg:'#ffedd5',types:['Crédit Conso. Hors Ass AXA','Crédit Conso. Avec Ass AXA']},
@@ -260,7 +259,7 @@ const ALL_TYPES=FAMILIES.flatMap(function(f){return f.types;});
 const getFamily=function(t){return FAMILIES.find(function(f){return f.types.includes(t);});};
 
 // Familles complémentaires (exclues du CA principal)
-const FAMILLES_COMPLEMENTAIRES=['Courtage','VTC','AXA Banque','Épargne & Retraite'];
+const FAMILLES_COMPLEMENTAIRES=['Courtage','AXA Banque','Épargne & Retraite'];
 const FAMILLES_PRINCIPALES=FAMILIES.filter(function(f){return !FAMILLES_COMPLEMENTAIRES.includes(f.name);});
 
 const CARTES_COMP=[
@@ -1341,7 +1340,7 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
   const prev=visibleActive.filter(function(c){return inPeriod(c,prevY,months);});
 
   // CA Total = sans familles complémentaires NI crédits conso
-  const famExclues=['Courtage','VTC','AXA Banque','Épargne & Retraite','Crédits AXA'];
+  const famExclues=['Courtage','AXA Banque','Épargne & Retraite','Crédits AXA'];
   function isExclu(c){
     const f=getFamily(c.contract_type);
     return f&&famExclues.includes(f.name);
@@ -1523,7 +1522,7 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
         })()}
 
         {/* AXA Banque, Courtage, VTC */}
-        {['Courtage','VTC'].map(function(nomFam){
+        {['Courtage'].map(function(nomFam){
           const famDef=FAMILIES.find(function(f){return f.name===nomFam;});
           if(!famDef) return null;
           const contratsCur=cur.filter(function(c){return famDef.types.includes(c.contract_type);});
@@ -1633,6 +1632,14 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
           {section:'Épargne & Retraite',fam:getFam('Épargne & Retraite'),items:[
             {label:'Retraite',types:['FAR Retraite (apport affaire)','FAR Retraite VLP sup 1000€/an'],objType:null},
             {label:'Épargne',types:['Assurance Vie (apport affaire)','Ass Vie & Retraite PUVL sup 5000€','Ass Vie & Retraite PUVL sup 100000€'],objType:null},
+          ]},
+          {section:'Courtage',fam:getFam('Courtage'),items:[
+            {label:'Courtage Auto/Moto',types:['Courtage Auto/Moto'],objType:'Courtage Auto/Moto'},
+            {label:'Courtage IARD Part.',types:['Courtage IARD Part'],objType:'Courtage IARD Part'},
+            {label:'Courtage IARD Pro',types:['Courtage IARD Pro'],objType:'Courtage IARD Pro'},
+            {label:'Courtage Prévoyance',types:['Courtage Prévoyance'],objType:'Courtage Prévoyance'},
+            {label:'Courtage Santé',types:['Courtage Santé'],objType:'Courtage Santé'},
+            {label:'VTC',types:['VTC'],objType:'VTC'},
           ]},
         ];
 
