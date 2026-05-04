@@ -1299,7 +1299,7 @@ function BarChart({data,title}){
                 rx="4" ry="4"
                 style={{cursor:'pointer',transformOrigin:x+' '+(H+8)+'px',transform:active?'scaleY(1.04)':'scaleY(1)',transition:'transform 0.15s',opacity:hovered===null||active?1:0.6}}/>
               {/* Valeur au survol */}
-              {active&&<text x={x+barW/2} y={y-6} textAnchor="middle" fontSize="10" fontWeight="700" fill={col}>{feur0(d.value)}</text>}
+              {active&&<text x={x+barW/2} y={y-4} textAnchor="middle" fontSize="7" fontWeight="700" fill={col}>{feur0(d.value)}</text>}
             </g>;
           })}
         </g>
@@ -1399,7 +1399,7 @@ function CumulChart({data,years}){
                 const active=hovered&&hovered.year===y&&hovered.month===mi;
                 return <g key={y} onMouseEnter={function(){setHovered({year:y,month:mi,val:val,col:col});}} onMouseLeave={function(){setHovered(null);}}>
                   <rect x={x} y={barY} width={barW} height={h} fill={'url(#cg'+y+')'} rx="1" style={{cursor:'pointer',opacity:hovered&&!active?0.5:1,transition:'opacity 0.15s'}}/>
-                  {active&&<text x={x+barW/2} y={barY-4} textAnchor="middle" fontSize="7.5" fontWeight="700" fill={col}>{feur0(val)}</text>}
+                  {active&&<text x={x+barW/2} y={barY-3} textAnchor="middle" fontSize="6" fontWeight="700" fill={col}>{feur0(val)}</text>}
                 </g>;
               })}
               <text x={gx+groupW/2-groupGap/2} y={H+12} textAnchor="middle" fontSize="5.5" fill="#bbb">{MONTHS[mi]}</text>
@@ -1574,7 +1574,7 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
           const pctCA=objCA>0?Math.min(ca/objCA*100,100):0;
           const pctCAReal=objCA>0?Math.round(ca/objCA*100):null;
           return(
-            <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'16px 18px',flex:'0 0 auto',display:'flex',flexDirection:'column'}}>
+            <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'16px 18px',flex:'0 0 auto',display:'flex',flexDirection:'column',justifyContent:'center'}}>
               <div style={{display:'flex',alignItems:'center',gap:'4px',marginBottom:'10px',flexWrap:'wrap'}}>
                 <span style={{fontSize:'13px',fontWeight:700,color:'#111',textTransform:'uppercase',letterSpacing:'0.3px'}}>CA Total</span>
                 <span style={{fontSize:'10px',color:'#aaa',fontWeight:400}}>· IARD Part & Pro, Prév., Santé, Collective</span>
@@ -1659,7 +1659,7 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
                       y-=h;
                       return <rect key={si} x={x} y={y} width={barW} height={h} fill={'url(#sg'+fi+')'} style={{cursor:'pointer',opacity:active?1:0.85}}/>;
                     })}
-                    {active&&d.total>0&&<text x={x+barW/2} y={H-Math.round(d.total/maxVal*H)-3} textAnchor="middle" fontSize="7" fontWeight="700" fill="#333">{feur0(d.total)}</text>}
+                    {active&&d.total>0&&<text x={x+barW/2} y={H-Math.round(d.total/maxVal*H)-2} textAnchor="middle" fontSize="6" fontWeight="700" fill="#333">{feur0(d.total)}</text>}
                     <text x={x+barW/2} y={H+9} textAnchor="middle" fontSize="5.5" fill="#bbb">{d.m}</text>
                   </g>;
                 })}
