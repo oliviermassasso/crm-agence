@@ -488,14 +488,14 @@ function App(){
       // Charger objectifs
     const ob=await cl.from('objectifs').select('*');
     let allObjectifs=ob.data||[];
-    // Migrer objectifs 2026 agence si absents
-    const has2026=(allObjectifs.some(function(o){return o.annee===2026&&!o.conseiller_id;}));
-    if(!has2026){
+    // Migrer objectifs 2026 agence uniquement si aucun objectif n'existe encore
+    const has2026Agence=allObjectifs.some(function(o){return o.annee===2026&&!o.conseiller_id;});
+    if(!has2026Agence){
       const objRows=Object.entries(OBJECTIFS_2026).map(function(e){
         return {annee:2026,conseiller_id:null,famille:e[0],contract_type:null,montant:e[1]};
       });
-      await cl.from('objectifs').upsert(objRows,{onConflict:'annee,conseiller_id,famille,contract_type'});
-      allObjectifs=allObjectifs.concat(objRows);
+      const insRes=await cl.from('objectifs').insert(objRows);
+      if(!insRes.error) allObjectifs=allObjectifs.concat(objRows);
     }
     setObjectifs(allObjectifs);
     if(selectedId){
@@ -1420,6 +1420,102 @@ function CumulChart({data,years}){
   );
 }
 
+function SuiviObjectifsCard({objectifs,visibleActive,year,profile,filterCons,isDir,mode,months,nbMois}){
+  const today=new Date();
+  const currentMonth=today.getMonth()+1; // 1-12
+  const isCurrentYear=year===today.getFullYear();
+  const upToMonth=isCurrentYear?currentMonth:12;
+
+  // Familles et types avec objectifs
+  const consId=isDir?(filterCons||null):profile.id;
+  const rows=(objectifs||[]).filter(function(o){
+    return o.annee===year&&(consId?o.conseiller_id===consId:!o.conseiller_id);
+  });
+  if(rows.length===0) return null;
+
+  // CA cumulé Jan→upToMonth de l'année sélectionnée
+  const caCumul=function(types){
+    return sumCA(visibleActive.filter(function(c){
+      if(c.status==='ANNULE') return false;
+      const d=new Date(c.emission_date);
+      const m=d.getMonth()+1;
+      return d.getFullYear()===year&&m>=1&&m<=upToMonth&&types.some(function(t){return c.contract_type===t;});
+    }));
+  };
+
+  // Construire la liste des objectifs avec leur réalisation
+  const items=[];
+  rows.forEach(function(o){
+    if(!o.montant||o.montant<=0) return;
+    const cumObj=Math.round(o.montant/12*upToMonth);
+    if(cumObj<=0) return;
+
+    let label,types;
+    if(o.famille==='__total__'){
+      label='Production totale';
+      types=FAMILIES.filter(function(f){return !['AXA Banque','Épargne & Retraite','Courtage','Crédits AXA'].includes(f.name);}).flatMap(function(f){return f.types;});
+    } else if(o.famille&&!o.contract_type){
+      const fam=FAMILIES.find(function(f){return f.name===o.famille;});
+      label=o.famille;
+      types=fam?fam.types:[];
+    } else if(o.contract_type){
+      label=o.contract_type;
+      const fam=FAMILIES.find(function(f){return f.types.includes(o.contract_type);});
+      types=[o.contract_type];
+    } else return;
+
+    const ca=caCumul(types);
+    const pct=Math.round(ca/cumObj*100);
+    items.push({label:label,ca:ca,obj:cumObj,pct:pct,annuel:o.montant});
+  });
+
+  if(items.length===0) return null;
+
+  const green=items.filter(function(i){return i.pct>=100;});
+  const orange=items.filter(function(i){return i.pct>=50&&i.pct<100;});
+  const red=items.filter(function(i){return i.pct<50;});
+  const [open,setOpen]=React.useState(null); // 'green'|'orange'|'red'|null
+
+  const Section=function({list,color,bg,label}){
+    if(list.length===0) return null;
+    const key=label;
+    const isOpen=open===key;
+    return(
+      <div>
+        <div onClick={function(){setOpen(isOpen?null:key);}} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:'4px',padding:'8px 12px',borderRadius:'8px',background:bg,border:'2px solid '+color,cursor:'pointer',transition:'opacity 0.15s'}}>
+          <span style={{fontSize:'20px',fontWeight:700,color:color,lineHeight:1}}>{list.length}</span>
+          <span style={{fontSize:'9.5px',color:color,fontWeight:600,whiteSpace:'nowrap'}}>{label}</span>
+        </div>
+        {isOpen&&(
+          <div style={{position:'absolute',zIndex:50,background:'#fff',border:'1px solid #e5e7eb',borderRadius:'8px',boxShadow:'0 4px 12px rgba(0,0,0,0.12)',padding:'8px 0',minWidth:'240px',marginTop:'4px'}}>
+            {list.map(function(item,i){
+              return <div key={i} style={{padding:'6px 14px',borderBottom:i<list.length-1?'1px solid #f9fafb':'',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px'}}>
+                <span style={{fontSize:'11.5px',color:'#444',flex:1}}>{item.label}</span>
+                <span style={{fontSize:'11px',fontWeight:700,color:color}}>{item.pct}%</span>
+                <span style={{fontSize:'10.5px',color:'#aaa'}}>{feur0(item.ca)}/{feur0(item.obj)}</span>
+              </div>;
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return(
+    <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'14px 16px',flex:'0 0 auto',display:'flex',flexDirection:'column',justifyContent:'center'}}>
+      <div style={{fontSize:'13px',fontWeight:600,marginBottom:'14px',textAlign:'center'}}>
+        Objectifs {isCurrentYear?'jan–'+MONTHS[upToMonth-1]:'annuels'}
+      </div>
+      <div style={{display:'flex',gap:'8px',justifyContent:'center',position:'relative'}}>
+        <Section list={green} color="#16a34a" bg="#dcfce7" label="En avance"/>
+        <Section list={orange} color="#d97706" bg="#fef3c7" label="En retard"/>
+        <Section list={red} color="#dc2626" bg="#fee2e2" label="Critique"/>
+      </div>
+      {(green.length+orange.length+red.length)===0&&<div style={{fontSize:'11px',color:'#aaa',textAlign:'center'}}>Aucun objectif saisi</div>}
+    </div>
+  );
+}
+
 function StackedFamilyChart({contracts,families,year,visibleActive}){
   const [hov,setHov]=React.useState(null);
   const familles=families.filter(function(f){
@@ -1709,6 +1805,9 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs,onOpenI
             </div>
           );
         })()}
+        {/* Suivi objectifs */}
+        <SuiviObjectifsCard objectifs={objectifs} visibleActive={visibleActive} year={year} profile={profile} filterCons={filterCons} isDir={isDir} mode={mode} months={months} nbMois={nbMois}/>
+
         {/* Graphique empilé CA par famille par mois */}
         <StackedFamilyChart contracts={contracts} families={FAMILIES} year={year} visibleActive={visibleActive}/>
 
