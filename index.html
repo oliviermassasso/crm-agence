@@ -2821,7 +2821,7 @@ function ObjRow({fam,type,getObj,saveObj,canEdit}){
 const CRITERES_LABELS={n_contrat_ok:'N° contrat conforme',rentre_signe:'Rentré signé',kyc_ok:'Conforme KYC',justificatifs_ok:'Justificatifs complets',date_ok:'Date correcte',cotisation_ok:'Cotisation payée',inclure_payes:'Inclure dossiers dont la commission est payée au conseiller',exclure_impayes:'Rejeter impayés'};
 
 function mkPrime(annee){
-  return {id:null,annee:annee,nom:'',contract_types:[],date_ref:'emission',periodicite:'mensuel',seuil_type:'CA',seuil:0,prime_montant:0,conseiller_id:null,criteres:{}};
+  return {id:null,annee:annee,nom:'',contract_types:[],date_ref:'emission',periodicite:'mensuel',seuil_type:'CA',seuil:0,prime_montant:0,paliers:[],type_prime:'simple',conseiller_id:null,criteres:{}};
 }
 
 function PrimesConfig({sb,profile,profiles,primesConfig,setPrimesConfig,canEdit}){
@@ -2840,9 +2840,9 @@ function PrimesConfig({sb,profile,profiles,primesConfig,setPrimesConfig,canEdit}
     setSaving(true);
     let r;
     if(editing.id){
-      r=await sb.from('primes_config').update({nom:editing.nom,contract_types:editing.contract_types,date_ref:editing.date_ref,periodicite:editing.periodicite,seuil_type:editing.seuil_type,seuil:editing.seuil,prime_montant:editing.prime_montant,conseiller_id:editing.conseiller_id||null,criteres:editing.criteres}).eq('id',editing.id);
+      r=await sb.from('primes_config').update({nom:editing.nom,contract_types:editing.contract_types,date_ref:editing.date_ref,periodicite:editing.periodicite,seuil_type:editing.seuil_type,seuil:editing.seuil,prime_montant:editing.prime_montant,paliers:editing.paliers||[],conseiller_id:editing.conseiller_id||null,criteres:editing.criteres}).eq('id',editing.id);
     } else {
-      r=await sb.from('primes_config').insert({annee:annee,nom:editing.nom,contract_types:editing.contract_types,date_ref:editing.date_ref,periodicite:editing.periodicite,seuil_type:editing.seuil_type,seuil:editing.seuil,prime_montant:editing.prime_montant,conseiller_id:editing.conseiller_id||null,criteres:editing.criteres});
+      r=await sb.from('primes_config').insert({annee:annee,nom:editing.nom,contract_types:editing.contract_types,date_ref:editing.date_ref,periodicite:editing.periodicite,seuil_type:editing.seuil_type,seuil:editing.seuil,prime_montant:editing.prime_montant,paliers:editing.paliers||[],conseiller_id:editing.conseiller_id||null,criteres:editing.criteres});
     }
     if(r.error){alert('Erreur : '+r.error.message);setSaving(false);return;}
     const reload=await sb.from('primes_config').select('*');
@@ -2908,7 +2908,7 @@ function PrimesConfig({sb,profile,profiles,primesConfig,setPrimesConfig,canEdit}
                   </div>
                 </div>
                 {canEdit&&<div style={{display:'flex',gap:'8px',flexShrink:0}}>
-                  <button onClick={function(){setEditing(Object.assign({},r,{contract_types:r.contract_types||[],criteres:r.criteres||{}}));}} style={{padding:'5px 12px',fontSize:'12px'}}>✏️</button>
+                  <button onClick={function(){setEditing(Object.assign({},r,{contract_types:r.contract_types||[],criteres:r.criteres||{},paliers:r.paliers||[],type_prime:r.paliers&&r.paliers.length>0?'paliers':'simple'}));}} style={{padding:'5px 12px',fontSize:'12px'}}>✏️</button>
                   <button onClick={function(){del(r.id);}} style={{padding:'5px 12px',fontSize:'12px',color:'#dc2626',borderColor:'#fecaca'}}>🗑</button>
                 </div>}
               </div>
@@ -2956,15 +2956,66 @@ function PrimesConfig({sb,profile,profiles,primesConfig,setPrimesConfig,canEdit}
                 <option value="nb">Nombre de contrats</option>
               </select>
             </div>
-            <div>
-              <label style={{fontSize:'12px',color:'#666',display:'block',marginBottom:'4px'}}>Seuil {editing.seuil_type==='CA'?'(€)':'(nb contrats)'}</label>
-              <input type="number" value={editing.seuil} onChange={function(e){setE('seuil',parseFloat(e.target.value)||0);}} style={{width:'100%',padding:'7px 10px'}}/>
+            <div style={{gridColumn:'1/-1'}}>
+              <label style={{fontSize:'12px',color:'#666',display:'block',marginBottom:'8px'}}>Type de prime</label>
+              <div style={{display:'flex',gap:'8px'}}>
+                <button type="button" onClick={function(){setE('type_prime','simple');}} style={{padding:'7px 20px',fontSize:'13px',borderRadius:'8px',border:'2px solid '+(editing.type_prime!=='paliers'?'#1d4ed8':'#e5e7eb'),background:editing.type_prime!=='paliers'?'#eff6ff':'#fff',color:editing.type_prime!=='paliers'?'#1d4ed8':'#555',fontWeight:editing.type_prime!=='paliers'?600:400}}>Prime simple</button>
+                <button type="button" onClick={function(){setE('type_prime','paliers');if(!editing.paliers||editing.paliers.length===0)setE('paliers',[{seuil:0,prime:0}]);}} style={{padding:'7px 20px',fontSize:'13px',borderRadius:'8px',border:'2px solid '+(editing.type_prime==='paliers'?'#1d4ed8':'#e5e7eb'),background:editing.type_prime==='paliers'?'#eff6ff':'#fff',color:editing.type_prime==='paliers'?'#1d4ed8':'#555',fontWeight:editing.type_prime==='paliers'?600:400}}>Prime à paliers</button>
+              </div>
             </div>
-            <div>
-              <label style={{fontSize:'12px',color:'#666',display:'block',marginBottom:'4px'}}>Montant de la prime (€)</label>
-              <input type="number" value={editing.prime_montant} onChange={function(e){setE('prime_montant',parseFloat(e.target.value)||0);}} style={{width:'100%',padding:'7px 10px'}}/>
-            </div>
-          </div>
+            {editing.type_prime!=='paliers'?(
+              <>
+                <div>
+                  <label style={{fontSize:'12px',color:'#666',display:'block',marginBottom:'4px'}}>Seuil {editing.seuil_type==='CA'?'(€)':'(nb contrats)'}</label>
+                  <input type="number" value={editing.seuil} onChange={function(e){setE('seuil',parseFloat(e.target.value)||0);}} style={{width:'100%',padding:'7px 10px'}}/>
+                </div>
+                <div>
+                  <label style={{fontSize:'12px',color:'#666',display:'block',marginBottom:'4px'}}>Montant de la prime (€)</label>
+                  <input type="number" value={editing.prime_montant} onChange={function(e){setE('prime_montant',parseFloat(e.target.value)||0);}} style={{width:'100%',padding:'7px 10px'}}/>
+                </div>
+              </>
+            ):(
+              <div style={{gridColumn:'1/-1'}}>
+                <label style={{fontSize:'12px',color:'#666',display:'block',marginBottom:'8px'}}>Paliers <span style={{color:'#aaa'}}>(palier le plus haut atteint uniquement)</span></label>
+                <div style={{border:'1px solid #e5e7eb',borderRadius:'8px',overflow:'hidden',marginBottom:'8px'}}>
+                  <table style={{width:'100%',borderCollapse:'collapse'}}>
+                    <thead><tr style={{background:'#f8fafc'}}>
+                      <th style={{padding:'7px 10px',textAlign:'left',fontSize:'11.5px',color:'#666',fontWeight:600}}>Seuil {editing.seuil_type==='CA'?'(€ min)':'(nb min)'}</th>
+                      <th style={{padding:'7px 10px',textAlign:'left',fontSize:'11.5px',color:'#666',fontWeight:600}}>Prime (€)</th>
+                      <th style={{width:'32px'}}></th>
+                    </tr></thead>
+                    <tbody>
+                      {(editing.paliers||[]).map(function(p,pi){
+                        return(
+                          <tr key={pi} style={{borderTop:'1px solid #f3f4f6'}}>
+                            <td style={{padding:'5px 8px'}}>
+                              <input type="number" value={p.seuil} onChange={function(e){
+                                const arr=(editing.paliers||[]).slice();
+                                arr[pi]={seuil:parseFloat(e.target.value)||0,prime:arr[pi].prime};
+                                setE('paliers',arr);
+                              }} style={{width:'100%',padding:'5px 8px',fontSize:'12px'}}/>
+                            </td>
+                            <td style={{padding:'5px 8px'}}>
+                              <input type="number" value={p.prime} onChange={function(e){
+                                const arr=(editing.paliers||[]).slice();
+                                arr[pi]={seuil:arr[pi].seuil,prime:parseFloat(e.target.value)||0};
+                                setE('paliers',arr);
+                              }} style={{width:'100%',padding:'5px 8px',fontSize:'12px'}}/>
+                            </td>
+                            <td style={{padding:'5px 4px',textAlign:'center'}}>
+                              <button type="button" onClick={function(){
+                                setE('paliers',(editing.paliers||[]).filter(function(_,i){return i!==pi;}));
+                              }} style={{padding:'2px 6px',fontSize:'12px',color:'#dc2626',border:'none',background:'none',cursor:'pointer'}}>✕</button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <button type="button" onClick={function(){setE('paliers',(editing.paliers||[]).concat({seuil:0,prime:0}));}} style={{fontSize:'12px',padding:'5px 14px',border:'1px dashed #1d4ed8',borderRadius:'6px',color:'#1d4ed8',background:'#f8faff',cursor:'pointer'}}>+ Ajouter un palier</button>
+              </div>
+            )}
 
           {/* Produits */}
           <div style={{marginBottom:'16px'}}>
@@ -3428,8 +3479,18 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb}){
     return rules.map(function(rule){
       const c=getContratsForPrime(consId,rule);
       const realise=rule.seuil_type==='nb'?c.length:c.reduce(function(s,x){return s+(x.annual_premium||0);},0);
-      const atteint=realise>=rule.seuil;
-      return {rule:rule,contrats:c,realise:realise,atteint:atteint,prime:atteint?rule.prime_montant:0};
+      // Paliers : prendre le palier le plus haut atteint
+      const isPaliers=rule.paliers&&rule.paliers.length>0;
+      let atteint=false,prime=0;
+      if(isPaliers){
+        const sorted=rule.paliers.slice().sort(function(a,b){return b.seuil-a.seuil;});
+        const hit=sorted.find(function(p){return realise>=p.seuil;});
+        if(hit){atteint=true;prime=hit.prime;}
+      } else {
+        atteint=realise>=rule.seuil;
+        prime=atteint?rule.prime_montant:0;
+      }
+      return {rule:rule,contrats:c,realise:realise,atteint:atteint,prime:prime,isPaliers:isPaliers};
     });
   }
 
@@ -3540,7 +3601,7 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb}){
                               <td style={{padding:'7px 10px',fontWeight:600}}>{x.rule.nom}</td>
                               <td style={{padding:'7px 10px',color:'#666',fontSize:'11.5px'}}>{types.length>40?types.substring(0,40)+'…':types}</td>
                               <td style={{padding:'7px 10px',textAlign:'right',fontWeight:600}}>{x.rule.seuil_type==='nb'?x.realise+' contrats':feur2(x.realise)}</td>
-                              <td style={{padding:'7px 10px',textAlign:'right',color:'#888'}}>{x.rule.seuil_type==='nb'?x.rule.seuil+' contrats':feur2(x.rule.seuil)}</td>
+                              <td style={{padding:'7px 10px',textAlign:'right',color:'#888'}}>{x.isPaliers?'Paliers':x.rule.seuil_type==='nb'?x.rule.seuil+' contrats':feur2(x.rule.seuil)}</td>
                               <td style={{padding:'7px 10px',textAlign:'right',fontWeight:700,color:x.atteint?'#059669':'#aaa'}}>{x.atteint?feur2(x.prime):'—'}</td>
                               <td style={{padding:'7px 10px',textAlign:'center',fontSize:'16px'}}>{x.atteint?'✅':'❌'}</td>
                             </tr>
