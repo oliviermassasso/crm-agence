@@ -2990,13 +2990,13 @@ function PrimesConfig({sb,profile,profiles,primesConfig,setPrimesConfig,canEdit}
                       <span style={{fontSize:'10.5px',color:'#aaa',marginLeft:'auto'}}>{fam.types.length} produit{fam.types.length>1?'s':''}</span>
                     </div>
                     {/* Produits */}
-                    <div style={{display:'flex',flexDirection:'column'}}>
+                    <div>
                       {fam.types.map(function(t){
                         const checked=editing.contract_types.includes(t);
                         return(
-                          <label key={t} style={{display:'flex',flexDirection:'row',alignItems:'center',gap:'8px',padding:'5px 12px 5px 24px',fontSize:'11.5px',cursor:'pointer',background:checked?'#f0f7ff':'#fff',color:checked?'#1d4ed8':'#555',borderTop:'1px solid #f9fafb',whiteSpace:'nowrap'}}>
-                            <input type="checkbox" checked={checked} onChange={function(){toggleType(t);}} style={{accentColor:fam.color,flexShrink:0,margin:0}}/>
-                            <span>{t}</span>
+                          <label key={t} style={{display:'flex',flexDirection:'row',alignItems:'center',gap:'8px',padding:'5px 14px 5px 28px',fontSize:'12px',cursor:'pointer',background:checked?'#f0f7ff':'#fff',color:checked?'#1d4ed8':'#444',borderTop:'1px solid #f9fafb'}}>
+                            <input type="checkbox" checked={checked} onChange={function(){toggleType(t);}} style={{accentColor:fam.color,flexShrink:0,width:'14px',height:'14px',margin:0}}/>
+                            <span style={{flex:1}}>{t}</span>
                           </label>
                         );
                       })}
@@ -3011,15 +3011,15 @@ function PrimesConfig({sb,profile,profiles,primesConfig,setPrimesConfig,canEdit}
           {/* Critères */}
           <div style={{marginBottom:'16px'}}>
             <label style={{fontSize:'12px',color:'#666',display:'block',marginBottom:'10px'}}>Critères requis <span style={{color:'#aaa'}}>(ET logique — tous doivent être vrais)</span></label>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px'}}>
+            <div style={{display:'flex',flexDirection:'column',gap:'10px'}}>
               {/* Suivi dossier */}
               <div style={{border:'1px solid #e5e7eb',borderRadius:'8px',overflow:'hidden'}}>
                 <div style={{background:'#f1f5f9',padding:'7px 12px',fontSize:'11.5px',fontWeight:600,color:'#475569',borderBottom:'1px solid #e5e7eb'}}>📋 Suivi dossier</div>
                 {[['n_contrat_ok','N° contrat conforme'],['rentre_signe','Rentré signé'],['kyc_ok','Conforme KYC'],['justificatifs_ok','Justificatifs complets']].map(function(e){
                   return(
-                    <label key={e[0]} style={{display:'flex',flexDirection:'row',alignItems:'center',gap:'8px',padding:'7px 12px',fontSize:'12px',cursor:'pointer',background:editing.criteres[e[0]]?'#eff6ff':'#fff',borderBottom:'1px solid #f9fafb'}}>
-                      <input type="checkbox" checked={!!editing.criteres[e[0]]} onChange={function(){setCrit(e[0],!editing.criteres[e[0]]);}} style={{accentColor:'#1d4ed8',flexShrink:0,margin:0}}/>
-                      <span style={{color:editing.criteres[e[0]]?'#1d4ed8':'#555'}}>{e[1]}</span>
+                    <label key={e[0]} style={{display:'flex',flexDirection:'row',alignItems:'center',gap:'10px',padding:'8px 14px',fontSize:'12.5px',cursor:'pointer',background:editing.criteres[e[0]]?'#eff6ff':'#fff',borderBottom:'1px solid #f9fafb'}}>
+                      <input type="checkbox" checked={!!editing.criteres[e[0]]} onChange={function(){setCrit(e[0],!editing.criteres[e[0]]);}} style={{accentColor:'#1d4ed8',flexShrink:0,width:'15px',height:'15px',margin:0}}/>
+                      <span style={{flex:1,color:editing.criteres[e[0]]?'#1d4ed8':'#444'}}>{e[1]}</span>
                     </label>
                   );
                 })}
@@ -3029,9 +3029,9 @@ function PrimesConfig({sb,profile,profiles,primesConfig,setPrimesConfig,canEdit}
                 <div style={{background:'#f1f5f9',padding:'7px 12px',fontSize:'11.5px',fontWeight:600,color:'#475569',borderBottom:'1px solid #e5e7eb'}}>✅ Vérification direction</div>
                 {[['date_ok','Date correcte'],['cotisation_ok','Cotisation payée'],['inclure_payes','Inclure dossiers payés'],['exclure_impayes','Rejeter les impayés']].map(function(e){
                   return(
-                    <label key={e[0]} style={{display:'flex',flexDirection:'row',alignItems:'center',gap:'8px',padding:'7px 12px',fontSize:'12px',cursor:'pointer',background:editing.criteres[e[0]]?'#eff6ff':'#fff',borderBottom:'1px solid #f9fafb'}}>
-                      <input type="checkbox" checked={!!editing.criteres[e[0]]} onChange={function(){setCrit(e[0],!editing.criteres[e[0]]);}} style={{accentColor:'#1d4ed8',flexShrink:0,margin:0}}/>
-                      <span style={{color:editing.criteres[e[0]]?'#1d4ed8':'#555'}}>{e[1]}</span>
+                    <label key={e[0]} style={{display:'flex',flexDirection:'row',alignItems:'center',gap:'10px',padding:'8px 14px',fontSize:'12.5px',cursor:'pointer',background:editing.criteres[e[0]]?'#eff6ff':'#fff',borderBottom:'1px solid #f9fafb'}}>
+                      <input type="checkbox" checked={!!editing.criteres[e[0]]} onChange={function(){setCrit(e[0],!editing.criteres[e[0]]);}} style={{accentColor:'#1d4ed8',flexShrink:0,width:'15px',height:'15px',margin:0}}/>
+                      <span style={{flex:1,color:editing.criteres[e[0]]?'#1d4ed8':'#444'}}>{e[1]}</span>
                     </label>
                   );
                 })}
