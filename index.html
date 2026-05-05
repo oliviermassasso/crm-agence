@@ -3406,11 +3406,14 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb}){
       if(!dateField){debug.push(c.client_name+': date manquante');return false;}
       const d=new Date(dateField);
       const cy=d.getFullYear(),cm=d.getMonth()+1;
+      // Décalage M-1 : on calcule sur le mois précédant le mois de paye
+      const refMonth=month===1?12:month-1;
+      const refYear=month===1?year-1:year;
       const per=rule.periodicite||'mensuel';
-      if(per==='mensuel'&&!(cy===year&&cm===month)){debug.push(c.client_name+': hors période '+cy+'-'+cm+' vs '+year+'-'+month);return false;}
-      if(per==='trimestriel'){const qt=Math.ceil(month/3);if(!(cy===year&&Math.ceil(cm/3)===qt)){debug.push(c.client_name+': hors trimestre');return false;}}
-      if(per==='semestriel'){const sm=month<=6?1:2;if(!(cy===year&&(cm<=6?1:2)===sm)){debug.push(c.client_name+': hors semestre');return false;}}
-      if(per==='annuel'&&cy!==year){debug.push(c.client_name+': hors année');return false;}
+      if(per==='mensuel'&&!(cy===refYear&&cm===refMonth)){debug.push(c.client_name+': hors période M-1 '+cy+'-'+cm+' vs '+refYear+'-'+refMonth);return false;}
+      if(per==='trimestriel'){const qt=Math.ceil(refMonth/3);if(!(cy===refYear&&Math.ceil(cm/3)===qt)){debug.push(c.client_name+': hors trimestre');return false;}}
+      if(per==='semestriel'){const sm=refMonth<=6?1:2;if(!(cy===refYear&&(cm<=6?1:2)===sm)){debug.push(c.client_name+': hors semestre');return false;}}
+      if(per==='annuel'&&cy!==refYear){debug.push(c.client_name+': hors année');return false;}
       return true;
     });
     if(result.length===0) console.log('[Prime "'+rule.nom+'"] 0 résultat. Exclusions:',debug.slice(0,15));
@@ -3514,8 +3517,8 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb}){
               {d.primes.length>0&&(
                 <div>
                   <div style={{fontSize:'13px',fontWeight:600,color:'#333',marginBottom:'10px',display:'flex',justifyContent:'space-between'}}>
-                    <span>🏆 Primes</span>
-                    <span style={{color:'#059669'}}>{feur0(d.totalPrimes)}</span>
+                    <span>🏆 Primes <span style={{fontSize:'11px',color:'#aaa',fontWeight:400}}>(contrats de {MONTHS[month===1?11:month-2]} {month===1?year-1:year})</span></span>
+                    <span style={{color:'#059669'}}>{feur2(d.totalPrimes)}</span>
                   </div>
                   <table style={{width:'100%',borderCollapse:'collapse',fontSize:'12.5px'}}>
                     <thead>
