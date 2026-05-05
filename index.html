@@ -1048,9 +1048,12 @@ function FamilleAccordions({sections,cur,prev,getObjPeriod,mode,year}){
                     const caCred=sumCA(cur.filter(function(c){return creditTypes.includes(c.contract_type);}));
                     const caCredPrev=sumCA(prev.filter(function(c){return creditTypes.includes(c.contract_type);}));
                     const evoCred=caCredPrev>0?((caCred-caCredPrev)/caCredPrev*100):null;
-                    const objCred=getObjPeriod('AXA Banque',false);
+                    const objCred=getObjPeriod('Crédits AXA',false);
                     const pctCred=objCred>0?Math.min(caCred/objCred*100,100):0;
                     const pctCredReal=objCred>0?Math.round(caCred/objCred*100):null;
+                    const objActes=getObjPeriod('AXA Banque',false);
+                    const pctActes=objActes>0?Math.min(nbCur/objActes*100,100):0;
+                    const pctActesReal=objActes>0?Math.round(nbCur/objActes*100):null;
                     return <>
                       {/* Ligne 1 : Actes de banque */}
                       <div style={{display:'flex',alignItems:'center',gap:'12px',padding:'10px 14px',borderBottom:'1px solid #f3f4f6',background:'#fff'}}>
@@ -1066,6 +1069,17 @@ function FamilleAccordions({sections,cur,prev,getObjPeriod,mode,year}){
                           {nbMob>0&&<span>Mobilité : <b>{nbMob}</b></span>}
                           {nbEp>0&&<span>Épargne : <b>{nbEp}</b></span>}
                         </div>
+                        {objActes>0&&(
+                          <div style={{width:'120px',flexShrink:0}}>
+                            <div style={{display:'flex',justifyContent:'space-between',fontSize:'9.5px',color:'#aaa',marginBottom:'2px'}}>
+                              <span>Obj. {fnum(objActes)} actes</span>
+                              <span style={{fontWeight:600,color:pctActesReal>=100?'#059669':'#888'}}>{pctActesReal}%</span>
+                            </div>
+                            <div style={{height:'4px',background:'#f3f4f6',borderRadius:'3px'}}>
+                              <div style={{height:'100%',width:pctActes+'%',background:pctActesReal>=100?'#059669':col,borderRadius:'3px',transition:'width 0.4s'}}/>
+                            </div>
+                          </div>
+                        )}
                       </div>
                       {/* Ligne 2 : Crédit Conso */}
                       <div style={{display:'flex',alignItems:'center',gap:'12px',padding:'10px 14px',background:'#fff'}}>
