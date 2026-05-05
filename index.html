@@ -2817,7 +2817,6 @@ function ObjRow({fam,type,getObj,saveObj,canEdit}){
   );
 }
 
-const ALL_TYPES=()=>FAMILIES.flatMap(function(f){return f.types;}).sort();
 const CRITERES_LABELS={n_contrat_ok:'N° contrat conforme',rentre_signe:'Rentré signé',kyc_ok:'Conforme KYC',justificatifs_ok:'Justificatifs complets',date_ok:'Date correcte',cotisation_ok:'Cotisation payée',inclure_payes:'Inclure dossiers payés',exclure_impayes:'Rejeter impayés'};
 
 function mkPrime(annee){
