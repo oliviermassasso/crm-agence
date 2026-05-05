@@ -308,7 +308,8 @@ function App(){
   const refreshingRef=React.useRef(false);
   const [monCompte,setMonCompte]=useState(false);
   const [grilles,setGrilles]=useState({});   // {annee: {type: {taux, fixed, montant_fixe}}}
-  const [objectifs,setObjectifs]=useState([]); // raw rows
+  const [objectifs,setObjectifs]=useState([]);
+  const [primesConfig,setPrimesConfig]=useState([]); // raw rows
   const [rankContracts,setRankContracts]=useState([]);
   const [profiles,setProfiles]=useState([]);
   const [active,setActive]=useState(null);
@@ -497,6 +498,9 @@ function App(){
       const insRes=await cl.from('objectifs').insert(objRows);
       if(!insRes.error) allObjectifs=allObjectifs.concat(objRows);
     }
+    const pc=await cl.from('primes_config').select('*');
+    if(!pc.error) setPrimesConfig(pc.data||[]);
+
     setObjectifs(allObjectifs);
     if(selectedId){
       const updated=allContracts.find(function(c){return c.id===selectedId;});
@@ -690,7 +694,7 @@ function App(){
         {active==='saisir-contrat'&&<FormContrat sb={sb} profile={profile} profiles={profiles} grilles={grilles} onSaved={function(){refresh();setActive(profile.role==='conseiller'?'mes-dossiers':'suivi-dossiers');}}/>}
         {(active==='suivi-dossiers'||active==='mes-dossiers')&&<SuiviDossiers contracts={contracts} profile={profile} profiles={profiles} reads={reads} lastMsgMap={lastMsgMap} sort={sort} setSort={setSortP} fCons={fCons} setFCons={setFConsP} fYear={fYear} setFYear={setFYearP} fMonth={fMonth} setFMonth={setFMonthP} fType={fType} setFType={setFTypeP} fStat={fStat} setFStat={setFStatP} fDoss={fDoss} setFDoss={setFDossP} fPay={fPay} setFPay={setFPayP} fDup={fDup} setFDup={setFDupP} search={search} setSearch={setSearch} selectedId={lastSelectedId} preFilterIds={preFilterIds} onClearPreFilter={function(){setPreFilterIds(null);}} onSelect={function(c){setSelected(c);setLastSelectedId(c.id);markRead(c.id);}} onNew={function(){setActive('saisir-contrat');}}/>}
         {active==='tableau-bord'&&<TableauBord contracts={contracts} rankContracts={rankContracts} profiles={profiles} profile={profile} objectifs={objectifs} onOpenIncomplete={function(ids){setPreFilterIds(ids);setActive('suivi-dossiers');}}/>}
-        {active==='configuration'&&<Configuration sb={sb} profile={profile} profiles={profiles} grilles={grilles} setGrilles={setGrilles} objectifs={objectifs} setObjectifs={setObjectifs}/>}
+        {active==='configuration'&&<Configuration sb={sb} profile={profile} profiles={profiles} grilles={grilles} setGrilles={setGrilles} objectifs={objectifs} setObjectifs={setObjectifs} primesConfig={primesConfig} setPrimesConfig={setPrimesConfig}/>}
         {active==='conges'&&<CongesPlaceholder profile={profile}/>}
         {active==='utilisateurs'&&<Utilisateurs profile={profile} profiles={profiles} sb={sb} onRefresh={refresh}/>}
         {(active==='commissions'||active==='mes-commissions')&&<Commissions contracts={contracts} profiles={profiles} profile={profile} sb={sb} onSelect={function(c){setSelected(c);markRead(c.id);}} onRefresh={refresh} year={comYear} setYear={setComYearP} month={comMonth} setMonth={setComMonthP} selCons={comSelCons} setSelCons={setComSelConsP} comSearch={comSearch} setComSearch={setComSearch} grilles={grilles}/>}
@@ -2813,7 +2817,200 @@ function ObjRow({fam,type,getObj,saveObj,canEdit}){
   );
 }
 
-function Configuration({sb,profile,profiles,grilles,setGrilles,objectifs,setObjectifs}){
+const ALL_TYPES=()=>FAMILIES.flatMap(function(f){return f.types;}).sort();
+const CRITERES_LABELS={n_contrat_ok:'N° contrat conforme',rentre_signe:'Rentré signé',kyc_ok:'Conforme KYC',justificatifs_ok:'Justificatifs complets',date_ok:'Date correcte',cotisation_ok:'Cotisation payée',inclure_payes:'Inclure dossiers payés',exclure_impayes:'Rejeter impayés'};
+
+function mkPrime(annee){
+  return {id:null,annee:annee,nom:'',contract_types:[],date_ref:'emission',periodicite:'mensuel',seuil_type:'CA',seuil:0,prime_montant:0,conseiller_id:null,criteres:{}};
+}
+
+function PrimesConfig({sb,profile,profiles,primesConfig,setPrimesConfig,canEdit}){
+  const [annee,setAnnee]=useState(new Date().getFullYear());
+  const [editing,setEditing]=useState(null); // prime object being edited or new
+  const [saving,setSaving]=useState(false);
+  const [ok,setOk]=useState('');
+  const actifs=profiles.filter(function(p){return p.role!=='direction';});
+  const rules=(primesConfig||[]).filter(function(r){return r.annee===annee;});
+  const annees=[...new Set((primesConfig||[]).map(function(r){return r.annee;}))].sort(function(a,b){return b-a;});
+  if(!annees.includes(annee)&&annees.length>0) annees.unshift(annee);
+  if(annees.length===0) annees.push(annee);
+
+  async function save(){
+    if(!editing.nom.trim()){alert('Donnez un nom à la règle.');return;}
+    setSaving(true);
+    let r;
+    if(editing.id){
+      r=await sb.from('primes_config').update({nom:editing.nom,contract_types:editing.contract_types,date_ref:editing.date_ref,periodicite:editing.periodicite,seuil_type:editing.seuil_type,seuil:editing.seuil,prime_montant:editing.prime_montant,conseiller_id:editing.conseiller_id||null,criteres:editing.criteres}).eq('id',editing.id);
+    } else {
+      r=await sb.from('primes_config').insert({annee:annee,nom:editing.nom,contract_types:editing.contract_types,date_ref:editing.date_ref,periodicite:editing.periodicite,seuil_type:editing.seuil_type,seuil:editing.seuil,prime_montant:editing.prime_montant,conseiller_id:editing.conseiller_id||null,criteres:editing.criteres});
+    }
+    if(r.error){alert('Erreur : '+r.error.message);setSaving(false);return;}
+    const reload=await sb.from('primes_config').select('*');
+    if(!reload.error) setPrimesConfig(reload.data||[]);
+    setEditing(null);setSaving(false);setOk('✓ Règle enregistrée');setTimeout(function(){setOk('');},3000);
+  }
+
+  async function del(id){
+    if(!window.confirm('Supprimer cette règle ?')) return;
+    await sb.from('primes_config').delete().eq('id',id);
+    const reload=await sb.from('primes_config').select('*');
+    if(!reload.error) setPrimesConfig(reload.data||[]);
+  }
+
+  async function copy(fromAnnee,toAnnee){
+    const src=(primesConfig||[]).filter(function(r){return r.annee===fromAnnee;});
+    if(src.length===0){alert('Aucune règle à copier.');return;}
+    await sb.from('primes_config').delete().eq('annee',toAnnee);
+    const rows=src.map(function(r){return {annee:toAnnee,nom:r.nom,contract_types:r.contract_types,date_ref:r.date_ref,periodicite:r.periodicite,seuil_type:r.seuil_type,seuil:r.seuil,prime_montant:r.prime_montant,conseiller_id:r.conseiller_id,criteres:r.criteres};});
+    await sb.from('primes_config').insert(rows);
+    const reload=await sb.from('primes_config').select('*');
+    if(!reload.error) setPrimesConfig(reload.data||[]);
+    setAnnee(toAnnee);setOk('✓ Règles '+toAnnee+' créées');setTimeout(function(){setOk('');},3000);
+  }
+
+  const setE=function(k,v){setEditing(function(p){return Object.assign({},p,{[k]:v});});};
+  const setCrit=function(k,v){setEditing(function(p){return Object.assign({},p,{criteres:Object.assign({},p.criteres,{[k]:v})});});};
+  const toggleType=function(t){setEditing(function(p){const arr=p.contract_types.includes(t)?p.contract_types.filter(function(x){return x!==t;}):p.contract_types.concat(t);return Object.assign({},p,{contract_types:arr});});};
+
+  return(
+    <div>
+      <div style={{display:'flex',gap:'10px',alignItems:'center',marginBottom:'20px',flexWrap:'wrap'}}>
+        <select value={annee} onChange={function(e){setAnnee(parseInt(e.target.value));}} style={{width:'auto',padding:'7px 12px'}}>
+          {annees.map(function(a){return <option key={a} value={a}>{a}</option>;})}
+        </select>
+        {canEdit&&<button onClick={function(){copy(annee,annee+1);}} style={{fontSize:'12px',padding:'7px 14px'}}>Copier → {annee+1}</button>}
+        {ok&&<span style={{fontSize:'13px',color:'#059669',fontWeight:500}}>{ok}</span>}
+        {canEdit&&!editing&&<button onClick={function(){setEditing(mkPrime(annee));}} style={{marginLeft:'auto',fontSize:'13px',padding:'8px 18px',background:'#1d4ed8',color:'#fff',border:'none',borderRadius:'8px'}}>+ Nouvelle règle</button>}
+      </div>
+
+      {/* Liste des règles */}
+      {rules.length===0&&!editing&&<div style={{color:'#aaa',fontSize:'13px',textAlign:'center',padding:'40px'}}>Aucune règle de prime pour {annee}</div>}
+      {rules.length>0&&!editing&&(
+        <div style={{display:'flex',flexDirection:'column',gap:'10px'}}>
+          {rules.map(function(r){
+            const cons=r.conseiller_id?profiles.find(function(p){return p.id===r.conseiller_id;}):null;
+            return(
+              <div key={r.id} style={{border:'1px solid #e5e7eb',borderRadius:'10px',padding:'14px 18px',display:'flex',alignItems:'flex-start',gap:'16px'}}>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:'14px',fontWeight:600,marginBottom:'4px'}}>{r.nom}</div>
+                  <div style={{fontSize:'12px',color:'#666',display:'flex',gap:'12px',flexWrap:'wrap'}}>
+                    <span>📅 {r.date_ref==='emission'?'Date émission':'Date effet'}</span>
+                    <span>🔄 {r.periodicite}</span>
+                    <span>📊 Seuil : {r.seuil_type==='CA'?feur0(r.seuil):r.seuil+' contrats'}</span>
+                    <span>💰 Prime : {feur0(r.prime_montant)}</span>
+                    <span>👤 {cons?cons.full_name:'Tous les conseillers'}</span>
+                  </div>
+                  <div style={{fontSize:'11px',color:'#999',marginTop:'4px'}}>
+                    Produits : {r.contract_types&&r.contract_types.length>0?r.contract_types.join(', '):'Tous'}
+                  </div>
+                  <div style={{fontSize:'11px',color:'#999',marginTop:'2px'}}>
+                    Critères : {Object.entries(r.criteres||{}).filter(function(e){return e[1];}).map(function(e){return CRITERES_LABELS[e[0]]||e[0];}).join(', ')||'Aucun'}
+                  </div>
+                </div>
+                {canEdit&&<div style={{display:'flex',gap:'8px',flexShrink:0}}>
+                  <button onClick={function(){setEditing(Object.assign({},r,{contract_types:r.contract_types||[],criteres:r.criteres||{}}));}} style={{padding:'5px 12px',fontSize:'12px'}}>✏️</button>
+                  <button onClick={function(){del(r.id);}} style={{padding:'5px 12px',fontSize:'12px',color:'#dc2626',borderColor:'#fecaca'}}>🗑</button>
+                </div>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Formulaire édition */}
+      {editing&&(
+        <div style={{border:'2px solid #1d4ed8',borderRadius:'12px',padding:'20px',background:'#fafbff'}}>
+          <div style={{fontSize:'14px',fontWeight:600,marginBottom:'16px',color:'#1d4ed8'}}>{editing.id?'Modifier la règle':'Nouvelle règle de prime'}</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'14px',marginBottom:'16px'}}>
+            <div>
+              <label style={{fontSize:'12px',color:'#666',display:'block',marginBottom:'4px'}}>Nom de la règle *</label>
+              <input value={editing.nom} onChange={function(e){setE('nom',e.target.value);}} style={{width:'100%',padding:'7px 10px'}} placeholder="ex: Prime MRH mensuelle"/>
+            </div>
+            <div>
+              <label style={{fontSize:'12px',color:'#666',display:'block',marginBottom:'4px'}}>Conseiller (vide = tous)</label>
+              <select value={editing.conseiller_id||''} onChange={function(e){setE('conseiller_id',e.target.value||null);}} style={{width:'100%',padding:'7px 10px'}}>
+                <option value="">Tous les conseillers</option>
+                {actifs.map(function(p){return <option key={p.id} value={p.id}>{p.full_name}</option>;})}
+              </select>
+            </div>
+            <div>
+              <label style={{fontSize:'12px',color:'#666',display:'block',marginBottom:'4px'}}>Date de référence</label>
+              <select value={editing.date_ref} onChange={function(e){setE('date_ref',e.target.value);}} style={{width:'100%',padding:'7px 10px'}}>
+                <option value="emission">Date d'émission</option>
+                <option value="effet">Date d'effet</option>
+              </select>
+            </div>
+            <div>
+              <label style={{fontSize:'12px',color:'#666',display:'block',marginBottom:'4px'}}>Périodicité</label>
+              <select value={editing.periodicite} onChange={function(e){setE('periodicite',e.target.value);}} style={{width:'100%',padding:'7px 10px'}}>
+                <option value="mensuel">Mensuelle</option>
+                <option value="trimestriel">Trimestrielle</option>
+                <option value="semestriel">Semestrielle</option>
+                <option value="annuel">Annuelle</option>
+              </select>
+            </div>
+            <div>
+              <label style={{fontSize:'12px',color:'#666',display:'block',marginBottom:'4px'}}>Type de seuil</label>
+              <select value={editing.seuil_type} onChange={function(e){setE('seuil_type',e.target.value);}} style={{width:'100%',padding:'7px 10px'}}>
+                <option value="CA">CA (€)</option>
+                <option value="nb">Nombre de contrats</option>
+              </select>
+            </div>
+            <div>
+              <label style={{fontSize:'12px',color:'#666',display:'block',marginBottom:'4px'}}>Seuil {editing.seuil_type==='CA'?'(€)':'(nb contrats)'}</label>
+              <input type="number" value={editing.seuil} onChange={function(e){setE('seuil',parseFloat(e.target.value)||0);}} style={{width:'100%',padding:'7px 10px'}}/>
+            </div>
+            <div>
+              <label style={{fontSize:'12px',color:'#666',display:'block',marginBottom:'4px'}}>Montant de la prime (€)</label>
+              <input type="number" value={editing.prime_montant} onChange={function(e){setE('prime_montant',parseFloat(e.target.value)||0);}} style={{width:'100%',padding:'7px 10px'}}/>
+            </div>
+          </div>
+
+          {/* Produits */}
+          <div style={{marginBottom:'16px'}}>
+            <label style={{fontSize:'12px',color:'#666',display:'block',marginBottom:'8px'}}>Produits concernés (vide = tous)</label>
+            <div style={{display:'flex',gap:'6px',flexWrap:'wrap',maxHeight:'160px',overflowY:'auto',border:'1px solid #e5e7eb',borderRadius:'8px',padding:'10px'}}>
+              {FAMILIES.map(function(fam){return(
+                <div key={fam.name}>
+                  <div style={{fontSize:'10.5px',fontWeight:600,color:fam.color,marginBottom:'3px',marginTop:'4px'}}>{fam.name}</div>
+                  {fam.types.map(function(t){return(
+                    <label key={t} style={{display:'flex',alignItems:'center',gap:'4px',fontSize:'11px',cursor:'pointer',padding:'2px 0',whiteSpace:'nowrap'}}>
+                      <input type="checkbox" checked={editing.contract_types.includes(t)} onChange={function(){toggleType(t);}}/>
+                      {t}
+                    </label>
+                  );})}
+                </div>
+              );})}
+            </div>
+            {editing.contract_types.length>0&&<div style={{fontSize:'11px',color:'#666',marginTop:'4px'}}>{editing.contract_types.length} produit{editing.contract_types.length>1?'s':''} sélectionné{editing.contract_types.length>1?'s':''}</div>}
+          </div>
+
+          {/* Critères */}
+          <div style={{marginBottom:'16px'}}>
+            <label style={{fontSize:'12px',color:'#666',display:'block',marginBottom:'8px'}}>Critères requis (ET logique)</label>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'6px'}}>
+              {Object.entries(CRITERES_LABELS).map(function(e){return(
+                <label key={e[0]} style={{display:'flex',alignItems:'center',gap:'6px',fontSize:'12px',cursor:'pointer',padding:'5px 8px',border:'1px solid '+(editing.criteres[e[0]]?'#1d4ed8':'#e5e7eb'),borderRadius:'6px',background:editing.criteres[e[0]]?'#eff6ff':'#fff'}}>
+                  <input type="checkbox" checked={!!editing.criteres[e[0]]} onChange={function(){setCrit(e[0],!editing.criteres[e[0]]);}}/>
+                  {e[1]}
+                </label>
+              );})}
+            </div>
+          </div>
+
+          <div style={{display:'flex',gap:'10px'}}>
+            <button onClick={save} disabled={saving} style={{padding:'9px 24px',background:'#1d4ed8',color:'#fff',border:'none',borderRadius:'8px',fontSize:'13px',fontWeight:600}}>
+              {saving?'Enregistrement…':'💾 Enregistrer'}
+            </button>
+            <button onClick={function(){setEditing(null);}} style={{padding:'9px 18px',fontSize:'13px'}}>Annuler</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Configuration({sb,profile,profiles,grilles,setGrilles,objectifs,setObjectifs,primesConfig,setPrimesConfig}){
   const [onglet,setOnglet]=useState('grille');
   const [anneeG,setAnneeG]=useState(new Date().getFullYear());
   const [anneeO,setAnneeO]=useState(new Date().getFullYear());
@@ -2963,6 +3160,7 @@ function Configuration({sb,profile,profiles,grilles,setGrilles,objectifs,setObje
       <div style={{display:'flex',border:'1px solid #e5e7eb',borderRadius:'8px',overflow:'hidden',marginBottom:'22px',width:'fit-content'}}>
         <button onClick={function(){setOnglet('grille');}} style={{padding:'8px 20px',fontSize:'13px',border:'none',borderRadius:0,background:onglet==='grille'?'#1d4ed8':'#fff',color:onglet==='grille'?'#fff':'#555'}}>📊 Grille de rémunération</button>
         <button onClick={function(){setOnglet('objectifs');}} style={{padding:'8px 20px',fontSize:'13px',border:'none',borderLeft:'1px solid #e5e7eb',borderRadius:0,background:onglet==='objectifs'?'#1d4ed8':'#fff',color:onglet==='objectifs'?'#fff':'#555'}}>🎯 Objectifs</button>
+        <button onClick={function(){setOnglet('primes');}} style={{padding:'8px 20px',fontSize:'13px',border:'none',borderLeft:'1px solid #e5e7eb',borderRadius:0,background:onglet==='primes'?'#1d4ed8':'#fff',color:onglet==='primes'?'#fff':'#555'}}>🏆 Primes</button>
       </div>
 
       {onglet==='grille'&&(
@@ -3104,7 +3302,11 @@ function CongesPlaceholder({profile}){
           <div>✦ Notifications lors des changements de statut</div>
         </div>
         <div style={{marginTop:'20px',padding:'12px 16px',background:'#f8fafc',borderRadius:'8px',border:'1px solid #e5e7eb',fontSize:'12.5px',color:'#888'}}>
-          Développement prévu après les modules Salaires et Résiliations.
+        {onglet==='primes'&&(
+        <PrimesConfig sb={sb} profile={profile} profiles={profiles} primesConfig={primesConfig} setPrimesConfig={setPrimesConfig} canEdit={canEdit}/>
+      )}
+
+        Développement prévu après les modules Salaires et Résiliations.
         </div>
       </div>
     </div>
