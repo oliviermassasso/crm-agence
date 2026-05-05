@@ -696,7 +696,7 @@ function App(){
         {active==='tableau-bord'&&<TableauBord contracts={contracts} rankContracts={rankContracts} profiles={profiles} profile={profile} objectifs={objectifs} onOpenIncomplete={function(ids){setPreFilterIds(ids);setActive('suivi-dossiers');}}/>}
         {active==='configuration'&&<Configuration sb={sb} profile={profile} profiles={profiles} grilles={grilles} setGrilles={setGrilles} objectifs={objectifs} setObjectifs={setObjectifs} primesConfig={primesConfig} setPrimesConfig={setPrimesConfig}/>}
         {active==='conges'&&<CongesPlaceholder profile={profile}/>}
-        {(active==='salaires'||active==='mes-salaires')&&<PageSalaire contracts={contracts} profiles={profiles} profile={profile} primesConfig={primesConfig} grilles={grilles}/>}
+        {(active==='salaires'||active==='mes-salaires')&&<PageSalaire contracts={contracts} profiles={profiles} profile={profile} primesConfig={primesConfig} grilles={grilles} payments={payments}/>}
         {active==='utilisateurs'&&<Utilisateurs profile={profile} profiles={profiles} sb={sb} onRefresh={refresh}/>}
         {(active==='commissions'||active==='mes-commissions')&&<Commissions contracts={contracts} profiles={profiles} profile={profile} sb={sb} onSelect={function(c){setSelected(c);markRead(c.id);}} onRefresh={refresh} year={comYear} setYear={setComYearP} month={comMonth} setMonth={setComMonthP} selCons={comSelCons} setSelCons={setComSelConsP} comSearch={comSearch} setComSearch={setComSearch} grilles={grilles}/>}
         {!['saisir-contrat','suivi-dossiers','mes-dossiers','tableau-bord','commissions','mes-commissions','conges','utilisateurs','configuration','salaires','mes-salaires'].includes(active)&&<Placeholder nav={nav} active={active}/>}
@@ -3329,19 +3329,47 @@ function Configuration({sb,profile,profiles,grilles,setGrilles,objectifs,setObje
 }
 
 
-function PageSalaire({contracts,profiles,profile,primesConfig,grilles}){
+function PageSalaire({contracts,profiles,profile,primesConfig,grilles,payments}){
   const isDir=profile.role==='direction';
   const isCollab=profile.role==='conseiller';
   const today=new Date();
   const [year,setYear]=useState(today.getFullYear());
   const [month,setMonth]=useState(today.getMonth()+1);
   const [selCons,setSelCons]=useState(isCollab?profile.id:'');
-  const [showPdf,setShowPdf]=useState(false);
 
   const actifs=profiles.filter(function(p){return p.role!=='direction';});
   const consIds=selCons?[selCons]:(isDir?actifs.map(function(p){return p.id;}):([profile.id]));
 
-  // Calcul commissions pour un conseiller sur le mois
+  function calcComForCons(consId){
+    const pay=payments&&payments[consId]&&payments[consId][month];
+    const isFrozen=pay&&pay.frozen;
+    const grilleYear=grilles[year]||grilles[Object.keys(grilles).sort().pop()]||{};
+
+    let contratsCible;
+    if(isFrozen&&pay.frozen_contract_ids&&pay.frozen_contract_ids.length>0){
+      // Mois gelé : utiliser exactement les contrats gelés
+      contratsCible=contracts.filter(function(c){
+        return c.conseiller_id===consId&&pay.frozen_contract_ids.includes(c.id);
+      });
+    } else {
+      // Mois non gelé : contrats du mois par date d'émission
+      contratsCible=contracts.filter(function(c){
+        if(c.conseiller_id!==consId||c.status==='ANNULE'||c.status==='PAYE') return false;
+        const d=new Date(c.emission_date);
+        return d.getFullYear()===year&&d.getMonth()+1===month;
+      });
+    }
+
+    return contratsCible.map(function(c){
+      const g=grilleYear[c.contract_type]||{};
+      let com=0;
+      if(c.manual_commission!=null) com=c.manual_commission;
+      else if(g.fixed) com=g.montant_fixe||0;
+      else com=Math.round((c.annual_premium||0)*(g.taux||0)/100);
+      return {contract:c,commission:com};
+    }).filter(function(x){return x.commission>0||x.contract.manual_commission!=null;});
+  }
+
   function getContratsForPrime(consId,rule){
     const dateRef=rule.date_ref||'emission';
     const types=rule.contract_types&&rule.contract_types.length>0?rule.contract_types:null;
@@ -3359,7 +3387,6 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles}){
       if(crit.cotisation_ok&&!dt.cotisation_ok) return false;
       if(crit.exclure_impayes&&dt.cotisation_ok===false) return false;
       if(types&&!types.includes(c.contract_type)) return false;
-      // Période selon périodicité
       const d=new Date(dateRef==='effet'?(c.effect_date||c.emission_date):c.emission_date);
       const cy=d.getFullYear(),cm=d.getMonth()+1;
       const per=rule.periodicite||'mensuel';
@@ -3369,22 +3396,6 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles}){
       if(per==='annuel') return cy===year;
       return false;
     });
-  }
-
-  function calcComForCons(consId){
-    const grilleYear=grilles[year]||grilles[Object.keys(grilles).sort().pop()]||{};
-    return contracts.filter(function(c){
-      if(c.conseiller_id!==consId||c.status==='ANNULE') return false;
-      const d=new Date(c.emission_date);
-      return d.getFullYear()===year&&d.getMonth()+1===month;
-    }).map(function(c){
-      const g=grilleYear[c.contract_type]||{};
-      let com=0;
-      if(c.manual_commission!=null) com=c.manual_commission;
-      else if(g.fixed) com=g.montant_fixe||0;
-      else com=Math.round((c.annual_premium||0)*(g.taux||0)/100);
-      return {contract:c,commission:com};
-    }).filter(function(x){return x.commission>0||x.contract.manual_commission!=null;});
   }
 
   function calcPrimesForCons(consId){
