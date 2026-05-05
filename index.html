@@ -278,7 +278,7 @@ const PAY_OPTS=[{value:'non_paye',label:'Pas encore payé',bg:'#f3f4f6',tx:'#374
 const NAV={
   direction:[{id:'saisir-contrat',label:'Saisir un contrat',icon:'+'},{id:'suivi-dossiers',label:'Suivi des dossiers',icon:'≡'},{id:'tableau-bord',label:'Tableau de bord',icon:'◉'},{id:'commissions',label:'Commissions',icon:'€'},{id:'conges',label:'Congés',icon:'🌴'},{id:'resiliations',label:'Résiliations',icon:'↩',s:7},{id:'salaires',label:'Salaires',icon:'∑',s:6},{id:'utilisateurs',label:'Utilisateurs',icon:'👤'},{id:'configuration',label:'Configuration',icon:'⚙',s:5}],
   manager:[{id:'saisir-contrat',label:'Saisir un contrat',icon:'+'},{id:'suivi-dossiers',label:'Suivi des dossiers',icon:'≡'},{id:'tableau-bord',label:'Tableau de bord',icon:'◉'},{id:'commissions',label:'Commissions',icon:'€'},{id:'conges',label:'Congés',icon:'🌴'},{id:'resiliations',label:'Résiliations',icon:'↩',s:7}],
-  conseiller:[{id:'saisir-contrat',label:'Saisir un contrat',icon:'+'},{id:'mes-dossiers',label:'Mes dossiers',icon:'≡'},{id:'tableau-bord',label:'Tableau de bord',icon:'◉'},{id:'mes-commissions',label:'Mes commissions',icon:'€'},{id:'conges',label:'Congés',icon:'🌴'}]
+  conseiller:[{id:'saisir-contrat',label:'Saisir un contrat',icon:'+'},{id:'mes-dossiers',label:'Mes dossiers',icon:'≡'},{id:'tableau-bord',label:'Tableau de bord',icon:'◉'},{id:'mes-commissions',label:'Mes commissions',icon:'€'},{id:'mes-salaires',label:'Mes salaires',icon:'∑'},{id:'conges',label:'Congés',icon:'🌴'}]
 };
 const RL={direction:'Direction',manager:'Manager',conseiller:'Conseiller'};
 const RC={direction:{bg:'#dbeafe',tx:'#1e40af'},manager:{bg:'#fef3c7',tx:'#92400e'},conseiller:{bg:'#d1fae5',tx:'#065f46'}};
@@ -696,9 +696,10 @@ function App(){
         {active==='tableau-bord'&&<TableauBord contracts={contracts} rankContracts={rankContracts} profiles={profiles} profile={profile} objectifs={objectifs} onOpenIncomplete={function(ids){setPreFilterIds(ids);setActive('suivi-dossiers');}}/>}
         {active==='configuration'&&<Configuration sb={sb} profile={profile} profiles={profiles} grilles={grilles} setGrilles={setGrilles} objectifs={objectifs} setObjectifs={setObjectifs} primesConfig={primesConfig} setPrimesConfig={setPrimesConfig}/>}
         {active==='conges'&&<CongesPlaceholder profile={profile}/>}
+        {(active==='salaires'||active==='mes-salaires')&&<PageSalaire contracts={contracts} profiles={profiles} profile={profile} primesConfig={primesConfig} grilles={grilles}/>}
         {active==='utilisateurs'&&<Utilisateurs profile={profile} profiles={profiles} sb={sb} onRefresh={refresh}/>}
         {(active==='commissions'||active==='mes-commissions')&&<Commissions contracts={contracts} profiles={profiles} profile={profile} sb={sb} onSelect={function(c){setSelected(c);markRead(c.id);}} onRefresh={refresh} year={comYear} setYear={setComYearP} month={comMonth} setMonth={setComMonthP} selCons={comSelCons} setSelCons={setComSelConsP} comSearch={comSearch} setComSearch={setComSearch} grilles={grilles}/>}
-        {!['saisir-contrat','suivi-dossiers','mes-dossiers','tableau-bord','commissions','mes-commissions','conges','utilisateurs','configuration'].includes(active)&&<Placeholder nav={nav} active={active}/>}
+        {!['saisir-contrat','suivi-dossiers','mes-dossiers','tableau-bord','commissions','mes-commissions','conges','utilisateurs','configuration','salaires','mes-salaires'].includes(active)&&<Placeholder nav={nav} active={active}/>}
       </div>
       {selected&&<DetailPanel key={selected.id} contract={selected} profile={profile} profiles={profiles} sb={sb} grilles={grilles} onClose={function(){setSelected(null);}} onRefresh={refresh}/>}
     </div>
@@ -3327,6 +3328,225 @@ function Configuration({sb,profile,profiles,grilles,setGrilles,objectifs,setObje
   );
 }
 
+
+function PageSalaire({contracts,profiles,profile,primesConfig,grilles}){
+  const isDir=profile.role==='direction';
+  const isCollab=profile.role==='conseiller';
+  const today=new Date();
+  const [year,setYear]=useState(today.getFullYear());
+  const [month,setMonth]=useState(today.getMonth()+1);
+  const [selCons,setSelCons]=useState(isCollab?profile.id:'');
+  const [showPdf,setShowPdf]=useState(false);
+
+  const actifs=profiles.filter(function(p){return p.role!=='direction';});
+  const consIds=selCons?[selCons]:(isDir?actifs.map(function(p){return p.id;}):([profile.id]));
+
+  // Calcul commissions pour un conseiller sur le mois
+  function getContratsForPrime(consId,rule){
+    const dateRef=rule.date_ref||'emission';
+    const types=rule.contract_types&&rule.contract_types.length>0?rule.contract_types:null;
+    return contracts.filter(function(c){
+      if(c.conseiller_id!==consId) return false;
+      if(c.status==='ANNULE') return false;
+      if(!rule.criteres.inclure_payes&&c.status==='PAYE') return false;
+      const dt=c.document_tracking||{};
+      const crit=rule.criteres||{};
+      if(crit.n_contrat_ok&&!dt.n_contrat_ok) return false;
+      if(crit.rentre_signe&&!dt.rentre_signe) return false;
+      if(crit.kyc_ok&&!dt.kyc_ok) return false;
+      if(crit.justificatifs_ok&&!dt.justificatifs_ok) return false;
+      if(crit.date_ok&&!dt.date_ok) return false;
+      if(crit.cotisation_ok&&!dt.cotisation_ok) return false;
+      if(crit.exclure_impayes&&dt.cotisation_ok===false) return false;
+      if(types&&!types.includes(c.contract_type)) return false;
+      // Période selon périodicité
+      const d=new Date(dateRef==='effet'?(c.effect_date||c.emission_date):c.emission_date);
+      const cy=d.getFullYear(),cm=d.getMonth()+1;
+      const per=rule.periodicite||'mensuel';
+      if(per==='mensuel') return cy===year&&cm===month;
+      if(per==='trimestriel'){const qt=Math.ceil(month/3);return cy===year&&Math.ceil(cm/3)===qt;}
+      if(per==='semestriel'){const sm=month<=6?1:2;return cy===year&&(cm<=6?1:2)===sm;}
+      if(per==='annuel') return cy===year;
+      return false;
+    });
+  }
+
+  function calcComForCons(consId){
+    const grilleYear=grilles[year]||grilles[Object.keys(grilles).sort().pop()]||{};
+    return contracts.filter(function(c){
+      if(c.conseiller_id!==consId||c.status==='ANNULE') return false;
+      const d=new Date(c.emission_date);
+      return d.getFullYear()===year&&d.getMonth()+1===month;
+    }).map(function(c){
+      const g=grilleYear[c.contract_type]||{};
+      let com=0;
+      if(c.manual_commission!=null) com=c.manual_commission;
+      else if(g.fixed) com=g.montant_fixe||0;
+      else com=Math.round((c.annual_premium||0)*(g.taux||0)/100);
+      return {contract:c,commission:com};
+    }).filter(function(x){return x.commission>0||x.contract.manual_commission!=null;});
+  }
+
+  function calcPrimesForCons(consId){
+    const rules=(primesConfig||[]).filter(function(r){
+      return r.annee===year&&(!r.conseiller_id||r.conseiller_id===consId);
+    });
+    return rules.map(function(rule){
+      const c=getContratsForPrime(consId,rule);
+      const realise=rule.seuil_type==='nb'?c.length:c.reduce(function(s,x){return s+(x.annual_premium||0);},0);
+      const atteint=realise>=rule.seuil;
+      return {rule:rule,contrats:c,realise:realise,atteint:atteint,prime:atteint?rule.prime_montant:0};
+    });
+  }
+
+  const data=consIds.map(function(id){
+    const p=profiles.find(function(x){return x.id===id;})||{full_name:'—'};
+    const coms=calcComForCons(id);
+    const primes=calcPrimesForCons(id);
+    const totalCom=coms.reduce(function(s,x){return s+x.commission;},0);
+    const totalPrimes=primes.reduce(function(s,x){return s+x.prime;},0);
+    return {profile:p,coms:coms,primes:primes,totalCom:totalCom,totalPrimes:totalPrimes,total:totalCom+totalPrimes};
+  }).filter(function(d){return d.coms.length>0||d.primes.some(function(p){return p.atteint;});});
+
+  const pLabel=MONTHS[month-1]+' '+year;
+
+  return(
+    <div style={{padding:'28px 32px',maxWidth:'960px'}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'22px',flexWrap:'wrap',gap:'12px'}}>
+        <div>
+          <div style={{fontSize:'22px',fontWeight:600}}>Salaires</div>
+          <div style={{fontSize:'13px',color:'#666'}}>Commissions + primes — {pLabel}</div>
+        </div>
+      </div>
+
+      {/* Filtres */}
+      <div style={{display:'flex',gap:'10px',marginBottom:'22px',flexWrap:'wrap',alignItems:'center'}}>
+        <select value={month} onChange={function(e){setMonth(parseInt(e.target.value));}} style={{padding:'7px 12px',width:'auto'}}>
+          {MONTHS.map(function(m,i){return <option key={i} value={i+1}>{m}</option>;})}
+        </select>
+        <select value={year} onChange={function(e){setYear(parseInt(e.target.value));}} style={{padding:'7px 12px',width:'auto'}}>
+          {[2024,2025,2026,2027].map(function(y){return <option key={y} value={y}>{y}</option>;})}
+        </select>
+        {isDir&&(
+          <select value={selCons} onChange={function(e){setSelCons(e.target.value);}} style={{padding:'7px 12px',width:'auto'}}>
+            <option value="">Tous les conseillers</option>
+            {actifs.map(function(p){return <option key={p.id} value={p.id}>{p.full_name}</option>;})}
+          </select>
+        )}
+      </div>
+
+      {data.length===0&&<div style={{color:'#aaa',fontSize:'13px',textAlign:'center',padding:'40px'}}>Aucune commission ni prime pour cette période.</div>}
+
+      {data.map(function(d){
+        return(
+          <div key={d.profile.id} style={{marginBottom:'28px',border:'1px solid #e5e7eb',borderRadius:'12px',overflow:'hidden'}}>
+            {/* Header conseiller */}
+            <div style={{background:'linear-gradient(to bottom,#dbeafe,#1d4ed8 60%,#1e3a8a)',padding:'14px 20px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <span style={{fontSize:'15px',fontWeight:700,color:'#fff'}}>{d.profile.full_name}</span>
+              <span style={{fontSize:'14px',fontWeight:700,color:'#fff'}}>{feur0(d.total)} <span style={{fontWeight:400,fontSize:'12px',opacity:0.8}}>net à payer</span></span>
+            </div>
+
+            <div style={{padding:'18px 20px'}}>
+              {/* Commissions */}
+              {d.coms.length>0&&(
+                <div style={{marginBottom:'20px'}}>
+                  <div style={{fontSize:'13px',fontWeight:600,color:'#333',marginBottom:'10px',display:'flex',justifyContent:'space-between'}}>
+                    <span>📋 Commissions</span>
+                    <span style={{color:'#1d4ed8'}}>{feur0(d.totalCom)}</span>
+                  </div>
+                  <table style={{width:'100%',borderCollapse:'collapse',fontSize:'12.5px'}}>
+                    <thead>
+                      <tr style={{background:'#f8fafc',borderBottom:'1px solid #e5e7eb'}}>
+                        <th style={{padding:'7px 10px',textAlign:'left',fontWeight:600,color:'#666'}}>Client</th>
+                        <th style={{padding:'7px 10px',textAlign:'left',fontWeight:600,color:'#666'}}>Produit</th>
+                        <th style={{padding:'7px 10px',textAlign:'right',fontWeight:600,color:'#666'}}>Prime annuelle</th>
+                        <th style={{padding:'7px 10px',textAlign:'right',fontWeight:600,color:'#666'}}>Commission</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {d.coms.map(function(x,i){
+                        return(
+                          <tr key={i} style={{borderBottom:'1px solid #f9fafb'}}>
+                            <td style={{padding:'7px 10px',color:'#333'}}>{x.contract.client_name}</td>
+                            <td style={{padding:'7px 10px',color:'#555'}}>{x.contract.contract_type}</td>
+                            <td style={{padding:'7px 10px',textAlign:'right',color:'#555'}}>{feur0(x.contract.annual_premium||0)}</td>
+                            <td style={{padding:'7px 10px',textAlign:'right',fontWeight:600,color:'#1d4ed8'}}>{feur0(x.commission)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Primes */}
+              {d.primes.length>0&&(
+                <div>
+                  <div style={{fontSize:'13px',fontWeight:600,color:'#333',marginBottom:'10px',display:'flex',justifyContent:'space-between'}}>
+                    <span>🏆 Primes</span>
+                    <span style={{color:'#059669'}}>{feur0(d.totalPrimes)}</span>
+                  </div>
+                  <table style={{width:'100%',borderCollapse:'collapse',fontSize:'12.5px'}}>
+                    <thead>
+                      <tr style={{background:'#f8fafc',borderBottom:'1px solid #e5e7eb'}}>
+                        <th style={{padding:'7px 10px',textAlign:'left',fontWeight:600,color:'#666'}}>Règle</th>
+                        <th style={{padding:'7px 10px',textAlign:'left',fontWeight:600,color:'#666'}}>Produits</th>
+                        <th style={{padding:'7px 10px',textAlign:'right',fontWeight:600,color:'#666'}}>Réalisé</th>
+                        <th style={{padding:'7px 10px',textAlign:'right',fontWeight:600,color:'#666'}}>Seuil</th>
+                        <th style={{padding:'7px 10px',textAlign:'right',fontWeight:600,color:'#666'}}>Prime</th>
+                        <th style={{padding:'7px 10px',textAlign:'center',fontWeight:600,color:'#666'}}>Statut</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {d.primes.map(function(x,i){
+                        const types=x.rule.contract_types&&x.rule.contract_types.length>0?x.rule.contract_types.join(', '):'Tous';
+                        return(
+                          <tr key={i} style={{borderBottom:'1px solid #f9fafb',background:x.atteint?'#f0fdf4':'#fff'}}>
+                            <td style={{padding:'7px 10px',fontWeight:500}}>{x.rule.nom}</td>
+                            <td style={{padding:'7px 10px',color:'#666',fontSize:'11.5px'}}>{types.length>40?types.substring(0,40)+'…':types}</td>
+                            <td style={{padding:'7px 10px',textAlign:'right',fontWeight:600}}>{x.rule.seuil_type==='nb'?x.realise+' contrats':feur0(x.realise)}</td>
+                            <td style={{padding:'7px 10px',textAlign:'right',color:'#888'}}>{x.rule.seuil_type==='nb'?x.rule.seuil+' contrats':feur0(x.rule.seuil)}</td>
+                            <td style={{padding:'7px 10px',textAlign:'right',fontWeight:700,color:x.atteint?'#059669':'#aaa'}}>{x.atteint?feur0(x.prime):'—'}</td>
+                            <td style={{padding:'7px 10px',textAlign:'center',fontSize:'16px'}}>{x.atteint?'✅':'❌'}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Total */}
+              <div style={{marginTop:'16px',paddingTop:'14px',borderTop:'2px solid #e5e7eb',display:'flex',justifyContent:'flex-end',gap:'24px',fontSize:'13px'}}>
+                {d.totalCom>0&&<span style={{color:'#666'}}>Commissions : <b style={{color:'#1d4ed8'}}>{feur0(d.totalCom)}</b></span>}
+                {d.totalPrimes>0&&<span style={{color:'#666'}}>Primes : <b style={{color:'#059669'}}>{feur0(d.totalPrimes)}</b></span>}
+                <span style={{color:'#111',fontWeight:700,fontSize:'14px'}}>Total : {feur0(d.total)}</span>
+                <button onClick={function(){
+                  const w=window.open('','_blank');
+                  w.document.write('<html><head><title>Salaire '+d.profile.full_name+' — '+pLabel+'</title><style>body{font-family:Arial,sans-serif;padding:32px;max-width:800px;margin:0 auto}h1{font-size:18px;margin-bottom:4px}h2{font-size:14px;color:#1d4ed8;margin:20px 0 8px}table{width:100%;border-collapse:collapse;margin-bottom:8px}th{background:#f3f4f6;padding:7px 10px;text-align:left;font-size:12px;color:#666;border-bottom:1px solid #e5e7eb}td{padding:7px 10px;font-size:12px;border-bottom:1px solid #f9fafb}.total{text-align:right;padding-top:12px;border-top:2px solid #e5e7eb;font-weight:700;font-size:14px}@media print{button{display:none}}</style></head><body>');
+                  w.document.write('<h1>Bulletin de commissions — '+d.profile.full_name+'</h1><p style="color:#666;font-size:13px">Période : '+pLabel+'</p>');
+                  if(d.coms.length>0){
+                    w.document.write('<h2>Commissions ('+feur0(d.totalCom)+')</h2><table><tr><th>Client</th><th>Produit</th><th style="text-align:right">Prime annuelle</th><th style="text-align:right">Commission</th></tr>');
+                    d.coms.forEach(function(x){w.document.write('<tr><td>'+x.contract.client_name+'</td><td>'+x.contract.contract_type+'</td><td style="text-align:right">'+feur0(x.contract.annual_premium||0)+'</td><td style="text-align:right"><b>'+feur0(x.commission)+'</b></td></tr>');});
+                    w.document.write('</table>');
+                  }
+                  if(d.primes.length>0){
+                    w.document.write('<h2>Primes ('+feur0(d.totalPrimes)+')</h2><table><tr><th>Règle</th><th>Réalisé</th><th>Seuil</th><th style="text-align:right">Prime</th><th style="text-align:center">Statut</th></tr>');
+                    d.primes.forEach(function(x){w.document.write('<tr><td>'+x.rule.nom+'</td><td>'+(x.rule.seuil_type==='nb'?x.realise+' contrats':feur0(x.realise))+'</td><td>'+(x.rule.seuil_type==='nb'?x.rule.seuil+' contrats':feur0(x.rule.seuil))+'</td><td style="text-align:right"><b>'+(x.atteint?feur0(x.prime):'—')+'</b></td><td style="text-align:center">'+(x.atteint?'✓ Atteint':'✗ Non atteint')+'</td></tr>');});
+                    w.document.write('</table>');
+                  }
+                  w.document.write('<div class="total">Total net : '+feur0(d.total)+'</div>');
+                  w.document.write('<script>window.print();<\/script></body></html>');
+                  w.document.close();
+                }} style={{padding:'5px 14px',fontSize:'12px',background:'#f3f4f6',border:'1px solid #e5e7eb',borderRadius:'6px',cursor:'pointer'}}>🖨 PDF</button>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 function CongesPlaceholder({profile}){
   const isDir=['direction','manager'].includes(profile.role);
