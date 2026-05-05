@@ -2817,7 +2817,7 @@ function ObjRow({fam,type,getObj,saveObj,canEdit}){
   );
 }
 
-const CRITERES_LABELS={n_contrat_ok:'N° contrat conforme',rentre_signe:'Rentré signé',kyc_ok:'Conforme KYC',justificatifs_ok:'Justificatifs complets',date_ok:'Date correcte',cotisation_ok:'Cotisation payée',inclure_payes:'Inclure dossiers payés',exclure_impayes:'Rejeter impayés'};
+const CRITERES_LABELS={n_contrat_ok:'N° contrat conforme',rentre_signe:'Rentré signé',kyc_ok:'Conforme KYC',justificatifs_ok:'Justificatifs complets',date_ok:'Date correcte',cotisation_ok:'Cotisation payée',inclure_payes:'Inclure dossiers dont la commission est payée au conseiller',exclure_impayes:'Rejeter impayés'};
 
 function mkPrime(annee){
   return {id:null,annee:annee,nom:'',contract_types:[],date_ref:'emission',periodicite:'mensuel',seuil_type:'CA',seuil:0,prime_montant:0,conseiller_id:null,criteres:{}};
@@ -3027,7 +3027,7 @@ function PrimesConfig({sb,profile,profiles,primesConfig,setPrimesConfig,canEdit}
               {/* Vérification direction */}
               <div style={{border:'1px solid #e5e7eb',borderRadius:'8px',overflow:'hidden'}}>
                 <div style={{background:'#f1f5f9',padding:'7px 12px',fontSize:'11.5px',fontWeight:600,color:'#475569',borderBottom:'1px solid #e5e7eb'}}>✅ Vérification direction</div>
-                {[['date_ok','Date correcte'],['cotisation_ok','Cotisation payée'],['inclure_payes','Inclure dossiers payés'],['exclure_impayes','Rejeter les impayés']].map(function(e){
+                {[['date_ok','Date correcte'],['cotisation_ok','Cotisation payée'],['inclure_payes','Inclure dossiers dont la commission est payée au conseiller'],['exclure_impayes','Rejeter les impayés']].map(function(e){
                   return(
                     <label key={e[0]} style={{display:'flex',flexDirection:'row',alignItems:'center',gap:'10px',padding:'8px 14px',fontSize:'12.5px',cursor:'pointer',background:editing.criteres[e[0]]?'#eff6ff':'#fff',borderBottom:'1px solid #f9fafb'}}>
                       <input type="checkbox" checked={!!editing.criteres[e[0]]} onChange={function(){setCrit(e[0],!editing.criteres[e[0]]);}} style={{accentColor:'#1d4ed8',flexShrink:0,width:'15px',height:'15px',margin:0}}/>
