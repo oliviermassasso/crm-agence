@@ -1534,8 +1534,7 @@ function SuiviObjectifsCard({objectifs,visibleActive,year,profile,filterCons,isD
       <div style={{fontSize:'13px',fontWeight:600,marginBottom:'14px',textAlign:'center'}}>
         Objectifs {isCurrentYear?'jan–'+MONTHS[upToMonth-1]:'annuels'}
       </div>
-      <div style={{display:'flex',gap:'8px',justifyContent:'center',position:'relative'}}>
-        <Section list={green} color="#16a34a" bg="#dcfce7" label="En avance"/>
+      <div style={{display:'flex',gap:'8px',justifyContent:'center',position:'relative'}}>        <Section list={green} color="#16a34a" bg="#dcfce7" label="En avance"/>
         <Section list={orange} color="#d97706" bg="#fef3c7" label="En retard"/>
         <Section list={red} color="#dc2626" bg="#fee2e2" label="Critique"/>
       </div>
@@ -2920,7 +2919,7 @@ function PrimesConfig({sb,profile,profiles,primesConfig,setPrimesConfig,canEdit}
 
       {/* Formulaire édition */}
       {editing&&(
-        <div style={{border:'2px solid #1d4ed8',borderRadius:'12px',padding:'20px',background:'#fafbff'}}>
+        <div style={{border:'2px solid #1d4ed8',borderRadius:'12px',padding:'20px',background:'#fafbff',position:'relative',zIndex:10}}>
           <div style={{fontSize:'14px',fontWeight:600,marginBottom:'16px',color:'#1d4ed8'}}>{editing.id?'Modifier la règle':'Nouvelle règle de prime'}</div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'14px',marginBottom:'16px'}}>
             <div>
