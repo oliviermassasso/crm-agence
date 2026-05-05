@@ -286,6 +286,7 @@ const today=function(){return new Date().toISOString().split('T')[0];};
 const fdate=function(d){return d?new Date(d).toLocaleDateString('fr-FR'):'—';};
 const feur=function(n){return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(n||0);};
 const feur0=function(n){return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:0,maximumFractionDigits:0}).format(n||0);};
+const feur2=function(n){return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(n||0);};
 const fnum=function(n){return new Intl.NumberFormat('fr-FR').format(n||0);};
 const fdt=function(d){if(!d)return '';const dt=new Date(d);return dt.toLocaleDateString('fr-FR')+' '+dt.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});};
 const toUpper=function(s){return (s||'').toUpperCase();};
@@ -3386,12 +3387,13 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb}){
   function getContratsForPrime(consId,rule){
     const dateRef=rule.date_ref||'emission';
     const types=rule.contract_types&&rule.contract_types.length>0?rule.contract_types:null;
+    const crit=rule.criteres||{};
     return contracts.filter(function(c){
       if(c.conseiller_id!==consId) return false;
       if(c.status==='ANNULE') return false;
-      if(!rule.criteres.inclure_payes&&c.status==='PAYE') return false;
+      // inclure_payes : si false ET explicitement coché → exclure les PAYE
+      if(crit.inclure_payes===false&&c.status==='PAYE') return false;
       const dt=c.document_tracking||{};
-      const crit=rule.criteres||{};
       if(crit.n_contrat_ok&&!dt.n_contrat_ok) return false;
       if(crit.rentre_signe&&!dt.rentre_signe) return false;
       if(crit.kyc_ok&&!dt.kyc_ok) return false;
@@ -3400,7 +3402,9 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb}){
       if(crit.cotisation_ok&&!dt.cotisation_ok) return false;
       if(crit.exclure_impayes&&dt.cotisation_ok===false) return false;
       if(types&&!types.includes(c.contract_type)) return false;
-      const d=new Date(dateRef==='effet'?(c.effect_date||c.emission_date):c.emission_date);
+      const dateField=dateRef==='effet'?(c.effect_date||c.emission_date):c.emission_date;
+      if(!dateField) return false;
+      const d=new Date(dateField);
       const cy=d.getFullYear(),cm=d.getMonth()+1;
       const per=rule.periodicite||'mensuel';
       if(per==='mensuel') return cy===year&&cm===month;
@@ -3467,7 +3471,7 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb}){
             {/* Header conseiller */}
             <div style={{background:'linear-gradient(to bottom,#dbeafe,#1d4ed8 60%,#1e3a8a)',padding:'14px 20px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
               <span style={{fontSize:'15px',fontWeight:700,color:'#fff'}}>{d.profile.full_name}</span>
-              <span style={{fontSize:'14px',fontWeight:700,color:'#fff'}}>{feur0(d.total)} <span style={{fontWeight:400,fontSize:'12px',opacity:0.8}}>net à payer</span></span>
+              <span style={{fontSize:'14px',fontWeight:700,color:'#fff'}}>{feur2(d.total)} <span style={{fontWeight:400,fontSize:'12px',opacity:0.8}}>net à payer</span></span>
             </div>
 
             <div style={{padding:'18px 20px'}}>
@@ -3476,7 +3480,7 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb}){
                 <div style={{marginBottom:'20px'}}>
                   <div style={{fontSize:'13px',fontWeight:600,color:'#333',marginBottom:'10px',display:'flex',justifyContent:'space-between'}}>
                     <span>📋 Commissions</span>
-                    <span style={{color:'#1d4ed8'}}>{feur0(d.totalCom)}</span>
+                    <span style={{color:'#1d4ed8'}}>{feur2(d.totalCom)}</span>
                   </div>
                   <table style={{width:'100%',borderCollapse:'collapse',fontSize:'12.5px'}}>
                     <thead>
@@ -3494,7 +3498,7 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb}){
                             <td style={{padding:'7px 10px',color:'#333'}}>{x.contract.client_name}</td>
                             <td style={{padding:'7px 10px',color:'#555'}}>{x.contract.contract_type}</td>
                             <td style={{padding:'7px 10px',textAlign:'right',color:'#555'}}>{feur0(x.contract.annual_premium||0)}</td>
-                            <td style={{padding:'7px 10px',textAlign:'right',fontWeight:600,color:'#1d4ed8'}}>{feur0(x.commission)}</td>
+                            <td style={{padding:'7px 10px',textAlign:'right',fontWeight:600,color:'#1d4ed8'}}>{feur2(x.commission)}</td>
                           </tr>
                         );
                       })}
@@ -3525,14 +3529,26 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb}){
                       {d.primes.map(function(x,i){
                         const types=x.rule.contract_types&&x.rule.contract_types.length>0?x.rule.contract_types.join(', '):'Tous';
                         return(
-                          <tr key={i} style={{borderBottom:'1px solid #f9fafb',background:x.atteint?'#f0fdf4':'#fff'}}>
-                            <td style={{padding:'7px 10px',fontWeight:500}}>{x.rule.nom}</td>
-                            <td style={{padding:'7px 10px',color:'#666',fontSize:'11.5px'}}>{types.length>40?types.substring(0,40)+'…':types}</td>
-                            <td style={{padding:'7px 10px',textAlign:'right',fontWeight:600}}>{x.rule.seuil_type==='nb'?x.realise+' contrats':feur0(x.realise)}</td>
-                            <td style={{padding:'7px 10px',textAlign:'right',color:'#888'}}>{x.rule.seuil_type==='nb'?x.rule.seuil+' contrats':feur0(x.rule.seuil)}</td>
-                            <td style={{padding:'7px 10px',textAlign:'right',fontWeight:700,color:x.atteint?'#059669':'#aaa'}}>{x.atteint?feur0(x.prime):'—'}</td>
-                            <td style={{padding:'7px 10px',textAlign:'center',fontSize:'16px'}}>{x.atteint?'✅':'❌'}</td>
-                          </tr>
+                          <React.Fragment key={i}>
+                            <tr style={{borderBottom:x.contrats.length>0?'none':'1px solid #f9fafb',background:x.atteint?'#f0fdf4':'#fff'}}>
+                              <td style={{padding:'7px 10px',fontWeight:600}}>{x.rule.nom}</td>
+                              <td style={{padding:'7px 10px',color:'#666',fontSize:'11.5px'}}>{types.length>40?types.substring(0,40)+'…':types}</td>
+                              <td style={{padding:'7px 10px',textAlign:'right',fontWeight:600}}>{x.rule.seuil_type==='nb'?x.realise+' contrats':feur2(x.realise)}</td>
+                              <td style={{padding:'7px 10px',textAlign:'right',color:'#888'}}>{x.rule.seuil_type==='nb'?x.rule.seuil+' contrats':feur2(x.rule.seuil)}</td>
+                              <td style={{padding:'7px 10px',textAlign:'right',fontWeight:700,color:x.atteint?'#059669':'#aaa'}}>{x.atteint?feur2(x.prime):'—'}</td>
+                              <td style={{padding:'7px 10px',textAlign:'center',fontSize:'16px'}}>{x.atteint?'✅':'❌'}</td>
+                            </tr>
+                            {x.contrats.map(function(c,ci){
+                              return(
+                                <tr key={'c'+ci} style={{background:'#f9fafb',borderBottom:'1px solid #f3f4f6'}}>
+                                  <td style={{padding:'4px 10px 4px 22px',color:'#777',fontSize:'11.5px'}}>↳ {c.client_name}</td>
+                                  <td style={{padding:'4px 10px',color:'#888',fontSize:'11.5px'}}>{c.contract_type}</td>
+                                  <td style={{padding:'4px 10px',textAlign:'right',color:'#888',fontSize:'11.5px'}}>{feur0(c.annual_premium||0)}</td>
+                                  <td colSpan={3}/>
+                                </tr>
+                              );
+                            })}
+                          </React.Fragment>
                         );
                       })}
                     </tbody>
@@ -3542,16 +3558,16 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb}){
 
               {/* Total */}
               <div style={{marginTop:'16px',paddingTop:'14px',borderTop:'2px solid #e5e7eb',display:'flex',justifyContent:'flex-end',gap:'24px',fontSize:'13px'}}>
-                {d.totalCom>0&&<span style={{color:'#666'}}>Commissions : <b style={{color:'#1d4ed8'}}>{feur0(d.totalCom)}</b></span>}
+                {d.totalCom>0&&<span style={{color:'#666'}}>Commissions : <b style={{color:'#1d4ed8'}}>{feur2(d.totalCom)}</b></span>}
                 {d.totalPrimes>0&&<span style={{color:'#666'}}>Primes : <b style={{color:'#059669'}}>{feur0(d.totalPrimes)}</b></span>}
-                <span style={{color:'#111',fontWeight:700,fontSize:'14px'}}>Total : {feur0(d.total)}</span>
+                <span style={{color:'#111',fontWeight:700,fontSize:'14px'}}>Total : {feur2(d.total)}</span>
                 <button onClick={function(){
                   const w=window.open('','_blank');
                   w.document.write('<html><head><title>Salaire '+d.profile.full_name+' — '+pLabel+'</title><style>body{font-family:Arial,sans-serif;padding:32px;max-width:800px;margin:0 auto}h1{font-size:18px;margin-bottom:4px}h2{font-size:14px;color:#1d4ed8;margin:20px 0 8px}table{width:100%;border-collapse:collapse;margin-bottom:8px}th{background:#f3f4f6;padding:7px 10px;text-align:left;font-size:12px;color:#666;border-bottom:1px solid #e5e7eb}td{padding:7px 10px;font-size:12px;border-bottom:1px solid #f9fafb}.total{text-align:right;padding-top:12px;border-top:2px solid #e5e7eb;font-weight:700;font-size:14px}@media print{button{display:none}}</style></head><body>');
                   w.document.write('<h1>Bulletin de commissions — '+d.profile.full_name+'</h1><p style="color:#666;font-size:13px">Période : '+pLabel+'</p>');
                   if(d.coms.length>0){
-                    w.document.write('<h2>Commissions ('+feur0(d.totalCom)+')</h2><table><tr><th>Client</th><th>Produit</th><th style="text-align:right">Prime annuelle</th><th style="text-align:right">Commission</th></tr>');
-                    d.coms.forEach(function(x){w.document.write('<tr><td>'+x.contract.client_name+'</td><td>'+x.contract.contract_type+'</td><td style="text-align:right">'+feur0(x.contract.annual_premium||0)+'</td><td style="text-align:right"><b>'+feur0(x.commission)+'</b></td></tr>');});
+                    w.document.write('<h2>Commissions ('+feur2(d.totalCom)+')</h2><table><tr><th>Client</th><th>Produit</th><th style="text-align:right">Prime annuelle</th><th style="text-align:right">Commission</th></tr>');
+                    d.coms.forEach(function(x){w.document.write('<tr><td>'+x.contract.client_name+'</td><td>'+x.contract.contract_type+'</td><td style="text-align:right">'+feur0(x.contract.annual_premium||0)+'</td><td style="text-align:right"><b>'+feur2(x.commission)+'</b></td></tr>');});
                     w.document.write('</table>');
                   }
                   if(d.primes.length>0){
