@@ -3017,7 +3017,7 @@ function PrimesConfig({sb,profile,profiles,primesConfig,setPrimesConfig,canEdit}
               {/* Suivi dossier */}
               <div style={{border:'1px solid #e5e7eb',borderRadius:'8px',overflow:'hidden'}}>
                 <div style={{background:'#f1f5f9',padding:'7px 12px',fontSize:'11.5px',fontWeight:600,color:'#475569',borderBottom:'1px solid #e5e7eb'}}>📋 Suivi dossier</div>
-                {[['n_contrat_ok','N° contrat conforme'],['rentre_signe','Rentré signé'],['kyc_ok','Conforme KYC'],['justificatifs_ok','Justificatifs complets']].map(function(e){
+                {[['contract_nr_ok','N° contrat conforme'],['rented_signed','Rentré signé'],['kyc_compliant','Conforme KYC'],['docs_complete','Justificatifs complets']].map(function(e){
                   return(
                     <label key={e[0]} style={{display:'flex',flexDirection:'row',alignItems:'center',gap:'10px',padding:'8px 14px',fontSize:'12.5px',cursor:'pointer',background:editing.criteres[e[0]]?'#eff6ff':'#fff',borderBottom:'1px solid #f9fafb'}}>
                       <input type="checkbox" checked={!!editing.criteres[e[0]]} onChange={function(){setCrit(e[0],!editing.criteres[e[0]]);}} style={{accentColor:'#1d4ed8',flexShrink:0,width:'15px',height:'15px',margin:0}}/>
@@ -3029,7 +3029,7 @@ function PrimesConfig({sb,profile,profiles,primesConfig,setPrimesConfig,canEdit}
               {/* Vérification direction */}
               <div style={{border:'1px solid #e5e7eb',borderRadius:'8px',overflow:'hidden'}}>
                 <div style={{background:'#f1f5f9',padding:'7px 12px',fontSize:'11.5px',fontWeight:600,color:'#475569',borderBottom:'1px solid #e5e7eb'}}>✅ Vérification direction</div>
-                {[['date_ok','Date correcte'],['cotisation_ok','Cotisation payée'],['inclure_payes','Inclure dossiers dont la commission est payée au conseiller'],['exclure_impayes','Rejeter les impayés']].map(function(e){
+                {[['effect_date_ok','Date correcte'],['cotisation_ok','Cotisation payée'],['inclure_payes','Inclure dossiers dont la commission est payée au conseiller'],['exclure_impayes','Rejeter les impayés']].map(function(e){
                   return(
                     <label key={e[0]} style={{display:'flex',flexDirection:'row',alignItems:'center',gap:'10px',padding:'8px 14px',fontSize:'12.5px',cursor:'pointer',background:editing.criteres[e[0]]?'#eff6ff':'#fff',borderBottom:'1px solid #f9fafb'}}>
                       <input type="checkbox" checked={!!editing.criteres[e[0]]} onChange={function(){setCrit(e[0],!editing.criteres[e[0]]);}} style={{accentColor:'#1d4ed8',flexShrink:0,width:'15px',height:'15px',margin:0}}/>
@@ -3395,13 +3395,13 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb}){
       if(crit.inclure_payes===false&&c.status==='PAYE'){debug.push(c.client_name+': payé exclu');return false;}
       // document_tracking peut être un objet ou un tableau selon le join Supabase
       const dt=Array.isArray(c.document_tracking)?(c.document_tracking[0]||{}):(c.document_tracking||{});
-      if(crit.n_contrat_ok&&!dt.n_contrat_ok){debug.push(c.client_name+': n_contrat_ok absent');return false;}
-      if(crit.rentre_signe&&!dt.rentre_signe){debug.push(c.client_name+': rentre_signe absent');return false;}
-      if(crit.kyc_ok&&!dt.kyc_ok){debug.push(c.client_name+': kyc_ok absent');return false;}
-      if(crit.justificatifs_ok&&!dt.justificatifs_ok){debug.push(c.client_name+': justificatifs absents');return false;}
-      if(crit.date_ok&&!dt.date_ok){debug.push(c.client_name+': date_ok absent');return false;}
-      if(crit.cotisation_ok&&!dt.cotisation_ok){debug.push(c.client_name+': cotisation_ok absent');return false;}
-      if(crit.exclure_impayes&&dt.cotisation_ok===false){debug.push(c.client_name+': impayé exclu');return false;}
+      if(crit.contract_nr_ok&&!dt.contract_nr_ok){debug.push(c.client_name+': contract_nr_ok absent');return false;}
+      if(crit.rented_signed&&!dt.rented_signed){debug.push(c.client_name+': rented_signed absent');return false;}
+      if(crit.kyc_compliant&&!dt.kyc_compliant){debug.push(c.client_name+': kyc_compliant absent');return false;}
+      if(crit.docs_complete&&!dt.docs_complete){debug.push(c.client_name+': docs_complete absent');return false;}
+      if(crit.effect_date_ok&&!dt.effect_date_ok){debug.push(c.client_name+': effect_date_ok absent');return false;}
+      if(crit.cotisation_ok&&dt.payment_status!=='paye'){debug.push(c.client_name+': payment_status non paye');return false;}
+      if(crit.exclure_impayes&&dt.payment_status!=='paye'){debug.push(c.client_name+': impayé exclu');return false;}
       if(types&&!types.includes(c.contract_type)){debug.push(c.client_name+': type "'+c.contract_type+'" non inclus');return false;}
       const dateField=dateRef==='effet'?(c.effect_date||c.emission_date):c.emission_date;
       if(!dateField){debug.push(c.client_name+': date manquante');return false;}
