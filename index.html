@@ -3393,7 +3393,8 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb}){
       if(c.conseiller_id!==consId) return false;
       if(c.status==='ANNULE'){debug.push(c.client_name+': annulé');return false;}
       if(crit.inclure_payes===false&&c.status==='PAYE'){debug.push(c.client_name+': payé exclu');return false;}
-      const dt=c.document_tracking||{};
+      // document_tracking peut être un objet ou un tableau selon le join Supabase
+      const dt=Array.isArray(c.document_tracking)?(c.document_tracking[0]||{}):(c.document_tracking||{});
       if(crit.n_contrat_ok&&!dt.n_contrat_ok){debug.push(c.client_name+': n_contrat_ok absent');return false;}
       if(crit.rentre_signe&&!dt.rentre_signe){debug.push(c.client_name+': rentre_signe absent');return false;}
       if(crit.kyc_ok&&!dt.kyc_ok){debug.push(c.client_name+': kyc_ok absent');return false;}
