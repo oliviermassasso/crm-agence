@@ -1576,7 +1576,7 @@ function StackedFamilyChart({contracts,families,year,visibleActive}){
               return <rect key={si} x={x} y={y} width={barW} height={h} fill={'url(#sg'+fi+')'} style={{cursor:'pointer',opacity:active?1:0.85}}/>;
             })}
             {active&&d.total>0&&<text x={x+barW/2} y={H-Math.round(d.total/maxVal*H)-2} textAnchor="middle" fontSize="6" fontWeight="700" fill="#333">{feur0(d.total)}</text>}
-            <text x={x+barW/2} y={H+9} textAnchor="middle" fontSize="5.5" fill="#bbb">{d.m}</text>
+            <text x={x+barW/2} y={H+9} textAnchor="middle" fontSize="4" fill="#bbb">{d.m}</text>
           </g>;
         })}
       </svg>
