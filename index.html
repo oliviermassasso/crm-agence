@@ -740,7 +740,12 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh,year,setY
 
   const displayProfiles=isCollab
     ? profiles.filter(function(p){return p.id===profile.id;})
-    : profiles.filter(function(p){return p.role!=='direction'&&p.actif!==false;});
+    : profiles.filter(function(p){
+        if(p.role==='direction') return false;
+        if(p.actif!==false) return true;
+        // Inactif : afficher si des commissions existent pour cette période
+        return computed&&computed[p.id]&&(computed[p.id].totalCom>0||(computed[p.id].contracts&&computed[p.id].contracts.length>0));
+      });
 
   const filtered=selCons&&!isCollab
     ? displayProfiles.filter(function(p){return p.id===selCons;})
