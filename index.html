@@ -3388,31 +3388,34 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb}){
     const dateRef=rule.date_ref||'emission';
     const types=rule.contract_types&&rule.contract_types.length>0?rule.contract_types:null;
     const crit=rule.criteres||{};
-    return contracts.filter(function(c){
+    const debug=[];
+    const result=contracts.filter(function(c){
       if(c.conseiller_id!==consId) return false;
-      if(c.status==='ANNULE') return false;
-      // inclure_payes : si false ET explicitement coché → exclure les PAYE
-      if(crit.inclure_payes===false&&c.status==='PAYE') return false;
+      if(c.status==='ANNULE'){debug.push(c.client_name+': annulé');return false;}
+      if(crit.inclure_payes===false&&c.status==='PAYE'){debug.push(c.client_name+': payé exclu');return false;}
       const dt=c.document_tracking||{};
-      if(crit.n_contrat_ok&&!dt.n_contrat_ok) return false;
-      if(crit.rentre_signe&&!dt.rentre_signe) return false;
-      if(crit.kyc_ok&&!dt.kyc_ok) return false;
-      if(crit.justificatifs_ok&&!dt.justificatifs_ok) return false;
-      if(crit.date_ok&&!dt.date_ok) return false;
-      if(crit.cotisation_ok&&!dt.cotisation_ok) return false;
-      if(crit.exclure_impayes&&dt.cotisation_ok===false) return false;
-      if(types&&!types.includes(c.contract_type)) return false;
+      if(crit.n_contrat_ok&&!dt.n_contrat_ok){debug.push(c.client_name+': n_contrat_ok absent');return false;}
+      if(crit.rentre_signe&&!dt.rentre_signe){debug.push(c.client_name+': rentre_signe absent');return false;}
+      if(crit.kyc_ok&&!dt.kyc_ok){debug.push(c.client_name+': kyc_ok absent');return false;}
+      if(crit.justificatifs_ok&&!dt.justificatifs_ok){debug.push(c.client_name+': justificatifs absents');return false;}
+      if(crit.date_ok&&!dt.date_ok){debug.push(c.client_name+': date_ok absent');return false;}
+      if(crit.cotisation_ok&&!dt.cotisation_ok){debug.push(c.client_name+': cotisation_ok absent');return false;}
+      if(crit.exclure_impayes&&dt.cotisation_ok===false){debug.push(c.client_name+': impayé exclu');return false;}
+      if(types&&!types.includes(c.contract_type)){debug.push(c.client_name+': type "'+c.contract_type+'" non inclus');return false;}
       const dateField=dateRef==='effet'?(c.effect_date||c.emission_date):c.emission_date;
-      if(!dateField) return false;
+      if(!dateField){debug.push(c.client_name+': date manquante');return false;}
       const d=new Date(dateField);
       const cy=d.getFullYear(),cm=d.getMonth()+1;
       const per=rule.periodicite||'mensuel';
-      if(per==='mensuel') return cy===year&&cm===month;
-      if(per==='trimestriel'){const qt=Math.ceil(month/3);return cy===year&&Math.ceil(cm/3)===qt;}
-      if(per==='semestriel'){const sm=month<=6?1:2;return cy===year&&(cm<=6?1:2)===sm;}
-      if(per==='annuel') return cy===year;
-      return false;
+      if(per==='mensuel'&&!(cy===year&&cm===month)){debug.push(c.client_name+': hors période '+cy+'-'+cm+' vs '+year+'-'+month);return false;}
+      if(per==='trimestriel'){const qt=Math.ceil(month/3);if(!(cy===year&&Math.ceil(cm/3)===qt)){debug.push(c.client_name+': hors trimestre');return false;}}
+      if(per==='semestriel'){const sm=month<=6?1:2;if(!(cy===year&&(cm<=6?1:2)===sm)){debug.push(c.client_name+': hors semestre');return false;}}
+      if(per==='annuel'&&cy!==year){debug.push(c.client_name+': hors année');return false;}
+      return true;
     });
+    if(result.length===0) console.log('[Prime "'+rule.nom+'"] 0 résultat. Exclusions:',debug.slice(0,15));
+    else console.log('[Prime "'+rule.nom+'"] '+result.length+' contrat(s) trouvé(s):',result.map(function(c){return c.client_name;}));
+    return result;
   }
 
   function calcPrimesForCons(consId){
