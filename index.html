@@ -648,7 +648,10 @@ function App(){
         </div>
         <nav style={{flex:1,padding:'10px 0',overflowY:'auto'}}>
           {nav.map(function(n){return(
-            <div key={n.id} onClick={function(){setActive(n.id);setSelected(null);}} style={{display:'flex',alignItems:'center',gap:'10px',padding:'9px 20px',cursor:'pointer',fontSize:'13.5px',fontWeight:active===n.id?500:400,color:active===n.id?'#1d4ed8':'#555',background:active===n.id?'#eff6ff':'transparent',borderRight:'2px solid '+(active===n.id?'#1d4ed8':'transparent')}}>
+            <div key={n.id} onClick={function(){
+              if(active==='configuration'&&window.__configDirty&&!window.confirm('Modifications non enregistrées — quitter quand même ?')) return;
+              setActive(n.id);setSelected(null);
+            }} style={{display:'flex',alignItems:'center',gap:'10px',padding:'9px 20px',cursor:'pointer',fontSize:'13.5px',fontWeight:active===n.id?500:400,color:active===n.id?'#1d4ed8':'#555',background:active===n.id?'#eff6ff':'transparent',borderRight:'2px solid '+(active===n.id?'#1d4ed8':'transparent')}}>
               <span style={{width:'16px',textAlign:'center',flexShrink:0}}>{n.icon}</span>{n.label}
             </div>
           );})}
@@ -1536,8 +1539,7 @@ function StackedFamilyChart({contracts,families,year,visibleActive}){
   const lightenS=function(hex,amt){const n=parseInt(hex.replace('#',''),16);return '#'+[((n>>16)&255),((n>>8)&255),(n&255)].map(function(v){return Math.min(255,v+amt).toString(16).padStart(2,'0');}).join('');};
   const darkenS=function(hex,amt){const n=parseInt(hex.replace('#',''),16);return '#'+[((n>>16)&255),((n>>8)&255),(n&255)].map(function(v){return Math.max(0,v-amt).toString(16).padStart(2,'0');}).join('');};
   return(
-    <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'14px 16px',flex:1,minWidth:0}}>
-      <div style={{fontSize:'13px',fontWeight:600,marginBottom:'20px',textAlign:'center'}}>CA mensuel par famille {year}</div>
+    <div>
       <svg width="100%" viewBox={'0 0 '+svgW+' '+(H+16)} style={{overflow:'visible',display:'block'}}>
         <defs>
           {familles.map(function(f,fi){
@@ -1808,9 +1810,6 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs,onOpenI
         {/* Suivi objectifs */}
         <SuiviObjectifsCard objectifs={objectifs} visibleActive={visibleActive} year={year} profile={profile} filterCons={filterCons} isDir={isDir} mode={mode} months={months} nbMois={nbMois}/>
 
-        {/* Graphique empilé CA par famille par mois */}
-        <StackedFamilyChart contracts={contracts} families={FAMILIES} year={year} visibleActive={visibleActive}/>
-
       </div>
 
       {/* ── Cartes détaillées par famille ── */}
@@ -1933,6 +1932,12 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs,onOpenI
           </div>
         );
       })()}
+      {/* CA mensuel par famille */}
+      <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px',marginTop:'16px'}}>
+        <div style={{fontSize:'13px',fontWeight:600,marginBottom:'20px',textAlign:'center'}}>CA mensuel par famille {year}</div>
+        <StackedFamilyChart contracts={contracts} families={FAMILIES} year={year} visibleActive={visibleActive}/>
+      </div>
+
       {/* CA cumulé mensuel par année — en bas */}
       <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'18px',marginTop:'16px'}}>
         <div style={{fontSize:'13px',fontWeight:600,marginBottom:'20px',textAlign:'center'}}>CA cumulé mensuel par année</div>
@@ -2863,7 +2868,10 @@ function Configuration({sb,profile,profiles,grilles,setGrilles,objectifs,setObje
     const k=(fam||'')+'|'+(type||'');
     setLocalVals(function(prev){return Object.assign({},prev,{[k]:val});});
     setDirty(true);
+    window.__configDirty=true;
   }
+
+  useEffect(function(){window.__configDirty=dirty;},[dirty]);
 
   async function saveAllObjectifs(){
     setSaving(true);setOk('');
@@ -2873,13 +2881,13 @@ function Configuration({sb,profile,profiles,grilles,setGrilles,objectifs,setObje
     let delQ=sb.from('objectifs').delete().eq('annee',anneeO);
     if(consId) delQ=delQ.eq('conseiller_id',consId); else delQ=delQ.is('conseiller_id',null);
     const delR=await delQ;
-    if(delR.error){alert('Erreur : '+delR.error.message);setSaving(false);return;}
+    if(delR.error){alert('Erreur suppression : '+delR.error.message);setSaving(false);return;}
 
     // Réinsérer uniquement les valeurs non vides
     const rows=[];
     Object.entries(localVals).forEach(function(e){
       const v=parseFloat(e[1]);
-      if(!e[1]||isNaN(v)) return;
+      if(!e[1]||isNaN(v)||v<=0) return;
       const parts=e[0].split('|');
       const fam=parts[0]||null;
       const typ=parts[1]||null;
@@ -2888,21 +2896,16 @@ function Configuration({sb,profile,profiles,grilles,setGrilles,objectifs,setObje
 
     if(rows.length>0){
       const insR=await sb.from('objectifs').insert(rows);
-      if(insR.error){alert('Erreur : '+insR.error.message);setSaving(false);return;}
+      if(insR.error){alert('Erreur insertion : '+insR.error.message);setSaving(false);return;}
     }
 
-    // Mettre à jour le state global
-    setObjectifs(function(prev){
-      const autres=(prev||[]).filter(function(o){
-        if(o.annee!==anneeO) return true;
-        if(consId) return o.conseiller_id!==consId;
-        return o.conseiller_id!==null&&o.conseiller_id!==undefined;
-      });
-      return autres.concat(rows);
-    });
+    // Recharger depuis Supabase pour garantir la cohérence
+    const reloadR=await sb.from('objectifs').select('*');
+    if(!reloadR.error) setObjectifs(reloadR.data||[]);
 
     setDirty(false);
-    setSaving(false);setOk('Objectifs enregistrés');
+    window.__configDirty=false;
+    setSaving(false);setOk('✓ Objectifs enregistrés');
     setTimeout(function(){setOk('');},3000);
   }
 
@@ -2910,10 +2913,10 @@ function Configuration({sb,profile,profiles,grilles,setGrilles,objectifs,setObje
     setSaving(true);setOk('');
     const src=(objectifs||[]).filter(function(o){return o.annee===fromAnnee;});
     const rows=src.map(function(o){return {annee:toAnnee,conseiller_id:o.conseiller_id,famille:o.famille,contract_type:o.contract_type,montant:o.montant};});
-    // Supprimer toAnnee puis insérer
     await sb.from('objectifs').delete().eq('annee',toAnnee);
     if(rows.length>0) await sb.from('objectifs').insert(rows);
-    setObjectifs(function(prev){return (prev||[]).filter(function(o){return o.annee!==toAnnee;}).concat(rows);});
+    const reloadR=await sb.from('objectifs').select('*');
+    if(!reloadR.error) setObjectifs(reloadR.data||[]);
     setAnneeO(toAnnee);
     setSaving(false);setOk('Objectifs '+toAnnee+' créés depuis '+fromAnnee);
   }
@@ -2924,7 +2927,17 @@ function Configuration({sb,profile,profiles,grilles,setGrilles,objectifs,setObje
     <div style={{padding:'28px 32px',maxWidth:'900px'}}>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'22px',flexWrap:'wrap',gap:'12px'}}>
         <div><div style={{fontSize:'22px',fontWeight:600}}>Configuration</div><div style={{fontSize:'13px',color:'#666'}}>Grilles de rémunération et objectifs</div></div>
-        {ok&&<span style={{fontSize:'13px',color:'#059669',fontWeight:500}}>✓ {ok}</span>}
+        <div style={{display:'flex',alignItems:'center',gap:'12px'}}>
+          {ok&&<span style={{fontSize:'13px',color:'#059669',fontWeight:500}}>{ok}</span>}
+          {dirty&&onglet==='objectifs'&&canEdit&&(
+            <>
+              <span style={{fontSize:'12.5px',color:'#92400e',fontWeight:500}}>● Modifications non enregistrées</span>
+              <button className="bp" onClick={saveAllObjectifs} disabled={saving} style={{padding:'7px 18px',background:'#1d4ed8',color:'#fff',border:'none'}}>
+                {saving?'Enregistrement…':'💾 Enregistrer'}
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Onglets */}
