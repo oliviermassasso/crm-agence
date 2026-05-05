@@ -303,7 +303,7 @@ function App(){
   const [profile,setProfile]=useState(null);
   const [sb,setSb]=useState(null);
   const [contracts,setContracts]=useState([]);
-  const [hasUpdate,setHasUpdate]=useState(false);
+  const [preFilterIds,setPreFilterIds]=useState(null);
   const refreshingRef=React.useRef(false);
   const [monCompte,setMonCompte]=useState(false);
   const [grilles,setGrilles]=useState({});   // {annee: {type: {taux, fixed, montant_fixe}}}
@@ -684,8 +684,8 @@ function App(){
       )}
       <div style={{flex:1,overflow:'auto',background:'#f9fafb'}}>
         {active==='saisir-contrat'&&<FormContrat sb={sb} profile={profile} profiles={profiles} grilles={grilles} onSaved={function(){refresh();setActive(profile.role==='conseiller'?'mes-dossiers':'suivi-dossiers');}}/>}
-        {(active==='suivi-dossiers'||active==='mes-dossiers')&&<SuiviDossiers contracts={contracts} profile={profile} profiles={profiles} reads={reads} lastMsgMap={lastMsgMap} sort={sort} setSort={setSortP} fCons={fCons} setFCons={setFConsP} fYear={fYear} setFYear={setFYearP} fMonth={fMonth} setFMonth={setFMonthP} fType={fType} setFType={setFTypeP} fStat={fStat} setFStat={setFStatP} fDoss={fDoss} setFDoss={setFDossP} fPay={fPay} setFPay={setFPayP} fDup={fDup} setFDup={setFDupP} search={search} setSearch={setSearch} selectedId={lastSelectedId} onSelect={function(c){setSelected(c);setLastSelectedId(c.id);markRead(c.id);}} onNew={function(){setActive('saisir-contrat');}}/>}
-        {active==='tableau-bord'&&<TableauBord contracts={contracts} rankContracts={rankContracts} profiles={profiles} profile={profile} objectifs={objectifs}/>}
+        {(active==='suivi-dossiers'||active==='mes-dossiers')&&<SuiviDossiers contracts={contracts} profile={profile} profiles={profiles} reads={reads} lastMsgMap={lastMsgMap} sort={sort} setSort={setSortP} fCons={fCons} setFCons={setFConsP} fYear={fYear} setFYear={setFYearP} fMonth={fMonth} setFMonth={setFMonthP} fType={fType} setFType={setFTypeP} fStat={fStat} setFStat={setFStatP} fDoss={fDoss} setFDoss={setFDossP} fPay={fPay} setFPay={setFPayP} fDup={fDup} setFDup={setFDupP} search={search} setSearch={setSearch} selectedId={lastSelectedId} preFilterIds={preFilterIds} onClearPreFilter={function(){setPreFilterIds(null);}} onSelect={function(c){setSelected(c);setLastSelectedId(c.id);markRead(c.id);}} onNew={function(){setActive('saisir-contrat');}}/>}
+        {active==='tableau-bord'&&<TableauBord contracts={contracts} rankContracts={rankContracts} profiles={profiles} profile={profile} objectifs={objectifs} onOpenIncomplete={function(ids){setPreFilterIds(ids);setActive('suivi-dossiers');}}/>}
         {active==='configuration'&&<Configuration sb={sb} profile={profile} profiles={profiles} grilles={grilles} setGrilles={setGrilles} objectifs={objectifs} setObjectifs={setObjectifs}/>}
         {active==='conges'&&<CongesPlaceholder profile={profile}/>}
         {active==='utilisateurs'&&<Utilisateurs profile={profile} profiles={profiles} sb={sb} onRefresh={refresh}/>}
@@ -1419,7 +1419,7 @@ function CumulChart({data,years}){
   );
 }
 
-function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
+function TableauBord({contracts,rankContracts,profiles,profile,objectifs,onOpenIncomplete}){
   const now=new Date();
   const [year,setYear]=useState(now.getFullYear());
   const [months,setMonths]=useState([now.getMonth()+1]); // tableau de mois sélectionnés
@@ -1615,7 +1615,39 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs}){
           );
         })()}
 
-        {/* Graphique empilé CA par famille par mois */}
+        {/* Dossiers incomplets */}
+        {(function(){
+          const today=new Date();
+          const incomplets=contracts.filter(function(c){
+            if(c.status==='ANNULE'||c.status==='PAYE') return false;
+            if(c.document_tracking&&c.document_tracking.eligible_since) return false;
+            if(isDir&&filterCons&&c.conseiller_id!==filterCons) return false;
+            if(!isDir&&c.conseiller_id!==profile.id) return false;
+            return true;
+          });
+          const now=today.getTime();
+          const green=incomplets.filter(function(c){return (now-new Date(c.emission_date).getTime())/(86400000)<15;});
+          const orange=incomplets.filter(function(c){const d=(now-new Date(c.emission_date).getTime())/(86400000);return d>=15&&d<30;});
+          const red=incomplets.filter(function(c){return (now-new Date(c.emission_date).getTime())/(86400000)>=30;});
+          const Badge=function({count,color,bg,label,ids}){
+            return <div onClick={count>0?function(){onOpenIncomplete(ids.map(function(c){return c.id;}));}:null}
+              style={{display:'flex',flexDirection:'column',alignItems:'center',gap:'4px',padding:'10px 14px',borderRadius:'8px',background:bg,border:'2px solid '+color,cursor:count>0?'pointer':'default',opacity:count===0?0.4:1,transition:'opacity 0.15s'}}>
+              <span style={{fontSize:'22px',fontWeight:700,color:color,lineHeight:1}}>{count}</span>
+              <span style={{fontSize:'10px',color:color,fontWeight:600,whiteSpace:'nowrap'}}>{label}</span>
+            </div>;
+          };
+          return(
+            <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'14px 16px',flex:'0 0 auto',display:'flex',flexDirection:'column',justifyContent:'center'}}>
+              <div style={{fontSize:'13px',fontWeight:600,marginBottom:'14px',textAlign:'center'}}>Dossiers incomplets</div>
+              <div style={{display:'flex',gap:'8px',justifyContent:'center'}}>
+                <Badge count={green.length} color="#16a34a" bg="#dcfce7" label="< 15 j" ids={green}/>
+                <Badge count={orange.length} color="#d97706" bg="#fef3c7" label="15–30 j" ids={orange}/>
+                <Badge count={red.length} color="#dc2626" bg="#fee2e2" label="> 30 j" ids={red}/>
+              </div>
+              {incomplets.length===0&&<div style={{fontSize:'11px',color:'#aaa',textAlign:'center',marginTop:'8px'}}>✓ Tous les dossiers sont complets</div>}
+            </div>
+          );
+        })()}
         {(function(){
           const familles=FAMILIES.filter(function(f){
             return !['AXA Banque','Épargne & Retraite','Courtage','Crédits AXA'].includes(f.name);
@@ -1927,7 +1959,7 @@ function MultiSelect({label,options,value,onChange,width}){
 }
 
 
-function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,sort,setSort,fCons,setFCons,fYear,setFYear,fMonth,setFMonth,fType,setFType,fStat,setFStat,fDoss,setFDoss,fPay,setFPay,fDup,setFDup,search,setSearch,selectedId,onSelect,onNew}){
+function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,sort,setSort,fCons,setFCons,fYear,setFYear,fMonth,setFMonth,fType,setFType,fStat,setFStat,fDoss,setFDoss,fPay,setFPay,fDup,setFDup,search,setSearch,selectedId,onSelect,onNew,preFilterIds,onClearPreFilter}){
   function sortBy(col){setSort(function(s){return s.col===col?{col:col,asc:!s.asc}:{col:col,asc:true};});}
 
   // Détecter les doublons AVANT le filtre
@@ -1975,6 +2007,8 @@ function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,sort,setSort
     : null;
 
   const list=contracts.filter(function(c){
+    // Mode filtre tableau de bord (dossiers incomplets cliqués)
+    if(preFilterIds) return preFilterIds.includes(c.id);
     // Si recherche active : inclure si match, ignorer les autres filtres
     if(searchMatches) return searchMatches.has(c.id);
     if(fCons.length>0&&!fCons.includes(c.conseiller_id))return false;
@@ -2001,6 +2035,10 @@ function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,sort,setSort
     <div style={{padding:'28px 32px'}}>
       <div style={{marginBottom:'18px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'12px',flexWrap:'wrap'}}>
         <div><div style={{fontSize:'22px',fontWeight:600,marginBottom:'4px'}}>{profile.role==='conseiller'?'Mes dossiers':'Suivi des dossiers'}</div><div style={{fontSize:'13px',color:'#666'}}>{list.length} contrat{list.length!==1?'s':''}</div></div>
+        {preFilterIds&&<div style={{display:'flex',alignItems:'center',gap:'10px',background:'#fef3c7',border:'1px solid #f59e0b',borderRadius:'8px',padding:'8px 14px',fontSize:'12px',color:'#92400e'}}>
+          <span>⚠️ Filtre actif : {preFilterIds.length} dossier{preFilterIds.length!==1?'s':''} incomplet{preFilterIds.length!==1?'s':''}</span>
+          <button onClick={onClearPreFilter} style={{marginLeft:'auto',fontSize:'11px',padding:'3px 8px',background:'#f59e0b',color:'#fff',border:'none',borderRadius:'4px',cursor:'pointer'}}>Effacer le filtre</button>
+        </div>}
         <button className="bp" onClick={onNew}>+ Nouveau contrat</button>
       </div>
       <div style={{display:'flex',gap:'8px',marginBottom:'14px',flexWrap:'wrap',alignItems:'center'}}>
