@@ -696,7 +696,7 @@ function App(){
         {active==='tableau-bord'&&<TableauBord contracts={contracts} rankContracts={rankContracts} profiles={profiles} profile={profile} objectifs={objectifs} onOpenIncomplete={function(ids){setPreFilterIds(ids);setActive('suivi-dossiers');}}/>}
         {active==='configuration'&&<Configuration sb={sb} profile={profile} profiles={profiles} grilles={grilles} setGrilles={setGrilles} objectifs={objectifs} setObjectifs={setObjectifs} primesConfig={primesConfig} setPrimesConfig={setPrimesConfig}/>}
         {active==='conges'&&<CongesPlaceholder profile={profile}/>}
-        {(active==='salaires'||active==='mes-salaires')&&<PageSalaire contracts={contracts} profiles={profiles} profile={profile} primesConfig={primesConfig} grilles={grilles} payments={payments}/>}
+        {(active==='salaires'||active==='mes-salaires')&&<PageSalaire contracts={contracts} profiles={profiles} profile={profile} primesConfig={primesConfig} grilles={grilles} sb={sb}/>}
         {active==='utilisateurs'&&<Utilisateurs profile={profile} profiles={profiles} sb={sb} onRefresh={refresh}/>}
         {(active==='commissions'||active==='mes-commissions')&&<Commissions contracts={contracts} profiles={profiles} profile={profile} sb={sb} onSelect={function(c){setSelected(c);markRead(c.id);}} onRefresh={refresh} year={comYear} setYear={setComYearP} month={comMonth} setMonth={setComMonthP} selCons={comSelCons} setSelCons={setComSelConsP} comSearch={comSearch} setComSearch={setComSearch} grilles={grilles}/>}
         {!['saisir-contrat','suivi-dossiers','mes-dossiers','tableau-bord','commissions','mes-commissions','conges','utilisateurs','configuration','salaires','mes-salaires'].includes(active)&&<Placeholder nav={nav} active={active}/>}
@@ -3329,13 +3329,26 @@ function Configuration({sb,profile,profiles,grilles,setGrilles,objectifs,setObje
 }
 
 
-function PageSalaire({contracts,profiles,profile,primesConfig,grilles,payments}){
+function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb}){
   const isDir=profile.role==='direction';
   const isCollab=profile.role==='conseiller';
   const today=new Date();
   const [year,setYear]=useState(today.getFullYear());
   const [month,setMonth]=useState(today.getMonth()+1);
   const [selCons,setSelCons]=useState(isCollab?profile.id:'');
+  const [payments,setPayments]=useState({});
+
+  React.useEffect(function(){
+    if(!sb) return;
+    sb.from('commission_payments').select('*').eq('year',year).then(function(res){
+      const pm={};
+      (res.data||[]).forEach(function(p){
+        if(!pm[p.conseiller_id]) pm[p.conseiller_id]={};
+        pm[p.conseiller_id][p.month]=p;
+      });
+      setPayments(pm);
+    });
+  },[sb,year]);
 
   const actifs=profiles.filter(function(p){return p.role!=='direction';});
   const consIds=selCons?[selCons]:(isDir?actifs.map(function(p){return p.id;}):([profile.id]));
