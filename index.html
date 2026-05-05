@@ -988,8 +988,8 @@ function FamilleAccordions({sections,cur,prev,getObjPeriod,mode,year}){
           ?(totNbPrev>0?((totNb-totNbPrev)/totNbPrev*100):null)
           :(totCAPrev>0?((totCA-totCAPrev)/totCAPrev*100):null);
         const objFam=getObjPeriod(section.section,false);
-        const pctFam=objFam>0?Math.min(totCA/objFam*100,100):0;
-        const pctFamReal=objFam>0?Math.round(totCA/objFam*100):null;
+        const pctFam=objFam>0?Math.min((section.banque?totNb:totCA)/objFam*100,100):0;
+        const pctFamReal=objFam>0?Math.round((section.banque?totNb:totCA)/objFam*100):null;
         const col=section.fam.color;
         const lightenH=function(hex,amt){const n=parseInt(hex.replace('#',''),16);return '#'+[((n>>16)&255),((n>>8)&255),(n&255)].map(function(v){return Math.min(255,v+amt).toString(16).padStart(2,'0');}).join('');};
         const darkenH=function(hex,amt){const n=parseInt(hex.replace('#',''),16);return '#'+[((n>>16)&255),((n>>8)&255),(n&255)].map(function(v){return Math.max(0,v-amt).toString(16).padStart(2,'0');}).join('');};
@@ -1009,7 +1009,7 @@ function FamilleAccordions({sections,cur,prev,getObjPeriod,mode,year}){
                       <span style={{fontSize:'13px',fontWeight:700}}>{fnum(totNb)} acte{totNb!==1?'s':''}</span>
                       {evo!==null&&<span style={{fontSize:'11px',fontWeight:700,color:evo>=0?'#bbf7d0':'#fecaca'}}>{evo>=0?'▲':'▼'} {Math.abs(evo).toFixed(1)}%</span>}
                       <span style={{fontSize:'10.5px',color:'rgba(255,255,255,0.65)'}}>N-1 : {fnum(totNbPrev)}</span>
-                      <span style={{fontSize:'10.5px',color:'rgba(255,255,255,0.75)',borderLeft:'1px solid rgba(255,255,255,0.3)',paddingLeft:'8px'}}>Crédits : {feur0(totCA)}</span>
+                      {pctFamReal!==null&&<span style={{fontSize:'10.5px',fontWeight:600,color:'#fff',background:'rgba(0,0,0,0.2)',padding:'1px 6px',borderRadius:'4px'}}>{pctFamReal}% obj.</span>}
                     </>
                   ):(
                     <>
