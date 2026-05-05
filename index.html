@@ -743,8 +743,8 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh,year,setY
     : profiles.filter(function(p){
         if(p.role==='direction') return false;
         if(p.actif!==false) return true;
-        // Inactif : afficher si des commissions existent pour cette période
-        return computed&&computed[p.id]&&(computed[p.id].totalCom>0||(computed[p.id].contracts&&computed[p.id].contracts.length>0));
+        // Inactif : visible si paiement enregistré pour cette année OU contrats dans les données
+        return (payments&&payments[p.id])||contracts.some(function(c){return c.conseiller_id===p.id&&c.emission_date&&new Date(c.emission_date).getFullYear()===year;});
       });
 
   const filtered=selCons&&!isCollab
