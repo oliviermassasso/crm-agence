@@ -2358,7 +2358,17 @@ function DetailPanel({contract,profile,profiles,sb,grilles,onClose,onRefresh}){
   async function setMsgStatus(id,status){await sb.from('contract_messages').update({resolved_status:status,is_resolved:status==='resolved'}).eq('id',id);await loadMsgs();}
   function TG(props){return <div className="cr"><span style={{fontSize:'13.5px',color:props.disabled?'#aaa':'#222'}}>{props.label}</span><label className="toggle"><input type="checkbox" checked={!!dt[props.field]} disabled={props.disabled||saving} onChange={function(e){updDt({[props.field]:e.target.checked});}}/><span className="slider" style={props.blackChecked&&dt[props.field]?{background:'#111'}:{}}></span></label></div>;}
   function IR(props){return <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'9px 0',borderBottom:'1px solid #f3f4f6',fontSize:'13.5px'}}><span style={{color:'#666'}}>{props.label}</span><span style={{fontWeight:500}}>{props.value}</span></div>;}
-  function eu(k,v){setEditF(function(p){return Object.assign({},p,{[k]:v});});}
+  function eu(k,v){
+    setEditF(function(p){
+      const next=Object.assign({},p,{[k]:v});
+      // Recalcule la commission automatiquement si pas de commission manuelle préexistante
+      if((k==='annual_premium'||k==='contract_type')&&!contract.manual_commission){
+        const fakeC=Object.assign({},contract,{annual_premium:parseFloat(next.annual_premium)||0,contract_type:next.contract_type,manual_commission:null});
+        next.commission=calcBaseCommission(fakeC,grilles);
+      }
+      return next;
+    });
+  }
   const fam=getFamily(contract.contract_type);
   const headerBg=isAnnule?'#e2e8f0':annReq?'#cbd5e1':dt.has_problem?'rgba(185,28,28,0.82)':isPaye?'#f0fdf4':'#fff';
   const headerTx=dt.has_problem?'#f3f4f6':isAnnule?'#334155':annReq?'#334155':isPaye?'#065f46':'#111';
