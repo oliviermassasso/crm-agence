@@ -3865,7 +3865,7 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,se
                   const decote=nc&&nc.actif?Math.round(d.total*nc.taux/100*100)/100:0;
                   const totalApresDecote=Math.round((d.total-decote)*100)/100;
                   return(
-                    <>
+                    <div>
                       <div style={{display:'flex',justifyContent:'flex-end',gap:'24px',fontSize:'13px',marginBottom:'10px',flexWrap:'wrap'}}>
                         {d.totalCom>0&&<span style={{color:'#666'}}>Commissions : <b style={{color:'#1d4ed8'}}>{feur2(d.totalCom)}</b></span>}
                         {d.totalPrimes>0&&<span style={{color:'#666'}}>Primes : <b style={{color:'#059669'}}>{feur2(d.totalPrimes)}</b></span>}
@@ -3905,10 +3905,10 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,se
                           <span style={{fontSize:'15px',fontWeight:700,color:'#1a1a1a'}}>Total net après décote : {feur2(totalApresDecote)}</span>
                         </div>
                       )}
-                    </>
+                    </div>
                   );
                 })()}
-              </div>
+                <div style={{display:'flex',justifyContent:'flex-end',gap:'8px',marginTop:'10px'}}>
                 <button onClick={function(){
                   const w=window.open('','_blank');
                   const refM=MONTHS[month===1?11:month-2]+' '+(month===1?year-1:year);
@@ -3967,6 +3967,7 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,se
                   w.document.write('<script>setTimeout(function(){window.print();},400);<\/script></body></html>');
                   w.document.close();
                 }} style={{padding:'5px 14px',fontSize:'12px',background:'#f3f4f6',border:'1px solid #e5e7eb',borderRadius:'6px',cursor:'pointer'}}>🖨 PDF</button>
+                </div>
               </div>
             </div>
           </div>
