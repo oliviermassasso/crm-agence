@@ -2372,7 +2372,7 @@ function DetailPanel({contract,profile,profiles,sb,grilles,onClose,onRefresh}){
   const headerBg=isAnnule?'#e2e8f0':annReq?'#cbd5e1':dt.has_problem?'rgba(185,28,28,0.82)':isPaye?'#f0fdf4':'#fff';
   const headerTx=dt.has_problem?'#f3f4f6':isAnnule?'#334155':annReq?'#334155':isPaye?'#065f46':'#111';
   return(
-    <div className="overlay" onClick={function(e){if(e.target===e.currentTarget)onClose();}}>
+    <div className="overlay" onMouseDown={function(e){if(e.target===e.currentTarget)onClose();}}>
       <div className="panel">
         <div style={{padding:'16px 20px',borderBottom:'1px solid #e5e7eb',display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0,background:headerBg,transition:'background 0.2s'}}>
           <div>
@@ -2417,7 +2417,7 @@ function DetailPanel({contract,profile,profiles,sb,grilles,onClose,onRefresh}){
                 <div className="fg"><label>Provenance</label><select value={editF.provenance} onChange={function(e){eu('provenance',e.target.value);}}>{PROVS.map(function(p){return <option key={p} value={p}>{p}</option>;})}</select></div>
                 <div className="fg"><label>Code portefeuille</label><select value={editF.code_portefeuille} onChange={function(e){eu('code_portefeuille',e.target.value);}}><option value="">— Sélectionner —</option><option value="6025344">6025344 · Le Cannet</option><option value="6251044">6251044 · St Maximin</option><option value="6252044">6252044 · Lyon</option></select></div>
                 <div className="fg2">
-                  <div className="fg"><label>Prime annuelle (€){isLocked&&<span style={{color:'#aaa',fontSize:'11px',marginLeft:'6px'}}>— verrouillé</span>}</label><input type="number" value={editF.annual_premium} disabled={isLocked} onChange={function(e){eu('annual_premium',e.target.value);}} style={{background:isLocked?'#f9fafb':'',color:isLocked?'#aaa':''}}/></div>
+                  <div className="fg"><label>Prime annuelle (€){isLocked&&<span style={{color:'#aaa',fontSize:'11px',marginLeft:'6px'}}>— verrouillé</span>}</label><input type="number" value={editF.annual_premium} disabled={isLocked} onChange={function(e){eu('annual_premium',e.target.value);}} onMouseDown={function(e){e.stopPropagation();}} style={{background:isLocked?'#f9fafb':'',color:isLocked?'#aaa':''}}/></div>
                   <div className="fg"><label>Commission (€){isLocked&&<span style={{color:'#aaa',fontSize:'11px',marginLeft:'6px'}}>— verrouillé</span>}</label><input type="number" value={editF.commission} disabled={isLocked} onChange={function(e){eu('commission',e.target.value);}} style={{background:isLocked?'#f9fafb':'',color:isLocked?'#aaa':''}}/></div>
                 </div>
                 <div style={{display:'flex',gap:'8px',justifyContent:'flex-end'}}>
