@@ -3428,9 +3428,9 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,se
   function toggleComs(id){setOpenComs(function(p){return Object.assign({},p,{[id]:!p[id]});});}
   function togglePrimeRow(key){setOpenPrimes(function(p){return Object.assign({},p,{[key]:!p[key]});});}
   function toggleCheck(id){setChecked(function(p){return Object.assign({},p,{[id]:!p[id]});});}
-  function Checkbox({id}){return <SalaireCheckbox id={id} checked={!!checked[id]} onToggle={toggleCheck}/>;};
 
   const actifs=profiles.filter(function(p){return p.role!=='direction';});
+  const consIds=selCons?[selCons]:(isCollab?[profile.id]:(isDir?actifs.map(function(p){return p.id;}):([profile.id])));
 
   function calcComForCons(consId){
     const pay=payments&&payments[consId]&&payments[consId][month];
@@ -3590,7 +3590,7 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,se
                       {d.coms.map(function(x,i){
                         return(
                           <tr key={i} style={{borderBottom:'1px solid #f9fafb',background:checked[x.contract.id]?'#f0fdf4':'#fff',cursor:'pointer'}} onClick={function(){onSelect&&onSelect(x.contract);}}>
-                            <td style={{padding:'6px 8px',textAlign:'center'}} onClick={function(e){e.stopPropagation();}}><Checkbox id={x.contract.id}/></td>
+                            <td style={{padding:'6px 8px',textAlign:'center'}} onClick={function(e){e.stopPropagation();}}><SalaireCheckbox id={x.contract.id} checked={!!checked[x.contract.id]} onToggle={toggleCheck}/></td>
                             <td style={{padding:'6px 8px',color:'#333',fontSize:'12px'}}>{x.contract.client_name}</td>
                             <td style={{padding:'6px 8px',color:'#555',fontSize:'12px'}}>{x.contract.contract_type}</td>
                             <td style={{padding:'6px 8px',textAlign:'right',color:'#555',fontSize:'12px'}}>{feur0(x.contract.annual_premium||0)}</td>
@@ -3631,7 +3631,7 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,se
                                 {x.contrats.map(function(c,ci){
                                   return(
                                     <tr key={ci} style={{background:checked[c.id]?'#f0fdf4':'#fafafa',borderTop:'1px solid #f3f4f6',cursor:'pointer'}} onClick={function(){onSelect&&onSelect(c);}}>
-                                      <td style={{padding:'4px 8px',width:'28px',textAlign:'center'}} onClick={function(e){e.stopPropagation();}}><Checkbox id={c.id}/></td>
+                                      <td style={{padding:'4px 8px',width:'28px',textAlign:'center'}} onClick={function(e){e.stopPropagation();}}><SalaireCheckbox id={c.id} checked={!!checked[c.id]} onToggle={toggleCheck}/></td>
                                       <td style={{padding:'4px 12px',color:'#555'}}>↳ {c.client_name}</td>
                                       <td style={{padding:'4px 8px',color:'#888'}}>{c.contract_type}</td>
                                       <td style={{padding:'4px 8px',textAlign:'right',color:'#888'}}>{feur0(c.annual_premium||0)}</td>
