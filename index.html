@@ -3422,7 +3422,7 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,se
   function Checkbox({id}){return <SalaireCheckbox id={id} checked={!!checked[id]} onToggle={toggleCheck}/>;};
 
   const actifs=profiles.filter(function(p){return p.role!=='direction';});
-  const consIds=selCons?[selCons]:(isCollab?[profile.id]:(isDir?actifs.map(function(p){return p.id;}):([profile.id])));
+  console.log('[Salaire] render - primesConfig:', (primesConfig||[]).map(function(r){return r.nom+' seuil='+r.seuil+' prime='+r.prime_montant;}));
 
   function calcComForCons(consId){
     const pay=payments&&payments[consId]&&payments[consId][month];
