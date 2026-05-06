@@ -172,6 +172,27 @@ function isConforme(c) {
   return true;
 }
 
+// Calcul taux non-conformité pour un conseiller selon la config qualité de l'année
+function calcNC(contracts, consId, qualiteRegle){
+  if(!qualiteRegle||!qualiteRegle.actif) return null;
+  const dateDebut=qualiteRegle.date_debut?new Date(qualiteRegle.date_debut):null;
+  const allEncours=contracts.filter(function(c){
+    if(c.conseiller_id!==consId||c.status!=='ENCOURS') return false;
+    if(dateDebut&&c.emission_date&&new Date(c.emission_date)<dateDebut) return false;
+    return true;
+  });
+  const nonConformes=allEncours.filter(function(c){return !isConforme(c);});
+  const taux=allEncours.length>0?nonConformes.length/allEncours.length:0;
+  return {
+    nbEncours:allEncours.length,
+    nbNonConf:nonConformes.length,
+    taux:Math.round(taux*10000)/100, // en %
+    nonConformes:nonConformes,
+    seuil:qualiteRegle.seuil||15,
+    actif:taux*100>=qualiteRegle.seuil
+  };
+}
+
 function calcMonthCommissions(contracts,profiles,year,month,paidAtMap,grillesMap) {
   // Mois précédent
   const prevMonth=month===1?12:month-1;
@@ -702,7 +723,7 @@ function App(){
       <div style={{flex:1,overflow:'auto',background:'#f9fafb'}}>
         {active==='saisir-contrat'&&<FormContrat sb={sb} profile={profile} profiles={profiles} grilles={grilles} onSaved={function(){refresh();setActive(profile.role==='conseiller'?'mes-dossiers':'suivi-dossiers');}}/>}
         {(active==='suivi-dossiers'||active==='mes-dossiers')&&<SuiviDossiers contracts={contracts} profile={profile} profiles={profiles} reads={reads} lastMsgMap={lastMsgMap} sort={sort} setSort={setSortP} fCons={fCons} setFCons={setFConsP} fYear={fYear} setFYear={setFYearP} fMonth={fMonth} setFMonth={setFMonthP} fType={fType} setFType={setFTypeP} fStat={fStat} setFStat={setFStatP} fDoss={fDoss} setFDoss={setFDossP} fPay={fPay} setFPay={setFPayP} fDup={fDup} setFDup={setFDupP} search={search} setSearch={setSearch} selectedId={lastSelectedId} preFilterIds={preFilterIds} onClearPreFilter={function(){setPreFilterIds(null);}} onSelect={function(c){setSelected(c);setLastSelectedId(c.id);markRead(c.id);}} onNew={function(){setActive('saisir-contrat');}}/>}
-        {active==='tableau-bord'&&<TableauBord contracts={contracts} rankContracts={rankContracts} profiles={profiles} profile={profile} objectifs={objectifs} onOpenIncomplete={function(ids){setPreFilterIds(ids);setActive('suivi-dossiers');}}/>}
+        {active==='tableau-bord'&&<TableauBord contracts={contracts} rankContracts={rankContracts} profiles={profiles} profile={profile} objectifs={objectifs} onOpenIncomplete={function(ids){setPreFilterIds(ids);setActive('suivi-dossiers');}} qualiteConfig={qualiteConfig}/>}
         {active==='configuration'&&<Configuration sb={sb} profile={profile} profiles={profiles} grilles={grilles} setGrilles={setGrilles} objectifs={objectifs} setObjectifs={setObjectifs} primesConfig={primesConfig} setPrimesConfig={setPrimesConfig} qualiteConfig={qualiteConfig} setQualiteConfig={setQualiteConfig} onRefresh={refresh}/>}
         {active==='conges'&&<CongesPlaceholder profile={profile}/>}
         {(active==='salaires'||active==='mes-salaires')&&<PageSalaire contracts={contracts} profiles={profiles} profile={profile} primesConfig={primesConfig} grilles={grilles} sb={sb} year={salYear} setYear={setSalYear} month={salMonth} setMonth={setSalMonth} selCons={salCons} setSelCons={setSalCons} checked={salChecked} setChecked={setSalChecked} qualiteConfig={qualiteConfig} onSelect={function(c){setSelected(c);setLastSelectedId(c.id);markRead(c.id);}}/>}
@@ -1616,7 +1637,7 @@ function IncompletBadge({count,color,bg,label,ids,onOpen}){
   </div>;
 }
 
-function TableauBord({contracts,rankContracts,profiles,profile,objectifs,onOpenIncomplete}){
+function TableauBord({contracts,rankContracts,profiles,profile,objectifs,onOpenIncomplete,qualiteConfig}){
   const now=new Date();
   const [year,setYear]=useState(now.getFullYear());
   const [months,setMonths]=useState([now.getMonth()+1]); // tableau de mois sélectionnés
@@ -1843,6 +1864,41 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs,onOpenI
           );
         })()}
         {/* Suivi objectifs */}
+        {/* Carte conformité */}
+        {(function(){
+          const qRegle=(qualiteConfig||[]).find(function(r){return r.annee===year;});
+          if(!qRegle||!qRegle.actif) return null;
+          const actifProfiles=profiles.filter(function(p){return p.role!=='direction'&&p.actif!==false;});
+          const cibles=filterCons?actifProfiles.filter(function(p){return p.id===filterCons;}):actifProfiles;
+          const rows=cibles.map(function(p){
+            const nc=calcNC(contracts,p.id,qRegle);
+            return {profile:p,nc:nc};
+          }).filter(function(r){return r.nc&&r.nc.nbEncours>0;});
+          if(rows.length===0) return null;
+          return(
+            <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'14px 16px',flex:'0 0 auto',minWidth:'200px'}}>
+              <div style={{fontSize:'13px',fontWeight:600,marginBottom:'12px',textAlign:'center'}}>Taux de conformité {year}</div>
+              <div style={{display:'flex',flexDirection:'column',gap:'8px'}}>
+                {rows.map(function(r){
+                  const nc=r.nc;
+                  const ok=!nc.actif;
+                  const color=ok?'#059669':nc.taux>=nc.seuil*1.5?'#dc2626':'#d97706';
+                  const bg=ok?'#f0fdf4':nc.taux>=nc.seuil*1.5?'#fee2e2':'#fef3c7';
+                  return(
+                    <div key={r.profile.id} style={{display:'flex',alignItems:'center',gap:'8px',padding:'6px 10px',borderRadius:'7px',background:bg}}>
+                      <span style={{fontSize:'12px',flex:1,fontWeight:500,color:'#333'}}>{r.profile.full_name}</span>
+                      <span style={{fontSize:'12px',fontWeight:700,color:color}}>{nc.taux.toFixed(1)}%</span>
+                      <span style={{fontSize:'10.5px',color:'#888'}}>{nc.nbNonConf}/{nc.nbEncours}</span>
+                      {nc.actif&&<span style={{fontSize:'10px',color:'#dc2626',fontWeight:600}}>⚠ décote</span>}
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{fontSize:'10.5px',color:'#aaa',textAlign:'center',marginTop:'8px'}}>Seuil décote : {qRegle.seuil}%</div>
+            </div>
+          );
+        })()}
+
         <SuiviObjectifsCard objectifs={objectifs} visibleActive={visibleActive} year={year} profile={profile} filterCons={filterCons} isDir={isDir} mode={mode} months={months} nbMois={nbMois}/>
 
       </div>
@@ -3550,7 +3606,7 @@ function SalaireCheckbox({id,checked,onToggle}){
   );
 }
 
-function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,setYear,month,setMonth,selCons,setSelCons,checked,setChecked,onSelect}){
+function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,setYear,month,setMonth,selCons,setSelCons,checked,setChecked,qualiteConfig,onSelect}){
   const isDir=profile.role==='direction';
   const isCollab=profile.role==='conseiller';
   const [openComs,setOpenComs]=useState({});
@@ -3801,11 +3857,58 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,se
                 </div>
               )}
 
-              {/* Total */}
-              <div style={{marginTop:'16px',paddingTop:'14px',borderTop:'2px solid #e5e7eb',display:'flex',justifyContent:'flex-end',gap:'24px',fontSize:'13px'}}>
-                {d.totalCom>0&&<span style={{color:'#666'}}>Commissions : <b style={{color:'#1d4ed8'}}>{feur2(d.totalCom)}</b></span>}
-                {d.totalPrimes>0&&<span style={{color:'#666'}}>Primes : <b style={{color:'#059669'}}>{feur0(d.totalPrimes)}</b></span>}
-                <span style={{color:'#111',fontWeight:700,fontSize:'14px'}}>Total brut : {feur2(d.total)}</span>
+              {/* Total + Décote NC */}
+              <div style={{marginTop:'16px',paddingTop:'14px',borderTop:'2px solid #e5e7eb'}}>
+                {(function(){
+                  const qRegle=(qualiteConfig||[]).find(function(r){return r.annee===year;});
+                  const nc=qRegle?calcNC(contracts,d.profile.id,qRegle):null;
+                  const decote=nc&&nc.actif?Math.round(d.total*nc.taux/100*100)/100:0;
+                  const totalApresDecote=Math.round((d.total-decote)*100)/100;
+                  return(
+                    <>
+                      <div style={{display:'flex',justifyContent:'flex-end',gap:'24px',fontSize:'13px',marginBottom:'10px',flexWrap:'wrap'}}>
+                        {d.totalCom>0&&<span style={{color:'#666'}}>Commissions : <b style={{color:'#1d4ed8'}}>{feur2(d.totalCom)}</b></span>}
+                        {d.totalPrimes>0&&<span style={{color:'#666'}}>Primes : <b style={{color:'#059669'}}>{feur2(d.totalPrimes)}</b></span>}
+                        <span style={{color:'#111',fontWeight:700,fontSize:'14px'}}>Total brut : {feur2(d.total)}</span>
+                      </div>
+                      {nc&&(
+                        <div style={{border:'1px solid '+(nc.actif?'#fca5a5':'#d1fae5'),borderRadius:'8px',padding:'10px 14px',background:nc.actif?'#fff5f5':'#f0fdf4',marginBottom:'10px'}}>
+                          <div style={{display:'flex',alignItems:'center',gap:'12px',flexWrap:'wrap'}}>
+                            <span style={{fontSize:'12.5px',fontWeight:600,color:nc.actif?'#991b1b':'#065f46'}}>
+                              {nc.actif?'⚠':'✓'} Taux NC : {nc.taux.toFixed(1)}% ({nc.nbNonConf} non conforme{nc.nbNonConf>1?'s':''} / {nc.nbEncours} encours)
+                            </span>
+                            <span style={{fontSize:'11px',color:'#888'}}>Seuil : {nc.seuil}%</span>
+                            {nc.actif&&<span style={{fontSize:'12px',color:'#dc2626',fontWeight:600}}>Décote : −{feur2(decote)} ({nc.taux.toFixed(1)}%)</span>}
+                          </div>
+                          {nc.actif&&nc.nonConformes.length>0&&(
+                            <div style={{marginTop:'8px',display:'flex',flexDirection:'column',gap:'2px'}}>
+                              <div style={{fontSize:'11px',color:'#888',marginBottom:'2px'}}>Dossiers non conformes :</div>
+                              {nc.nonConformes.map(function(c){
+                                const dt=c.document_tracking||{};
+                                const manquants=[];
+                                if(!dt.rented_signed) manquants.push('non signé');
+                                if(!dt.contract_nr_ok) manquants.push('N° non conforme');
+                                if(!dt.kyc_compliant) manquants.push('KYC');
+                                if(!dt.docs_complete) manquants.push('justificatifs');
+                                return(
+                                  <div key={c.id} style={{fontSize:'11px',color:'#555',padding:'2px 8px',cursor:'pointer'}} onClick={function(){onSelect&&onSelect(c);}}>
+                                    ↳ {c.client_name} — {c.contract_type} <span style={{color:'#dc2626'}}>({manquants.join(', ')})</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {nc&&nc.actif&&(
+                        <div style={{display:'flex',justifyContent:'flex-end'}}>
+                          <span style={{fontSize:'15px',fontWeight:700,color:'#1a1a1a'}}>Total net après décote : {feur2(totalApresDecote)}</span>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
                 <button onClick={function(){
                   const w=window.open('','_blank');
                   const refM=MONTHS[month===1?11:month-2]+' '+(month===1?year-1:year);
