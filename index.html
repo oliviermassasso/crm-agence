@@ -2361,8 +2361,7 @@ function DetailPanel({contract,profile,profiles,sb,grilles,onClose,onRefresh}){
   function eu(k,v){
     setEditF(function(p){
       const next=Object.assign({},p,{[k]:v});
-      // Recalcule la commission automatiquement si pas de commission manuelle préexistante
-      if((k==='annual_premium'||k==='contract_type')&&!contract.manual_commission){
+      if(k==='annual_premium'||k==='contract_type'){
         const fakeC=Object.assign({},contract,{annual_premium:parseFloat(next.annual_premium)||0,contract_type:next.contract_type,manual_commission:null});
         next.commission=calcBaseCommission(fakeC,grilles);
       }
@@ -2435,7 +2434,7 @@ function DetailPanel({contract,profile,profiles,sb,grilles,onClose,onRefresh}){
                 <IR label="Date d'effet" value={fdate(contract.effect_date)}/>
                 <IR label="Provenance" value={contract.provenance||'—'}/>
                 <IR label="Prime annuelle" value={feur0(contract.annual_premium)}/>
-                {!isCollab&&<IR label="Commission calculée" value={feur(calcBaseCommission(contract,grilles))}/>}
+                {!isCollab&&<IR label="Commission calculée" value={feur(editing?editF.commission:calcBaseCommission(contract,grilles))}/>}
                 {contract.comments&&<IR label="Commentaire" value={contract.comments}/>}
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'9px 0',fontSize:'13.5px'}}>
                   <span style={{color:'#666'}}>Code portefeuille</span>
