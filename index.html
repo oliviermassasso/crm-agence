@@ -3431,7 +3431,6 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,se
   function Checkbox({id}){return <SalaireCheckbox id={id} checked={!!checked[id]} onToggle={toggleCheck}/>;};
 
   const actifs=profiles.filter(function(p){return p.role!=='direction';});
-  console.log('[Salaire] render - primesConfig:', (primesConfig||[]).map(function(r){return r.nom+' seuil='+r.seuil+' prime='+r.prime_montant;}));
 
   function calcComForCons(consId){
     const pay=payments&&payments[consId]&&payments[consId][month];
@@ -3467,7 +3466,6 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,se
     const dateRef=rule.date_ref||'emission';
     const types=rule.contract_types&&rule.contract_types.length>0?rule.contract_types:null;
     const crit=rule.criteres||{};
-    const debug=[];
     const result=contracts.filter(function(c){
       if(c.conseiller_id!==consId) return false;
       if(c.status==='ANNULE'){debug.push(c.client_name+': annulé');return false;}
@@ -3496,8 +3494,6 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,se
       if(per==='annuel'&&cy!==refYear){debug.push(c.client_name+': hors année');return false;}
       return true;
     });
-    if(result.length===0) console.log('[Prime "'+rule.nom+'"] 0 résultat. Exclusions:',debug.slice(0,15));
-    else console.log('[Prime "'+rule.nom+'"] '+result.length+' contrat(s) trouvé(s):',result.map(function(c){return c.client_name;}));
     return result;
   }
 
