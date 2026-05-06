@@ -3404,8 +3404,11 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,se
   function toggleCheck(id){setChecked(function(p){return Object.assign({},p,{[id]:!p[id]});});}
   function Checkbox({id}){return <SalaireCheckbox id={id} checked={!!checked[id]} onToggle={toggleCheck}/>;};
 
+  const loadedYearRef=React.useRef(null);
   React.useEffect(function(){
     if(!sb) return;
+    if(loadedYearRef.current===year) return; // déjà chargé pour cette année
+    loadedYearRef.current=year;
     sb.from('commission_payments').select('*').eq('year',year).then(function(res){
       const pm={};
       (res.data||[]).forEach(function(p){
@@ -3414,7 +3417,7 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,se
       });
       setPayments(pm);
     });
-  },[sb,year]);
+  },[sb,year,setPayments]);
 
   const actifs=profiles.filter(function(p){return p.role!=='direction';});
   const consIds=selCons?[selCons]:(isCollab?[profile.id]:(isDir?actifs.map(function(p){return p.id;}):([profile.id])));
