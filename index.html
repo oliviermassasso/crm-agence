@@ -700,7 +700,7 @@ function App(){
         {active==='saisir-contrat'&&<FormContrat sb={sb} profile={profile} profiles={profiles} grilles={grilles} onSaved={function(){refresh();setActive(profile.role==='conseiller'?'mes-dossiers':'suivi-dossiers');}}/>}
         {(active==='suivi-dossiers'||active==='mes-dossiers')&&<SuiviDossiers contracts={contracts} profile={profile} profiles={profiles} reads={reads} lastMsgMap={lastMsgMap} sort={sort} setSort={setSortP} fCons={fCons} setFCons={setFConsP} fYear={fYear} setFYear={setFYearP} fMonth={fMonth} setFMonth={setFMonthP} fType={fType} setFType={setFTypeP} fStat={fStat} setFStat={setFStatP} fDoss={fDoss} setFDoss={setFDossP} fPay={fPay} setFPay={setFPayP} fDup={fDup} setFDup={setFDupP} search={search} setSearch={setSearch} selectedId={lastSelectedId} preFilterIds={preFilterIds} onClearPreFilter={function(){setPreFilterIds(null);}} onSelect={function(c){setSelected(c);setLastSelectedId(c.id);markRead(c.id);}} onNew={function(){setActive('saisir-contrat');}}/>}
         {active==='tableau-bord'&&<TableauBord contracts={contracts} rankContracts={rankContracts} profiles={profiles} profile={profile} objectifs={objectifs} onOpenIncomplete={function(ids){setPreFilterIds(ids);setActive('suivi-dossiers');}}/>}
-        {active==='configuration'&&<Configuration sb={sb} profile={profile} profiles={profiles} grilles={grilles} setGrilles={setGrilles} objectifs={objectifs} setObjectifs={setObjectifs} primesConfig={primesConfig} setPrimesConfig={setPrimesConfig}/>}
+        {active==='configuration'&&<Configuration sb={sb} profile={profile} profiles={profiles} grilles={grilles} setGrilles={setGrilles} objectifs={objectifs} setObjectifs={setObjectifs} primesConfig={primesConfig} setPrimesConfig={setPrimesConfig} onRefresh={refresh}/>}
         {active==='conges'&&<CongesPlaceholder profile={profile}/>}
         {(active==='salaires'||active==='mes-salaires')&&<PageSalaire contracts={contracts} profiles={profiles} profile={profile} primesConfig={primesConfig} grilles={grilles} sb={sb} year={salYear} setYear={setSalYear} month={salMonth} setMonth={setSalMonth} selCons={salCons} setSelCons={setSalCons} checked={salChecked} setChecked={setSalChecked} onSelect={function(c){setSelected(c);setLastSelectedId(c.id);markRead(c.id);}}/>}
         {active==='utilisateurs'&&<Utilisateurs profile={profile} profiles={profiles} sb={sb} onRefresh={refresh}/>}
@@ -2829,7 +2829,7 @@ function mkPrime(annee){
   return {id:null,annee:annee,nom:'',contract_types:[],date_ref:'emission',periodicite:'mensuel',seuil_type:'CA',seuil:0,prime_montant:0,paliers:[],type_prime:'simple',conseiller_id:null,criteres:{}};
 }
 
-function PrimesConfig({sb,profile,profiles,primesConfig,setPrimesConfig,canEdit}){
+function PrimesConfig({sb,profile,profiles,primesConfig,setPrimesConfig,canEdit,onRefresh}){
   const [annee,setAnnee]=useState(new Date().getFullYear());
   const [editing,setEditing]=useState(null); // prime object being edited or new
   const [saving,setSaving]=useState(false);
@@ -2853,6 +2853,7 @@ function PrimesConfig({sb,profile,profiles,primesConfig,setPrimesConfig,canEdit}
     const reload=await sb.from('primes_config').select('*');
     if(!reload.error) setPrimesConfig(reload.data||[]);
     setEditing(null);setSaving(false);setOk('✓ Règle enregistrée');setTimeout(function(){setOk('');},3000);
+    if(onRefresh) onRefresh();
   }
 
   async function del(id){
@@ -3110,7 +3111,7 @@ function PrimesConfig({sb,profile,profiles,primesConfig,setPrimesConfig,canEdit}
   );
 }
 
-function Configuration({sb,profile,profiles,grilles,setGrilles,objectifs,setObjectifs,primesConfig,setPrimesConfig}){
+function Configuration({sb,profile,profiles,grilles,setGrilles,objectifs,setObjectifs,primesConfig,setPrimesConfig,onRefresh}){
   const [onglet,setOnglet]=useState('grille');
   const [anneeG,setAnneeG]=useState(new Date().getFullYear());
   const [anneeO,setAnneeO]=useState(new Date().getFullYear());
@@ -3380,7 +3381,7 @@ function Configuration({sb,profile,profiles,grilles,setGrilles,objectifs,setObje
       )}
 
       {onglet==='primes'&&(
-        <PrimesConfig sb={sb} profile={profile} profiles={profiles} primesConfig={primesConfig} setPrimesConfig={setPrimesConfig} canEdit={canEdit}/>
+        <PrimesConfig sb={sb} profile={profile} profiles={profiles} primesConfig={primesConfig} setPrimesConfig={setPrimesConfig} canEdit={canEdit} onRefresh={onRefresh}/>
       )}
     </div>
   );
