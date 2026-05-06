@@ -2834,6 +2834,45 @@ function ObjRow({fam,type,getObj,saveObj,canEdit}){
 
 const CRITERES_LABELS={n_contrat_ok:'N° contrat conforme',rentre_signe:'Rentré signé',kyc_ok:'Conforme KYC',justificatifs_ok:'Justificatifs complets',date_ok:'Date correcte',cotisation_ok:'Cotisation payée',inclure_payes:'Inclure dossiers dont la commission est payée au conseiller',exclure_impayes:'Rejeter impayés'};
 
+// Résumé réutilisable d'une règle de prime
+function PrimeResume({rule,style}){
+  const isPaliers=rule.paliers&&rule.paliers.length>0;
+  const sorted=isPaliers?rule.paliers.slice().sort(function(a,b){return a.seuil-b.seuil;}):[];
+  const cons=null; // pas de profiles ici — affiché séparément si besoin
+  return(
+    <div style={Object.assign({fontSize:'12px',color:'#555'},style)}>
+      <div style={{display:'flex',gap:'10px',flexWrap:'wrap',marginBottom:'4px'}}>
+        <span>📅 {rule.date_ref==='emission'?'Date émission':'Date effet'}</span>
+        <span>🔄 {rule.periodicite}</span>
+        <span>📊 {rule.seuil_type==='CA'?'CA':'Nb contrats'}</span>
+      </div>
+      {isPaliers?(
+        <div style={{marginBottom:'4px'}}>
+          <div style={{fontWeight:600,marginBottom:'3px',fontSize:'11px',color:'#888'}}>Paliers :</div>
+          {sorted.map(function(p,i){return(
+            <div key={i} style={{display:'flex',gap:'8px',fontSize:'11.5px',padding:'1px 0'}}>
+              <span style={{color:'#888'}}>≥ {rule.seuil_type==='CA'?feur0(p.seuil):p.seuil+' contrats'}</span>
+              <span>→</span>
+              <span style={{fontWeight:600,color:'#059669'}}>{feur0(p.prime)} €</span>
+            </div>
+          );})}
+        </div>
+      ):(
+        <div style={{marginBottom:'4px',fontSize:'11.5px'}}>
+          <span style={{color:'#888'}}>Seuil : </span><span style={{fontWeight:600}}>{rule.seuil_type==='CA'?feur0(rule.seuil):rule.seuil+' contrats'}</span>
+          <span style={{color:'#888',marginLeft:'10px'}}>Prime : </span><span style={{fontWeight:600,color:'#059669'}}>{feur0(rule.prime_montant)} €</span>
+        </div>
+      )}
+      <div style={{fontSize:'11px',color:'#999'}}>
+        Produits : {rule.contract_types&&rule.contract_types.length>0?rule.contract_types.join(', '):'Tous'}
+      </div>
+      <div style={{fontSize:'11px',color:'#999',marginTop:'1px'}}>
+        Critères : {Object.entries(rule.criteres||{}).filter(function(e){return e[1];}).map(function(e){return CRITERES_LABELS[e[0]]||e[0];}).join(', ')||'Aucun'}
+      </div>
+    </div>
+  );
+}
+
 function mkPrime(annee){
   return {id:null,annee:annee,nom:'',contract_types:[],date_ref:'emission',periodicite:'mensuel',seuil_type:'CA',seuil:0,prime_montant:0,paliers:[],type_prime:'simple',conseiller_id:null,criteres:{}};
 }
@@ -2906,20 +2945,8 @@ function PrimesConfig({sb,profile,profiles,primesConfig,setPrimesConfig,canEdit,
             return(
               <div key={r.id} style={{border:'1px solid #e5e7eb',borderRadius:'10px',padding:'14px 18px',display:'flex',alignItems:'flex-start',gap:'16px'}}>
                 <div style={{flex:1}}>
-                  <div style={{fontSize:'14px',fontWeight:600,marginBottom:'4px'}}>{r.nom}</div>
-                  <div style={{fontSize:'12px',color:'#666',display:'flex',gap:'12px',flexWrap:'wrap'}}>
-                    <span>📅 {r.date_ref==='emission'?'Date émission':'Date effet'}</span>
-                    <span>🔄 {r.periodicite}</span>
-                    <span>📊 Seuil : {r.seuil_type==='CA'?feur0(r.seuil):r.seuil+' contrats'}</span>
-                    <span>💰 Prime : {feur0(r.prime_montant)}</span>
-                    <span>👤 {cons?cons.full_name:'Tous les conseillers'}</span>
-                  </div>
-                  <div style={{fontSize:'11px',color:'#999',marginTop:'4px'}}>
-                    Produits : {r.contract_types&&r.contract_types.length>0?r.contract_types.join(', '):'Tous'}
-                  </div>
-                  <div style={{fontSize:'11px',color:'#999',marginTop:'2px'}}>
-                    Critères : {Object.entries(r.criteres||{}).filter(function(e){return e[1];}).map(function(e){return CRITERES_LABELS[e[0]]||e[0];}).join(', ')||'Aucun'}
-                  </div>
+                  <div style={{fontSize:'14px',fontWeight:600,marginBottom:'6px'}}>{r.nom} <span style={{fontSize:'11px',color:'#aaa',fontWeight:400}}>👤 {cons?cons.full_name:'Tous'}</span></div>
+                  <PrimeResume rule={r}/>
                 </div>
                 {canEdit&&<div style={{display:'flex',gap:'8px',flexShrink:0}}>
                   <button onClick={function(){setEditing(Object.assign({},r,{contract_types:r.contract_types||[],criteres:r.criteres||{},paliers:r.paliers||[],type_prime:r.paliers&&r.paliers.length>0?'paliers':'simple'}));}} style={{padding:'5px 12px',fontSize:'12px'}}>✏️</button>
@@ -3622,8 +3649,16 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,se
                             <span style={{fontSize:'12px',fontWeight:600,flex:1,color:x.atteint?'#065f46':'#991b1b'}}>{x.atteint?'✅':'❌'} {x.rule.nom}</span>
                             <span style={{fontSize:'11px',color:'#888'}}>{x.rule.seuil_type==='nb'?x.realise+' contrats':feur2(x.realise)} / {seuilLabel}</span>
                             <span style={{fontSize:'12px',fontWeight:700,color:x.atteint?'#059669':'#aaa',minWidth:'60px',textAlign:'right'}}>{x.atteint?feur2(x.prime):'—'}</span>
+                            {/* Info bulle */}
+                            <span onClick={function(e){e.stopPropagation();setOpenPrimes(function(prev){var k='info-'+primeKey;return Object.assign({},prev,{[k]:!prev[k]});});}} title="Détail de la règle" style={{fontSize:'13px',color:'#94a3b8',cursor:'pointer',flexShrink:0}}>ℹ</span>
                             {x.contrats.length>0&&<span style={{fontSize:'11px',color:'#aaa'}}>{isOpen?'▲':'▼'}</span>}
                           </div>
+                          {/* Info bulle développée */}
+                          {openPrimes['info-'+primeKey]&&(
+                            <div style={{margin:'0 12px 8px',padding:'10px 12px',background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:'8px'}}>
+                              <PrimeResume rule={x.rule}/>
+                            </div>
+                          )}
                           {/* Sous-contrats */}
                           {isOpen&&x.contrats.length>0&&(
                             <table style={{width:'100%',borderCollapse:'collapse',fontSize:'11.5px'}}>
