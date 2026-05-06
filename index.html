@@ -306,6 +306,12 @@ function App(){
   const [contracts,setContracts]=useState([]);
   const [preFilterIds,setPreFilterIds]=useState(null);
   const [hasUpdate,setHasUpdate]=useState(false);
+  const today2=new Date();
+  const [salYear,setSalYear]=useState(today2.getFullYear());
+  const [salMonth,setSalMonth]=useState(today2.getMonth()+1);
+  const [salCons,setSalCons]=useState('');
+  const [salChecked,setSalChecked]=useState({});
+  const [salPayments,setSalPayments]=useState({});
   const refreshingRef=React.useRef(false);
   const [monCompte,setMonCompte]=useState(false);
   const [grilles,setGrilles]=useState({});   // {annee: {type: {taux, fixed, montant_fixe}}}
@@ -697,7 +703,7 @@ function App(){
         {active==='tableau-bord'&&<TableauBord contracts={contracts} rankContracts={rankContracts} profiles={profiles} profile={profile} objectifs={objectifs} onOpenIncomplete={function(ids){setPreFilterIds(ids);setActive('suivi-dossiers');}}/>}
         {active==='configuration'&&<Configuration sb={sb} profile={profile} profiles={profiles} grilles={grilles} setGrilles={setGrilles} objectifs={objectifs} setObjectifs={setObjectifs} primesConfig={primesConfig} setPrimesConfig={setPrimesConfig}/>}
         {active==='conges'&&<CongesPlaceholder profile={profile}/>}
-        {(active==='salaires'||active==='mes-salaires')&&<PageSalaire contracts={contracts} profiles={profiles} profile={profile} primesConfig={primesConfig} grilles={grilles} sb={sb}/>}
+        {(active==='salaires'||active==='mes-salaires')&&<PageSalaire contracts={contracts} profiles={profiles} profile={profile} primesConfig={primesConfig} grilles={grilles} sb={sb} year={salYear} setYear={setSalYear} month={salMonth} setMonth={setSalMonth} selCons={salCons} setSelCons={setSalCons} checked={salChecked} setChecked={setSalChecked} payments={salPayments} setPayments={setSalPayments}/>}
         {active==='utilisateurs'&&<Utilisateurs profile={profile} profiles={profiles} sb={sb} onRefresh={refresh}/>}
         {(active==='commissions'||active==='mes-commissions')&&<Commissions contracts={contracts} profiles={profiles} profile={profile} sb={sb} onSelect={function(c){setSelected(c);markRead(c.id);}} onRefresh={refresh} year={comYear} setYear={setComYearP} month={comMonth} setMonth={setComMonthP} selCons={comSelCons} setSelCons={setComSelConsP} comSearch={comSearch} setComSearch={setComSearch} grilles={grilles}/>}
         {!['saisir-contrat','suivi-dossiers','mes-dossiers','tableau-bord','commissions','mes-commissions','conges','utilisateurs','configuration','salaires','mes-salaires'].includes(active)&&<Placeholder nav={nav} active={active}/>}
@@ -3382,15 +3388,9 @@ function Configuration({sb,profile,profiles,grilles,setGrilles,objectifs,setObje
 }
 
 
-function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb}){
+function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,setYear,month,setMonth,selCons,setSelCons,checked,setChecked,payments,setPayments}){
   const isDir=profile.role==='direction';
   const isCollab=profile.role==='conseiller';
-  const today=new Date();
-  const [year,setYear]=useState(today.getFullYear());
-  const [month,setMonth]=useState(today.getMonth()+1);
-  const [selCons,setSelCons]=useState(isCollab?profile.id:'');
-  const [payments,setPayments]=useState({});
-  const [checked,setChecked]=useState({});
 
   function toggleCheck(id){setChecked(function(p){return Object.assign({},p,{[id]:!p[id]});});}
   function Checkbox({id}){
@@ -3415,7 +3415,7 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb}){
   },[sb,year]);
 
   const actifs=profiles.filter(function(p){return p.role!=='direction';});
-  const consIds=selCons?[selCons]:(isDir?actifs.map(function(p){return p.id;}):([profile.id]));
+  const consIds=selCons?[selCons]:(isCollab?[profile.id]:(isDir?actifs.map(function(p){return p.id;}):([profile.id])));
 
   function calcComForCons(consId){
     const pay=payments&&payments[consId]&&payments[consId][month];
