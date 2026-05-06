@@ -2850,8 +2850,6 @@ function PrimesConfig({sb,profile,profiles,primesConfig,setPrimesConfig,canEdit,
       r=await sb.from('primes_config').insert({annee:annee,nom:editing.nom,contract_types:editing.contract_types,date_ref:editing.date_ref,periodicite:editing.periodicite,seuil_type:editing.seuil_type,seuil:editing.seuil,prime_montant:editing.prime_montant,paliers:editing.paliers||[],conseiller_id:editing.conseiller_id||null,criteres:editing.criteres});
     }
     if(r.error){alert('Erreur : '+r.error.message);setSaving(false);return;}
-    const reload=await sb.from('primes_config').select('*');
-    if(!reload.error) setPrimesConfig(reload.data||[]);
     setEditing(null);setSaving(false);setOk('✓ Règle enregistrée');setTimeout(function(){setOk('');},3000);
     if(onRefresh) onRefresh();
   }
@@ -2859,18 +2857,16 @@ function PrimesConfig({sb,profile,profiles,primesConfig,setPrimesConfig,canEdit,
   async function del(id){
     if(!window.confirm('Supprimer cette règle ?')) return;
     await sb.from('primes_config').delete().eq('id',id);
-    const reload=await sb.from('primes_config').select('*');
-    if(!reload.error) setPrimesConfig(reload.data||[]);
+    if(onRefresh) onRefresh();
   }
 
   async function copy(fromAnnee,toAnnee){
     const src=(primesConfig||[]).filter(function(r){return r.annee===fromAnnee;});
     if(src.length===0){alert('Aucune règle à copier.');return;}
     await sb.from('primes_config').delete().eq('annee',toAnnee);
-    const rows=src.map(function(r){return {annee:toAnnee,nom:r.nom,contract_types:r.contract_types,date_ref:r.date_ref,periodicite:r.periodicite,seuil_type:r.seuil_type,seuil:r.seuil,prime_montant:r.prime_montant,conseiller_id:r.conseiller_id,criteres:r.criteres};});
+    const rows=src.map(function(r){return {annee:toAnnee,nom:r.nom,contract_types:r.contract_types,date_ref:r.date_ref,periodicite:r.periodicite,seuil_type:r.seuil_type,seuil:r.seuil,prime_montant:r.prime_montant,paliers:r.paliers||[],conseiller_id:r.conseiller_id,criteres:r.criteres};});
     await sb.from('primes_config').insert(rows);
-    const reload=await sb.from('primes_config').select('*');
-    if(!reload.error) setPrimesConfig(reload.data||[]);
+    if(onRefresh) onRefresh();
     setAnnee(toAnnee);setOk('✓ Règles '+toAnnee+' créées');setTimeout(function(){setOk('');},3000);
   }
 
