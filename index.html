@@ -315,7 +315,8 @@ function App(){
   const [monCompte,setMonCompte]=useState(false);
   const [grilles,setGrilles]=useState({});   // {annee: {type: {taux, fixed, montant_fixe}}}
   const [objectifs,setObjectifs]=useState([]);
-  const [primesConfig,setPrimesConfig]=useState([]); // raw rows
+  const [primesConfig,setPrimesConfig]=useState([]);
+  const [qualiteConfig,setQualiteConfig]=useState([]); // raw rows
   const [rankContracts,setRankContracts]=useState([]);
   const [profiles,setProfiles]=useState([]);
   const [active,setActive]=useState(null);
@@ -506,6 +507,8 @@ function App(){
     }
     const pc=await cl.from('primes_config').select('*');
     if(!pc.error) setPrimesConfig(pc.data||[]);
+    const qc=await cl.from('qualite_config').select('*');
+    if(!qc.error) setQualiteConfig(qc.data||[]);
 
     setObjectifs(allObjectifs);
     if(selectedId){
@@ -700,9 +703,9 @@ function App(){
         {active==='saisir-contrat'&&<FormContrat sb={sb} profile={profile} profiles={profiles} grilles={grilles} onSaved={function(){refresh();setActive(profile.role==='conseiller'?'mes-dossiers':'suivi-dossiers');}}/>}
         {(active==='suivi-dossiers'||active==='mes-dossiers')&&<SuiviDossiers contracts={contracts} profile={profile} profiles={profiles} reads={reads} lastMsgMap={lastMsgMap} sort={sort} setSort={setSortP} fCons={fCons} setFCons={setFConsP} fYear={fYear} setFYear={setFYearP} fMonth={fMonth} setFMonth={setFMonthP} fType={fType} setFType={setFTypeP} fStat={fStat} setFStat={setFStatP} fDoss={fDoss} setFDoss={setFDossP} fPay={fPay} setFPay={setFPayP} fDup={fDup} setFDup={setFDupP} search={search} setSearch={setSearch} selectedId={lastSelectedId} preFilterIds={preFilterIds} onClearPreFilter={function(){setPreFilterIds(null);}} onSelect={function(c){setSelected(c);setLastSelectedId(c.id);markRead(c.id);}} onNew={function(){setActive('saisir-contrat');}}/>}
         {active==='tableau-bord'&&<TableauBord contracts={contracts} rankContracts={rankContracts} profiles={profiles} profile={profile} objectifs={objectifs} onOpenIncomplete={function(ids){setPreFilterIds(ids);setActive('suivi-dossiers');}}/>}
-        {active==='configuration'&&<Configuration sb={sb} profile={profile} profiles={profiles} grilles={grilles} setGrilles={setGrilles} objectifs={objectifs} setObjectifs={setObjectifs} primesConfig={primesConfig} setPrimesConfig={setPrimesConfig} onRefresh={refresh}/>}
+        {active==='configuration'&&<Configuration sb={sb} profile={profile} profiles={profiles} grilles={grilles} setGrilles={setGrilles} objectifs={objectifs} setObjectifs={setObjectifs} primesConfig={primesConfig} setPrimesConfig={setPrimesConfig} qualiteConfig={qualiteConfig} setQualiteConfig={setQualiteConfig} onRefresh={refresh}/>}
         {active==='conges'&&<CongesPlaceholder profile={profile}/>}
-        {(active==='salaires'||active==='mes-salaires')&&<PageSalaire contracts={contracts} profiles={profiles} profile={profile} primesConfig={primesConfig} grilles={grilles} sb={sb} year={salYear} setYear={setSalYear} month={salMonth} setMonth={setSalMonth} selCons={salCons} setSelCons={setSalCons} checked={salChecked} setChecked={setSalChecked} onSelect={function(c){setSelected(c);setLastSelectedId(c.id);markRead(c.id);}}/>}
+        {(active==='salaires'||active==='mes-salaires')&&<PageSalaire contracts={contracts} profiles={profiles} profile={profile} primesConfig={primesConfig} grilles={grilles} sb={sb} year={salYear} setYear={setSalYear} month={salMonth} setMonth={setSalMonth} selCons={salCons} setSelCons={setSalCons} checked={salChecked} setChecked={setSalChecked} qualiteConfig={qualiteConfig} onSelect={function(c){setSelected(c);setLastSelectedId(c.id);markRead(c.id);}}/>}
         {active==='utilisateurs'&&<Utilisateurs profile={profile} profiles={profiles} sb={sb} onRefresh={refresh}/>}
         {(active==='commissions'||active==='mes-commissions')&&<Commissions contracts={contracts} profiles={profiles} profile={profile} sb={sb} onSelect={function(c){setSelected(c);markRead(c.id);}} onRefresh={refresh} year={comYear} setYear={setComYearP} month={comMonth} setMonth={setComMonthP} selCons={comSelCons} setSelCons={setComSelConsP} comSearch={comSearch} setComSearch={setComSearch} grilles={grilles}/>}
         {!['saisir-contrat','suivi-dossiers','mes-dossiers','tableau-bord','commissions','mes-commissions','conges','utilisateurs','configuration','salaires','mes-salaires'].includes(active)&&<Placeholder nav={nav} active={active}/>}
@@ -2893,6 +2896,96 @@ function PrimeResume({rule,style}){
   );
 }
 
+function QualiteConfig({sb,qualiteConfig,setQualiteConfig,canEdit}){
+  const anneeActuelle=new Date().getFullYear();
+  const [saving,setSaving]=useState(false);
+  const [ok,setOk]=useState('');
+
+  // Règles indexées par année
+  const regles={};
+  (qualiteConfig||[]).forEach(function(r){regles[r.annee]=r;});
+
+  // État local d'édition pour chaque année
+  const annees=[anneeActuelle,anneeActuelle+1].filter(function(a){return a>=2026;});
+  // Ajouter les années déjà en base
+  (qualiteConfig||[]).forEach(function(r){if(!annees.includes(r.annee))annees.push(r.annee);});
+  annees.sort(function(a,b){return b-a;});
+
+  async function saveRegle(annee,actif,seuil,date_debut){
+    setSaving(true);setOk('');
+    const existing=regles[annee];
+    let r;
+    if(existing){
+      r=await sb.from('qualite_config').update({actif:actif,seuil:seuil,date_debut:date_debut||null}).eq('annee',annee);
+    } else {
+      r=await sb.from('qualite_config').insert({annee:annee,actif:actif,seuil:seuil,date_debut:date_debut||null});
+    }
+    if(r.error){alert('Erreur : '+r.error.message);setSaving(false);return;}
+    const reload=await sb.from('qualite_config').select('*');
+    if(!reload.error) setQualiteConfig(reload.data||[]);
+    setSaving(false);setOk('✓ Enregistré');setTimeout(function(){setOk('');},3000);
+  }
+
+  return(
+    <div>
+      {ok&&<span style={{fontSize:'13px',color:'#059669',fontWeight:500,marginBottom:'12px',display:'block'}}>{ok}</span>}
+      <div style={{fontSize:'12.5px',color:'#666',marginBottom:'16px'}}>
+        La décote s'applique si le taux de non-conformité du conseiller est supérieur ou égal au seuil. Seuls les contrats dont la date d'émission est ≥ à la date de début sont pris en compte.
+      </div>
+      <div style={{display:'flex',flexDirection:'column',gap:'12px'}}>
+        {annees.map(function(annee){
+          const r=regles[annee]||{annee:annee,actif:false,seuil:15,date_debut:annee+'-01-01'};
+          return <QualiteRegleRow key={annee} annee={annee} regle={r} canEdit={canEdit} saving={saving} onSave={saveRegle}/>;
+        })}
+      </div>
+      {canEdit&&(
+        <button onClick={function(){
+          const newAnnee=Math.min.apply(null,annees)-1;
+          if(newAnnee<2026) return;
+          saveRegle(newAnnee,false,15,newAnnee+'-01-01');
+        }} style={{marginTop:'16px',fontSize:'12px',padding:'6px 16px',border:'1px dashed #1d4ed8',borderRadius:'6px',color:'#1d4ed8',background:'#f8faff',cursor:'pointer'}}>
+          + Ajouter une année
+        </button>
+      )}
+    </div>
+  );
+}
+
+function QualiteRegleRow({annee,regle,canEdit,saving,onSave}){
+  const [actif,setActif]=useState(regle.actif);
+  const [seuil,setSeuil]=useState(regle.seuil||15);
+  const [dateDebut,setDateDebut]=useState(regle.date_debut||annee+'-01-01');
+  const [dirty,setDirty]=useState(false);
+
+  function upd(fn){fn();setDirty(true);}
+
+  return(
+    <div style={{border:'1px solid #e5e7eb',borderRadius:'10px',padding:'14px 18px',background:actif?'#f0fdf4':'#fafafa'}}>
+      <div style={{display:'flex',alignItems:'center',gap:'16px',flexWrap:'wrap'}}>
+        <div style={{fontSize:'14px',fontWeight:600,minWidth:'50px'}}>{annee}</div>
+        <label style={{display:'flex',alignItems:'center',gap:'8px',fontSize:'13px',cursor:'pointer'}}>
+          <input type="checkbox" checked={actif} onChange={function(e){upd(function(){setActif(e.target.checked);});}} disabled={!canEdit}/>
+          <span style={{color:actif?'#065f46':'#888'}}>{actif?'Règle active':'Règle inactive'}</span>
+        </label>
+        <div style={{display:'flex',alignItems:'center',gap:'6px',fontSize:'13px'}}>
+          <span style={{color:'#666'}}>Seuil :</span>
+          <input type="number" min="1" max="100" value={seuil} onChange={function(e){upd(function(){setSeuil(parseFloat(e.target.value)||15);});}} disabled={!canEdit} style={{width:'60px',padding:'4px 8px',fontSize:'13px'}}/>
+          <span style={{color:'#666'}}>%</span>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:'6px',fontSize:'13px'}}>
+          <span style={{color:'#666'}}>Dossiers à partir du :</span>
+          <input type="date" value={dateDebut} onChange={function(e){upd(function(){setDateDebut(e.target.value);});}} disabled={!canEdit} style={{padding:'4px 8px',fontSize:'13px'}}/>
+        </div>
+        {canEdit&&dirty&&(
+          <button onClick={function(){onSave(annee,actif,seuil,dateDebut);setDirty(false);}} disabled={saving} style={{padding:'5px 16px',fontSize:'12px',background:'#1d4ed8',color:'#fff',border:'none',borderRadius:'6px'}}>
+            {saving?'…':'💾 Enregistrer'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function mkPrime(annee){
   return {id:null,annee:annee,nom:'',contract_types:[],date_ref:'emission',periodicite:'mensuel',seuil_type:'CA',seuil:0,prime_montant:0,paliers:[],type_prime:'simple',conseiller_id:null,criteres:{}};
 }
@@ -3166,7 +3259,7 @@ function PrimesConfig({sb,profile,profiles,primesConfig,setPrimesConfig,canEdit,
   );
 }
 
-function Configuration({sb,profile,profiles,grilles,setGrilles,objectifs,setObjectifs,primesConfig,setPrimesConfig,onRefresh}){
+function Configuration({sb,profile,profiles,grilles,setGrilles,objectifs,setObjectifs,primesConfig,setPrimesConfig,qualiteConfig,setQualiteConfig,onRefresh}){
   const [onglet,setOnglet]=useState('grille');
   const [anneeG,setAnneeG]=useState(new Date().getFullYear());
   const [anneeO,setAnneeO]=useState(new Date().getFullYear());
@@ -3317,6 +3410,7 @@ function Configuration({sb,profile,profiles,grilles,setGrilles,objectifs,setObje
         <button onClick={function(){setOnglet('grille');}} style={{padding:'8px 20px',fontSize:'13px',border:'none',borderRadius:0,background:onglet==='grille'?'#1d4ed8':'#fff',color:onglet==='grille'?'#fff':'#555'}}>📊 Grille de rémunération</button>
         <button onClick={function(){setOnglet('objectifs');}} style={{padding:'8px 20px',fontSize:'13px',border:'none',borderLeft:'1px solid #e5e7eb',borderRadius:0,background:onglet==='objectifs'?'#1d4ed8':'#fff',color:onglet==='objectifs'?'#fff':'#555'}}>🎯 Objectifs</button>
         <button onClick={function(){setOnglet('primes');}} style={{padding:'8px 20px',fontSize:'13px',border:'none',borderLeft:'1px solid #e5e7eb',borderRadius:0,background:onglet==='primes'?'#1d4ed8':'#fff',color:onglet==='primes'?'#fff':'#555'}}>🏆 Primes</button>
+        <button onClick={function(){setOnglet('qualite');}} style={{padding:'8px 20px',fontSize:'13px',border:'none',borderLeft:'1px solid #e5e7eb',borderRadius:0,background:onglet==='qualite'?'#1d4ed8':'#fff',color:onglet==='qualite'?'#fff':'#555'}}>📋 Qualité</button>
       </div>
 
       {onglet==='grille'&&(
@@ -3437,6 +3531,10 @@ function Configuration({sb,profile,profiles,grilles,setGrilles,objectifs,setObje
 
       {onglet==='primes'&&(
         <PrimesConfig sb={sb} profile={profile} profiles={profiles} primesConfig={primesConfig} setPrimesConfig={setPrimesConfig} canEdit={canEdit} onRefresh={onRefresh}/>
+      )}
+
+      {onglet==='qualite'&&(
+        <QualiteConfig sb={sb} qualiteConfig={qualiteConfig} setQualiteConfig={setQualiteConfig} canEdit={canEdit}/>
       )}
     </div>
   );
