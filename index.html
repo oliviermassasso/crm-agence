@@ -3594,11 +3594,11 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,se
               {/* Primes */}
               {d.primes.length>0&&(
                 <div>
-                  <div onClick={function(){toggleComs('p'+d.profile.id);}} style={{fontSize:'13px',fontWeight:700,color:'#fff',marginBottom:'10px',display:'flex',justifyContent:'space-between',alignItems:'center',background:'linear-gradient(to right,#059669,#047857)',padding:'8px 12px',borderRadius:'8px',cursor:'pointer',userSelect:'none'}}>
-                    <span>🏆 Primes {openComs['p'+d.profile.id]?'▲':'▼'} <span style={{fontSize:'11px',color:'rgba(255,255,255,0.75)',fontWeight:400}}>(contrats de {MONTHS[month===1?11:month-2]} {month===1?year-1:year})</span></span>
+                  <div onClick={function(){setOpenPrimes(function(prev){return Object.assign({},prev,{[d.profile.id]:!prev[d.profile.id]});});}} style={{fontSize:'13px',fontWeight:700,color:'#fff',marginBottom:'10px',display:'flex',justifyContent:'space-between',alignItems:'center',background:'linear-gradient(to right,#059669,#047857)',padding:'8px 12px',borderRadius:'8px',cursor:'pointer',userSelect:'none'}}>
+                    <span>🏆 Primes {openPrimes[d.profile.id]?'▲':'▼'} <span style={{fontSize:'11px',color:'rgba(255,255,255,0.75)',fontWeight:400}}>(contrats de {MONTHS[month===1?11:month-2]} {month===1?year-1:year})</span></span>
                     <span style={{fontWeight:700}}>{feur2(d.totalPrimes)}</span>
                   </div>
-                  {openComs['p'+d.profile.id]&&<table style={{width:'100%',borderCollapse:'collapse',fontSize:'12px'}}>
+                  {openPrimes[d.profile.id]&&<table style={{width:'100%',borderCollapse:'collapse',fontSize:'12px'}}>
                     <thead>
                       <tr style={{background:'#f8fafc',borderBottom:'1px solid #e5e7eb'}}>
                         <th style={{padding:'6px 8px',width:'28px'}}></th>
