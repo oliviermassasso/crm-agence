@@ -311,7 +311,6 @@ function App(){
   const [salMonth,setSalMonth]=useState(today2.getMonth()+1);
   const [salCons,setSalCons]=useState('');
   const [salChecked,setSalChecked]=useState({});
-  const [salPayments,setSalPayments]=useState({});
   const refreshingRef=React.useRef(false);
   const [monCompte,setMonCompte]=useState(false);
   const [grilles,setGrilles]=useState({});   // {annee: {type: {taux, fixed, montant_fixe}}}
@@ -507,15 +506,6 @@ function App(){
     }
     const pc=await cl.from('primes_config').select('*');
     if(!pc.error) setPrimesConfig(pc.data||[]);
-    const cp=await cl.from('commission_payments').select('*');
-    const salPm={};
-    (cp.data||[]).forEach(function(p){
-      if(!salPm[p.conseiller_id]) salPm[p.conseiller_id]={};
-      // Clé composée année-mois pour éviter les conflits inter-années
-      const key=p.year+'-'+p.month;
-      salPm[p.conseiller_id][key]=p;
-    });
-    setSalPayments(salPm);
 
     setObjectifs(allObjectifs);
     if(selectedId){
@@ -3406,11 +3396,26 @@ function SalaireCheckbox({id,checked,onToggle}){
   );
 }
 
-function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,setYear,month,setMonth,selCons,setSelCons,checked,setChecked,payments,setPayments,onSelect}){
+function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,setYear,month,setMonth,selCons,setSelCons,checked,setChecked,onSelect}){
   const isDir=profile.role==='direction';
   const isCollab=profile.role==='conseiller';
   const [openComs,setOpenComs]=useState({});
   const [openPrimes,setOpenPrimes]=useState({});
+  const [payments,setPayments]=useState({});
+
+  // Charger les paiements filtrés par année — simple et sans boucle
+  React.useEffect(function(){
+    if(!sb) return;
+    var currentYear=year;
+    sb.from('commission_payments').select('*').eq('year',currentYear).then(function(res){
+      var pm={};
+      (res.data||[]).forEach(function(p){
+        if(!pm[p.conseiller_id]) pm[p.conseiller_id]={};
+        pm[p.conseiller_id][p.month]=p;
+      });
+      setPayments(pm);
+    });
+  },[sb,year]);
   function toggleComs(id){setOpenComs(function(p){return Object.assign({},p,{[id]:!p[id]});});}
   function togglePrimeRow(key){setOpenPrimes(function(p){return Object.assign({},p,{[key]:!p[key]});});}
   function toggleCheck(id){setChecked(function(p){return Object.assign({},p,{[id]:!p[id]});});}
@@ -3420,8 +3425,8 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,se
   const consIds=selCons?[selCons]:(isCollab?[profile.id]:(isDir?actifs.map(function(p){return p.id;}):([profile.id])));
 
   function calcComForCons(consId){
-    const pay=payments&&payments[consId]&&payments[consId][year+'-'+month];
-    const isFrozen=pay&&pay.frozen&&pay.year===year;
+    const pay=payments&&payments[consId]&&payments[consId][month];
+    const isFrozen=pay&&pay.frozen;
     const grilleYear=grilles[year]||grilles[Object.keys(grilles).sort().pop()]||{};
 
     let contratsCible;
