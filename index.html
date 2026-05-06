@@ -710,7 +710,7 @@ function App(){
         {active==='tableau-bord'&&<TableauBord contracts={contracts} rankContracts={rankContracts} profiles={profiles} profile={profile} objectifs={objectifs} onOpenIncomplete={function(ids){setPreFilterIds(ids);setActive('suivi-dossiers');}}/>}
         {active==='configuration'&&<Configuration sb={sb} profile={profile} profiles={profiles} grilles={grilles} setGrilles={setGrilles} objectifs={objectifs} setObjectifs={setObjectifs} primesConfig={primesConfig} setPrimesConfig={setPrimesConfig}/>}
         {active==='conges'&&<CongesPlaceholder profile={profile}/>}
-        {(active==='salaires'||active==='mes-salaires')&&<PageSalaire contracts={contracts} profiles={profiles} profile={profile} primesConfig={primesConfig} grilles={grilles} sb={sb} year={salYear} setYear={setSalYear} month={salMonth} setMonth={setSalMonth} selCons={salCons} setSelCons={setSalCons} checked={salChecked} setChecked={setSalChecked} payments={salPayments} setPayments={setSalPayments}/>}
+        {(active==='salaires'||active==='mes-salaires')&&<PageSalaire contracts={contracts} profiles={profiles} profile={profile} primesConfig={primesConfig} grilles={grilles} sb={sb} year={salYear} setYear={setSalYear} month={salMonth} setMonth={setSalMonth} selCons={salCons} setSelCons={setSalCons} checked={salChecked} setChecked={setSalChecked} payments={salPayments} setPayments={setSalPayments} onSelect={function(c){setSelected(c);setLastSelectedId(c.id);markRead(c.id);}}/>}
         {active==='utilisateurs'&&<Utilisateurs profile={profile} profiles={profiles} sb={sb} onRefresh={refresh}/>}
         {(active==='commissions'||active==='mes-commissions')&&<Commissions contracts={contracts} profiles={profiles} profile={profile} sb={sb} onSelect={function(c){setSelected(c);markRead(c.id);}} onRefresh={refresh} year={comYear} setYear={setComYearP} month={comMonth} setMonth={setComMonthP} selCons={comSelCons} setSelCons={setComSelConsP} comSearch={comSearch} setComSearch={setComSearch} grilles={grilles}/>}
         {!['saisir-contrat','suivi-dossiers','mes-dossiers','tableau-bord','commissions','mes-commissions','conges','utilisateurs','configuration','salaires','mes-salaires'].includes(active)&&<Placeholder nav={nav} active={active}/>}
@@ -3404,10 +3404,13 @@ function SalaireCheckbox({id,checked,onToggle}){
   );
 }
 
-function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,setYear,month,setMonth,selCons,setSelCons,checked,setChecked,payments,setPayments}){
+function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,setYear,month,setMonth,selCons,setSelCons,checked,setChecked,payments,setPayments,onSelect}){
   const isDir=profile.role==='direction';
   const isCollab=profile.role==='conseiller';
-
+  const [openComs,setOpenComs]=useState({});
+  const [openPrimes,setOpenPrimes]=useState({});
+  function toggleComs(id){setOpenComs(function(p){return Object.assign({},p,{[id]:!p[id]});});}
+  function togglePrimeRow(key){setOpenPrimes(function(p){return Object.assign({},p,{[key]:!p[key]});});}
   function toggleCheck(id){setChecked(function(p){return Object.assign({},p,{[id]:!p[id]});});}
   function Checkbox({id}){return <SalaireCheckbox id={id} checked={!!checked[id]} onToggle={toggleCheck}/>;};
 
@@ -3555,15 +3558,15 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,se
               {/* Commissions */}
               {d.coms.length>0&&(
                 <div style={{marginBottom:'20px'}}>
-                  <div style={{fontSize:'13px',fontWeight:700,color:'#fff',marginBottom:'10px',display:'flex',justifyContent:'space-between',background:'linear-gradient(to right,#1d4ed8,#1e40af)',padding:'8px 12px',borderRadius:'8px'}}>
-                    <span>📋 Commissions</span>
+                  <div onClick={function(){toggleComs(d.profile.id);}} style={{fontSize:'13px',fontWeight:700,color:'#fff',marginBottom:'10px',display:'flex',justifyContent:'space-between',alignItems:'center',background:'linear-gradient(to right,#1d4ed8,#1e40af)',padding:'8px 12px',borderRadius:'8px',cursor:'pointer',userSelect:'none'}}>
+                    <span>📋 Commissions {openComs[d.profile.id]?'▲':'▼'}</span>
                     <span style={{fontWeight:700}}>{feur2(d.totalCom)}</span>
                   </div>
-                  <table style={{width:'100%',borderCollapse:'collapse',fontSize:'12px'}}>
+                  {openComs[d.profile.id]&&<table style={{width:'100%',borderCollapse:'collapse',fontSize:'12px',marginBottom:'8px'}}>
                     <thead>
                       <tr style={{background:'#f8fafc',borderBottom:'1px solid #e5e7eb'}}>
                         <th style={{padding:'6px 8px',width:'28px',textAlign:'center'}}>
-                          <span onClick={function(){const ids=d.coms.map(function(x){return x.contract.id;});const all=ids.every(function(id){return checked[id];});const n={};ids.forEach(function(id){n[id]=!all;});setChecked(function(p){return Object.assign({},p,n);});}} style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:'18px',height:'18px',borderRadius:'4px',border:'1.5px solid #d1d5db',background:'#f3f4f6',cursor:'pointer',fontSize:'10px',color:'#888'}}>✓</span>
+                          <span onClick={function(e){e.stopPropagation();const ids=d.coms.map(function(x){return x.contract.id;});const all=ids.every(function(id){return checked[id];});const n={};ids.forEach(function(id){n[id]=!all;});setChecked(function(p){return Object.assign({},p,n);});}} style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:'18px',height:'18px',borderRadius:'4px',border:'1.5px solid #d1d5db',background:'#f3f4f6',cursor:'pointer',fontSize:'10px',color:'#888'}}>✓</span>
                         </th>
                         <th style={{padding:'6px 8px',textAlign:'left',fontWeight:600,color:'#666',fontSize:'11px'}}>Client</th>
                         <th style={{padding:'6px 8px',textAlign:'left',fontWeight:600,color:'#666',fontSize:'11px'}}>Produit</th>
@@ -3574,8 +3577,8 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,se
                     <tbody>
                       {d.coms.map(function(x,i){
                         return(
-                          <tr key={i} style={{borderBottom:'1px solid #f9fafb',background:checked[x.contract.id]?'#f0fdf4':'#fff'}}>
-                            <td style={{padding:'6px 8px',textAlign:'center'}}><Checkbox id={x.contract.id}/></td>
+                          <tr key={i} style={{borderBottom:'1px solid #f9fafb',background:checked[x.contract.id]?'#f0fdf4':'#fff',cursor:'pointer'}} onClick={function(){onSelect&&onSelect(x.contract);}}>
+                            <td style={{padding:'6px 8px',textAlign:'center'}} onClick={function(e){e.stopPropagation();}}><Checkbox id={x.contract.id}/></td>
                             <td style={{padding:'6px 8px',color:'#333',fontSize:'12px'}}>{x.contract.client_name}</td>
                             <td style={{padding:'6px 8px',color:'#555',fontSize:'12px'}}>{x.contract.contract_type}</td>
                             <td style={{padding:'6px 8px',textAlign:'right',color:'#555',fontSize:'12px'}}>{feur0(x.contract.annual_premium||0)}</td>
@@ -3584,18 +3587,18 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,se
                         );
                       })}
                     </tbody>
-                  </table>
+                  </table>}
                 </div>
               )}
 
               {/* Primes */}
               {d.primes.length>0&&(
                 <div>
-                  <div style={{fontSize:'13px',fontWeight:700,color:'#fff',marginBottom:'10px',display:'flex',justifyContent:'space-between',background:'linear-gradient(to right,#059669,#047857)',padding:'8px 12px',borderRadius:'8px'}}>
-                    <span>🏆 Primes <span style={{fontSize:'11px',color:'rgba(255,255,255,0.75)',fontWeight:400}}>(contrats de {MONTHS[month===1?11:month-2]} {month===1?year-1:year})</span></span>
+                  <div onClick={function(){toggleComs('p'+d.profile.id);}} style={{fontSize:'13px',fontWeight:700,color:'#fff',marginBottom:'10px',display:'flex',justifyContent:'space-between',alignItems:'center',background:'linear-gradient(to right,#059669,#047857)',padding:'8px 12px',borderRadius:'8px',cursor:'pointer',userSelect:'none'}}>
+                    <span>🏆 Primes {openComs['p'+d.profile.id]?'▲':'▼'} <span style={{fontSize:'11px',color:'rgba(255,255,255,0.75)',fontWeight:400}}>(contrats de {MONTHS[month===1?11:month-2]} {month===1?year-1:year})</span></span>
                     <span style={{fontWeight:700}}>{feur2(d.totalPrimes)}</span>
                   </div>
-                  <table style={{width:'100%',borderCollapse:'collapse',fontSize:'12px'}}>
+                  {openComs['p'+d.profile.id]&&<table style={{width:'100%',borderCollapse:'collapse',fontSize:'12px'}}>
                     <thead>
                       <tr style={{background:'#f8fafc',borderBottom:'1px solid #e5e7eb'}}>
                         <th style={{padding:'6px 8px',width:'28px'}}></th>
@@ -3623,8 +3626,8 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,se
                             </tr>
                             {x.contrats.map(function(c,ci){
                               return(
-                                <tr key={'c'+ci} style={{background:checked[c.id]?'#f0fdf4':'#f9fafb',borderBottom:'1px solid #f3f4f6'}}>
-                                  <td style={{padding:'4px 8px',textAlign:'center'}}><Checkbox id={c.id}/></td>
+                                <tr key={'c'+ci} style={{background:checked[c.id]?'#f0fdf4':'#f9fafb',borderBottom:'1px solid #f3f4f6',cursor:'pointer'}} onClick={function(){onSelect&&onSelect(c);}}>
+                                  <td style={{padding:'4px 8px',textAlign:'center'}} onClick={function(e){e.stopPropagation();}}><Checkbox id={c.id}/></td>
                                   <td style={{padding:'4px 10px 4px 22px',color:'#777',fontSize:'11.5px'}}>↳ {c.client_name}</td>
                                   <td style={{padding:'4px 10px',color:'#888',fontSize:'11.5px'}}>{c.contract_type}</td>
                                   <td style={{padding:'4px 10px',textAlign:'right',color:'#888',fontSize:'11.5px'}}>{feur0(c.annual_premium||0)}</td>
@@ -3636,7 +3639,7 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,se
                         );
                       })}
                     </tbody>
-                  </table>
+                  </table>}
                 </div>
               )}
 
@@ -3684,7 +3687,7 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,se
                       const seuilLabel=x.rule.seuil_type==='nb'?x.rule.seuil+' contrats':feur2(x.rule.seuil);
                       w.document.write('<h3>'+x.rule.nom+' — '+statut+(x.atteint?' → '+feur2(x.prime):'')+'</h3>');
                       w.document.write('<table><tr><th>Réalisé</th><th>Seuil</th><th style="text-align:right">Prime</th></tr>');
-                      w.document.write('<tr class="'+(x.atteint?'atteint':'non-atteint')+'"><td><b>'+realiseLabel+'</b></td><td>'+seuilLabel+'</td><td style="text-align:right"><b style="color:'+(x.atteint?'#059669':'#dc2626')+'">'+(x.atteint?feur2(x.prime):'—')+'</b></td></tr>');
+                      w.document.write('<tr class="'+(x.atteint?'atteint':'non-atteint')+'"><td><b>'+realiseLabel+'</b></td><td>'+(x.isPaliers?(x.atteint?(x.rule.paliers.slice().sort(function(a,b){return b.seuil-a.seuil;}).find(function(p){return x.realise>=p.seuil;})||{seuil:0}).seuil+'€ atteint':'1er palier '+x.rule.paliers.slice().sort(function(a,b){return a.seuil-b.seuil;})[0].seuil+'€'):seuilLabel)+'</td>'<td style="text-align:right"><b style="color:'+(x.atteint?'#059669':'#dc2626')+'">'+(x.atteint?feur2(x.prime):'—')+'</b></td></tr>');
                       w.document.write('</table>');
                       if(x.contrats&&x.contrats.length>0){
                         w.document.write('<table><tr><th style="padding-left:20px">Client</th><th>N° Contrat</th><th>Produit</th><th style="text-align:right">Prime annuelle</th></tr>');
