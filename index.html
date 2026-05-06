@@ -511,7 +511,9 @@ function App(){
     const salPm={};
     (cp.data||[]).forEach(function(p){
       if(!salPm[p.conseiller_id]) salPm[p.conseiller_id]={};
-      salPm[p.conseiller_id][p.month]=p;
+      // Clé composée année-mois pour éviter les conflits inter-années
+      const key=p.year+'-'+p.month;
+      salPm[p.conseiller_id][key]=p;
     });
     setSalPayments(salPm);
 
@@ -3418,8 +3420,8 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,se
   const consIds=selCons?[selCons]:(isCollab?[profile.id]:(isDir?actifs.map(function(p){return p.id;}):([profile.id])));
 
   function calcComForCons(consId){
-    const pay=payments&&payments[consId]&&payments[consId][month];
-    const isFrozen=pay&&pay.frozen;
+    const pay=payments&&payments[consId]&&payments[consId][year+'-'+month];
+    const isFrozen=pay&&pay.frozen&&pay.year===year;
     const grilleYear=grilles[year]||grilles[Object.keys(grilles).sort().pop()]||{};
 
     let contratsCible;
@@ -3429,7 +3431,7 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,se
         return c.conseiller_id===consId&&pay.frozen_contract_ids.includes(c.id);
       });
     } else {
-      // Mois non gelé : contrats du mois par date d'émission
+      // Mois non gelé : contrats du mois ET de l'année par date d'émission
       contratsCible=contracts.filter(function(c){
         if(c.conseiller_id!==consId||c.status==='ANNULE'||c.status==='PAYE') return false;
         const d=new Date(c.emission_date);
