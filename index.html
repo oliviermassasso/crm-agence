@@ -684,7 +684,8 @@ function App(){
           {nav.map(function(n){return(
             <div key={n.id} onClick={function(){
               if(active==='configuration'&&window.__configDirty&&!window.confirm('Modifications non enregistrées — quitter quand même ?')) return;
-              setActive(n.id);setSelected(null);
+              setSelected(null);
+              setActive(n.id);
             }} style={{display:'flex',alignItems:'center',gap:'10px',padding:'9px 20px',cursor:'pointer',fontSize:'13.5px',fontWeight:active===n.id?500:400,color:active===n.id?'#1d4ed8':'#555',background:active===n.id?'#eff6ff':'transparent',borderRight:'2px solid '+(active===n.id?'#1d4ed8':'transparent')}}>
               <span style={{width:'16px',textAlign:'center',flexShrink:0}}>{n.icon}</span>{n.label}
             </div>
@@ -726,12 +727,12 @@ function App(){
         {active==='tableau-bord'&&<TableauBord contracts={contracts} rankContracts={rankContracts} profiles={profiles} profile={profile} objectifs={objectifs} onOpenIncomplete={function(ids){setPreFilterIds(ids);setActive('suivi-dossiers');}} qualiteConfig={qualiteConfig}/>}
         {active==='configuration'&&<Configuration sb={sb} profile={profile} profiles={profiles} grilles={grilles} setGrilles={setGrilles} objectifs={objectifs} setObjectifs={setObjectifs} primesConfig={primesConfig} setPrimesConfig={setPrimesConfig} qualiteConfig={qualiteConfig} setQualiteConfig={setQualiteConfig} onRefresh={refresh}/>}
         {active==='conges'&&<CongesPlaceholder profile={profile}/>}
-        {(active==='salaires'||active==='mes-salaires')&&<PageSalaire contracts={contracts} profiles={profiles} profile={profile} primesConfig={primesConfig} grilles={grilles} sb={sb} year={salYear} setYear={setSalYear} month={salMonth} setMonth={setSalMonth} selCons={salCons} setSelCons={setSalCons} checked={salChecked} setChecked={setSalChecked} qualiteConfig={qualiteConfig} onSelect={function(c){setSelected(c);setLastSelectedId(c.id);markRead(c.id);}}/>}
+        {(active==='salaires'||active==='mes-salaires')&&<PageSalaire contracts={contracts} profiles={profiles} profile={profile} primesConfig={primesConfig} grilles={grilles} sb={sb} year={salYear} setYear={setSalYear} month={salMonth} setMonth={setSalMonth} selCons={salCons} setSelCons={setSalCons} checked={salChecked} setChecked={setSalChecked} qualiteConfig={qualiteConfig} onSelect={function(c){setSelected(c);setLastSelectedId(c.id);markRead(c.id);setActive(profile.role==='conseiller'?'mes-dossiers':'suivi-dossiers');}}/>}
         {active==='utilisateurs'&&<Utilisateurs profile={profile} profiles={profiles} sb={sb} onRefresh={refresh}/>}
         {(active==='commissions'||active==='mes-commissions')&&<Commissions contracts={contracts} profiles={profiles} profile={profile} sb={sb} onSelect={function(c){setSelected(c);markRead(c.id);}} onRefresh={refresh} year={comYear} setYear={setComYearP} month={comMonth} setMonth={setComMonthP} selCons={comSelCons} setSelCons={setComSelConsP} comSearch={comSearch} setComSearch={setComSearch} grilles={grilles}/>}
         {!['saisir-contrat','suivi-dossiers','mes-dossiers','tableau-bord','commissions','mes-commissions','conges','utilisateurs','configuration','salaires','mes-salaires'].includes(active)&&<Placeholder nav={nav} active={active}/>}
       </div>
-      {selected&&<DetailPanel key={selected.id} contract={selected} profile={profile} profiles={profiles} sb={sb} grilles={grilles} onClose={function(){setSelected(null);}} onRefresh={refresh}/>}
+      {selected&&['suivi-dossiers','mes-dossiers'].includes(active)&&<DetailPanel key={selected.id} contract={selected} profile={profile} profiles={profiles} sb={sb} grilles={grilles} onClose={function(){setSelected(null);}} onRefresh={refresh}/>}
     </div>
   );
 }
@@ -3942,33 +3943,56 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,se
                     w.document.write('<div class="section-header section-com"><span>📋 Commissions</span><span>'+feur2(d.totalCom)+'</span></div>');
                     w.document.write('<table><tr><th>Client</th><th>N° Contrat</th><th>Produit</th><th style="text-align:right">Prime annuelle</th><th style="text-align:right">Commission</th></tr>');
                     d.coms.forEach(function(x){
-                      w.document.write('<tr><td>'+x.contract.client_name+'</td><td style="color:#888">'+( x.contract.contract_number||'—')+'</td><td>'+x.contract.contract_type+'</td><td style="text-align:right">'+feur0(x.contract.annual_premium||0)+'</td><td style="text-align:right"><b>'+feur2(x.commission)+'</b></td></tr>');
+                      w.document.write('<tr><td>'+x.contract.client_name+'</td><td style="color:#666">'+(x.contract.contract_number||'—')+'</td><td>'+x.contract.contract_type+'</td><td style="text-align:right">'+feur0(x.contract.annual_premium||0)+'</td><td style="text-align:right"><b style="color:#1d4ed8">'+feur2(x.commission)+'</b></td></tr>');
                     });
                     w.document.write('</table>');
                   }
                   if(d.primes.length>0){
-                    w.document.write('<div class="section-header section-prime"><span>🏆 Primes</span><span>'+feur2(d.totalPrimes)+' <span style="font-size:10px;opacity:0.8">('+refM+')</span></span></div>');
+                    w.document.write('<div class="section-header section-prime"><span>🏆 Primes</span><span>'+feur2(d.totalPrimes)+' <span style="font-size:10px;opacity:0.8">(contrats de '+refM+')</span></span></div>');
                     d.primes.forEach(function(x){
                       const statut=x.atteint?'✓ Atteint':'✗ Non atteint';
                       const realiseLabel=x.rule.seuil_type==='nb'?x.realise+' contrats':feur2(x.realise);
-                      const seuilLabel=x.rule.seuil_type==='nb'?x.rule.seuil+' contrats':feur2(x.rule.seuil);
-                      w.document.write('<h3>'+x.rule.nom+' — '+statut+(x.atteint?' → '+feur2(x.prime):'')+'</h3>');
+                      const seuilPdf=x.isPaliers?(x.atteint?(x.rule.paliers.slice().sort(function(a,b){return b.seuil-a.seuil;}).find(function(p){return x.realise>=p.seuil;})||{seuil:0}).seuil+'€ atteint':'1er palier '+x.rule.paliers.slice().sort(function(a,b){return a.seuil-b.seuil;})[0].seuil+'€'):(x.rule.seuil_type==='nb'?x.rule.seuil+' contrats':feur2(x.rule.seuil));
+                      w.document.write('<h3 style="background:'+(x.atteint?'#f0fdf4':'#fff5f5')+';border-left-color:'+(x.atteint?'#059669':'#dc2626')+'">'+x.rule.nom+' — <span style="color:'+(x.atteint?'#059669':'#dc2626')+'">'+statut+'</span>'+(x.atteint?' → <b>'+feur2(x.prime)+'</b>':'')+'</h3>');
                       w.document.write('<table><tr><th>Réalisé</th><th>Seuil</th><th style="text-align:right">Prime</th></tr>');
-                      w.document.write('<tr class="'+(x.atteint?'atteint':'non-atteint')+'"><td><b>'+realiseLabel+'</b></td><td>'+(x.isPaliers?(x.atteint?(x.rule.paliers.slice().sort(function(a,b){return b.seuil-a.seuil;}).find(function(p){return x.realise>=p.seuil;})||{seuil:0}).seuil+'€ atteint':'1er palier '+x.rule.paliers.slice().sort(function(a,b){return a.seuil-b.seuil;})[0].seuil+'€'):seuilLabel)+'</td><td style="text-align:right"><b style="color:'+(x.atteint?'#059669':'#dc2626')+'">'+(x.atteint?feur2(x.prime):'—')+'</b></td></tr>');
+                      w.document.write('<tr class="'+(x.atteint?'atteint':'non-atteint')+'"><td><b>'+realiseLabel+'</b></td><td>'+seuilPdf+'</td><td style="text-align:right"><b style="color:'+(x.atteint?'#059669':'#aaa')+'">'+(x.atteint?feur2(x.prime):'—')+'</b></td></tr>');
                       w.document.write('</table>');
                       if(x.contrats&&x.contrats.length>0){
-                        w.document.write('<table><tr><th style="padding-left:20px">Client</th><th>N° Contrat</th><th>Produit</th><th style="text-align:right">Prime annuelle</th></tr>');
-                        x.contrats.forEach(function(c){
-                          w.document.write('<tr class="sub"><td>'+c.client_name+'</td><td style="color:#888">'+(c.contract_number||'—')+'</td><td>'+c.contract_type+'</td><td style="text-align:right">'+feur0(c.annual_premium||0)+'</td></tr>');
-                        });
+                        w.document.write('<table style="margin-top:2px"><tr><th style="padding-left:18px;background:#f9fafb">Client</th><th style="background:#f9fafb">N° Contrat</th><th style="background:#f9fafb">Produit</th><th style="text-align:right;background:#f9fafb">Prime annuelle</th></tr>');
+                        x.contrats.forEach(function(c){w.document.write('<tr class="sub"><td>'+c.client_name+'</td><td style="color:#888">'+(c.contract_number||'—')+'</td><td>'+c.contract_type+'</td><td style="text-align:right">'+feur0(c.annual_premium||0)+'</td></tr>');});
                         w.document.write('</table>');
                       }
                     });
                   }
+                  // Section Taux NC
+                  var qReglePdf=(qualiteConfig||[]).find(function(r){return r.annee===year;});
+                  var ncPdf=qReglePdf?calcNC(contracts,d.profile.id,qReglePdf):null;
+                  if(ncPdf){
+                    var decotePdf=ncPdf.actif?Math.round(d.total*ncPdf.taux/100*100)/100:0;
+                    w.document.write('<div class="section-header" style="background:'+(ncPdf.actif?'linear-gradient(to right,#dc2626,#b91c1c)':'linear-gradient(to right,#059669,#047857)')+'"><span>'+(ncPdf.actif?'⚠':'✓')+' Taux de non-conformité</span><span>'+ncPdf.taux.toFixed(1)+'%</span></div>');
+                    w.document.write('<table><tr><th>Non conformes</th><th>Total encours</th><th>Taux</th><th>Seuil</th><th style="text-align:right">Décote</th></tr>');
+                    w.document.write('<tr><td>'+ncPdf.nbNonConf+'</td><td>'+ncPdf.nbEncours+'</td><td><b style="color:'+(ncPdf.actif?'#dc2626':'#059669')+'">'+ncPdf.taux.toFixed(1)+'%</b></td><td>'+ncPdf.seuil+'%</td><td style="text-align:right"><b>'+(ncPdf.actif?'−'+feur2(decotePdf):'Aucune')+'</b></td></tr></table>');
+                    if(ncPdf.actif&&ncPdf.nonConformes.length>0){
+                      w.document.write('<table style="margin-top:2px"><tr><th>Dossiers non conformes</th><th>Produit</th><th>Critères manquants</th></tr>');
+                      ncPdf.nonConformes.forEach(function(c){
+                        var dt=c.document_tracking||{};
+                        var mq=[];
+                        if(!dt.rented_signed)mq.push('non signé');
+                        if(!dt.contract_nr_ok)mq.push('N° non conforme');
+                        if(!dt.kyc_compliant)mq.push('KYC');
+                        if(!dt.docs_complete)mq.push('justificatifs');
+                        w.document.write('<tr><td>'+c.client_name+'</td><td>'+c.contract_type+'</td><td style="color:#dc2626">'+mq.join(', ')+'</td></tr>');
+                      });
+                      w.document.write('</table>');
+                    }
+                  }
+                  // Total
                   w.document.write('<div class="total-box">');
-                  if(d.totalCom>0) w.document.write('<span>Commissions : <b>'+feur2(d.totalCom)+'</b></span>');
+                  if(d.totalCom>0) w.document.write('<span>Commissions : <b style="color:#1d4ed8">'+feur2(d.totalCom)+'</b></span>');
                   if(d.totalPrimes>0) w.document.write('<span>Primes : <b style="color:#059669">'+feur2(d.totalPrimes)+'</b></span>');
-                  w.document.write('<span class="grand-total">Total brut : '+feur2(d.total)+'</span>');
+                  w.document.write('<span>Total brut : <b>'+feur2(d.total)+'</b></span>');
+                  if(ncPdf&&ncPdf.actif){var decotePdf2=Math.round(d.total*ncPdf.taux/100*100)/100;w.document.write('<span style="color:#dc2626">Décote NC : <b>−'+feur2(decotePdf2)+'</b></span><span class="grand-total">Total net : '+feur2(Math.round((d.total-decotePdf2)*100)/100)+'</span>');}
+                  else{w.document.write('<span class="grand-total">Total brut : '+feur2(d.total)+'</span>');}
                   w.document.write('</div>');
                   w.document.write('<script>setTimeout(function(){window.print();},400);<\/script></body></html>');
                   w.document.close();
