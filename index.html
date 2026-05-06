@@ -3388,19 +3388,21 @@ function Configuration({sb,profile,profiles,grilles,setGrilles,objectifs,setObje
 }
 
 
+function SalaireCheckbox({id,checked,onToggle}){
+  return(
+    <span onClick={function(e){e.stopPropagation();onToggle(id);}}
+      style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:'18px',height:'18px',borderRadius:'4px',border:'1.5px solid '+(checked?'#16a34a':'#d1d5db'),background:checked?'#16a34a':'#fff',color:'#fff',fontSize:'11px',fontWeight:700,cursor:'pointer',flexShrink:0}}>
+      {checked?'✓':''}
+    </span>
+  );
+}
+
 function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,setYear,month,setMonth,selCons,setSelCons,checked,setChecked,payments,setPayments}){
   const isDir=profile.role==='direction';
   const isCollab=profile.role==='conseiller';
 
   function toggleCheck(id){setChecked(function(p){return Object.assign({},p,{[id]:!p[id]});});}
-  function Checkbox({id}){
-    return(
-      <span onClick={function(e){e.stopPropagation();toggleCheck(id);}}
-        style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:'18px',height:'18px',borderRadius:'4px',border:'1.5px solid '+(checked[id]?'#16a34a':'#d1d5db'),background:checked[id]?'#16a34a':'#fff',color:'#fff',fontSize:'11px',fontWeight:700,cursor:'pointer',flexShrink:0}}>
-        {checked[id]?'✓':''}
-      </span>
-    );
-  }
+  function Checkbox({id}){return <SalaireCheckbox id={id} checked={!!checked[id]} onToggle={toggleCheck}/>;};
 
   React.useEffect(function(){
     if(!sb) return;
