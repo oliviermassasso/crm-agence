@@ -1822,16 +1822,19 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs,onOpenI
           const now=today.getTime();
           const green=incomplets.filter(function(c){return (now-new Date(c.emission_date).getTime())/(86400000)<15;});
           const orange=incomplets.filter(function(c){const d=(now-new Date(c.emission_date).getTime())/(86400000);return d>=15&&d<30;});
-          const red=incomplets.filter(function(c){return (now-new Date(c.emission_date).getTime())/(86400000)>=30;});
+          const red=incomplets.filter(function(c){const d=(now-new Date(c.emission_date).getTime())/(86400000);return d>=30&&d<150;});
+          const black=incomplets.filter(function(c){return (now-new Date(c.emission_date).getTime())/(86400000)>=150;});
           const Badge=IncompletBadge;
           return(
             <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'14px 16px',flex:'0 0 auto',display:'flex',flexDirection:'column',justifyContent:'center'}}>
               <div style={{fontSize:'13px',fontWeight:600,marginBottom:'14px',textAlign:'center'}}>Dossiers incomplets</div>
-              <div style={{display:'flex',gap:'8px',justifyContent:'center'}}>
+              <div style={{display:'flex',gap:'8px',justifyContent:'center',flexWrap:'wrap'}}>
                 <Badge count={green.length} color="#16a34a" bg="#dcfce7" label="< 15 j" ids={green} onOpen={onOpenIncomplete}/>
                 <Badge count={orange.length} color="#d97706" bg="#fef3c7" label="15–30 j" ids={orange} onOpen={onOpenIncomplete}/>
                 <Badge count={red.length} color="#dc2626" bg="#fee2e2" label="> 30 j" ids={red} onOpen={onOpenIncomplete}/>
+                <Badge count={black.length} color="#fff" bg="#1a1a1a" label="⚠ > 5 mois" ids={black} onOpen={onOpenIncomplete}/>
               </div>
+              {black.length>0&&<div style={{fontSize:'11px',color:'#dc2626',fontWeight:600,textAlign:'center',marginTop:'8px'}}>⚠ {black.length} dossier{black.length>1?'s':''} à risque de commission 0€</div>}
               {incomplets.length===0&&<div style={{fontSize:'11px',color:'#aaa',textAlign:'center',marginTop:'8px'}}>✓ Tous les dossiers sont complets</div>}
             </div>
           );
@@ -2402,6 +2405,23 @@ function DetailPanel({contract,profile,profiles,sb,grilles,onClose,onRefresh}){
               🔒 Dossier verrouillé — commission validée {payInfo&&payInfo.bs_month?'· BS '+payInfo.bs_month:''}. Modification impossible.
             </div>
           )}
+          {(function(){
+            if(isLocked||!contract.emission_date) return null;
+            const isComplete=contract.document_tracking&&contract.document_tracking.eligible_since;
+            if(isComplete) return null;
+            const jours=Math.floor((Date.now()-new Date(contract.emission_date).getTime())/86400000);
+            if(jours>=180) return(
+              <div style={{background:'#1a1a1a',border:'1px solid #dc2626',borderRadius:'8px',padding:'10px 14px',marginBottom:'16px',display:'flex',alignItems:'center',gap:'8px',fontSize:'13px',color:'#fca5a5',fontWeight:600}}>
+                ⚠️ Dossier incomplet depuis {jours} jours — commission potentiellement à 0€. Vérifiez et mettez la commission à 0 manuellement si nécessaire.
+              </div>
+            );
+            if(jours>=150) return(
+              <div style={{background:'#fef2f2',border:'1px solid #fca5a5',borderRadius:'8px',padding:'10px 14px',marginBottom:'16px',display:'flex',alignItems:'center',gap:'8px',fontSize:'13px',color:'#991b1b',fontWeight:600}}>
+                ⚠️ Dossier incomplet depuis {jours} jours — approche des 6 mois. Risque de commission 0€.
+              </div>
+            );
+            return null;
+          })()}
           <div style={{marginBottom:'20px'}}>
             <div className="sec">Informations</div>
             {editing?(
