@@ -8,6 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5/papaparse.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f9fafb;color:#111;}
@@ -127,6 +128,7 @@ const TYPE_SANTE_TNS=['Ma Santé TNS & Retraités'];
 
 function calcBaseCommission(contract, grillesMap) {
   if(contract.status==='ANNULE') return 0;
+  if(contract.status==='RESILIE'&&!contract.resiliation_after_payment) return 0;
   if(contract.manual_commission!==null&&contract.manual_commission!==undefined){
     const v=parseFloat(contract.manual_commission);
     return isNaN(v)?0:v;
@@ -155,6 +157,7 @@ function calcBaseCommission(contract, grillesMap) {
 
 function isEligibleForCommission(c) {
   if(c.status==='ANNULE') return false;
+  if(c.status==='RESILIE'&&!c.resiliation_after_payment) return false;
   const dt=c.document_tracking||{};
   if(dt.has_problem) return false;
   if(!dt.rented_signed) return false;
@@ -168,6 +171,7 @@ function isEligibleForCommission(c) {
 
 function isConforme(c) {
   if(c.status==='ANNULE') return true;
+  if(c.status==='RESILIE'&&!c.resiliation_after_payment) return true;
   const dt=c.document_tracking||{};
   if(dt.has_problem) return false;
   if(!dt.rented_signed||!dt.kyc_compliant||!dt.docs_complete) return false;
@@ -204,6 +208,7 @@ function calcMonthCommissions(contracts,profiles,year,month,paidAtMap,grillesMap
     const dt=c.document_tracking||{};
     if(!dt.eligible_since) return false;
     if(c.status==='ANNULE') return false;
+    if(c.status==='RESILIE'&&!c.resiliation_after_payment) return false;
     if(c.status==='PAYE') return false; // déjà traité dans un mois gelé
     const d=new Date(dt.eligible_since);
     const consId=c.conseiller_id;
@@ -313,6 +318,13 @@ const feur2=function(n){return new Intl.NumberFormat('fr-FR',{style:'currency',c
 // Adaptatif : 0, 1 ou 2 décimales selon besoin (supprime les zéros inutiles)
 const feurAuto=function(n){return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:0,maximumFractionDigits:2}).format(n||0);};
 const fnum=function(n){return new Intl.NumberFormat('fr-FR').format(n||0);};
+// Normalise N° contrat pour matching : strip zéros si purement numérique, sinon exact (majuscules)
+const normNumeroCRM=function(n){
+  if(!n) return '';
+  const s=String(n).trim();
+  if(/^\d+$/.test(s)) return s.replace(/^0+/,'')||'0';
+  return s.toUpperCase();
+};
 const fdt=function(d){if(!d)return '';const dt=new Date(d);return dt.toLocaleDateString('fr-FR')+' '+dt.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});};
 const toUpper=function(s){return (s||'').toUpperCase();};
 function docStatus(dt){
@@ -345,6 +357,7 @@ function App(){
   const [primesConfig,setPrimesConfig]=useState([]);
   const [qualiteConfig,setQualiteConfig]=useState([]); // raw rows
   const [rankContracts,setRankContracts]=useState([]);
+  const [lastResiliationImport,setLastResiliationImport]=useState(null);
   const [profiles,setProfiles]=useState([]);
   const [active,setActive]=useState(null);
   const [selected,setSelected]=useState(null);
@@ -536,6 +549,9 @@ function App(){
     if(!pc.error) setPrimesConfig(pc.data||[]);
     const qc=await cl.from('qualite_config').select('*');
     if(!qc.error) setQualiteConfig(qc.data||[]);
+    // Dernier import résiliations (pour rappel)
+    const lastImpQ=await cl.from('resiliations_imports').select('imported_at').order('imported_at',{ascending:false}).limit(1);
+    if(!lastImpQ.error) setLastResiliationImport(lastImpQ.data&&lastImpQ.data.length>0?lastImpQ.data[0].imported_at:null);
 
     setObjectifs(allObjectifs);
     if(selectedId&&(active==='suivi-dossiers'||active==='mes-dossiers')){
@@ -665,6 +681,8 @@ function App(){
 
   const nav=NAV[profile.role]||[];
   const rc=RC[profile.role];
+  const joursSansImport=lastResiliationImport?Math.floor((Date.now()-new Date(lastResiliationImport).getTime())/86400000):999;
+  const rappelResil=joursSansImport>35;
   const ini=(profile.full_name||'?').split(' ').map(function(w){return w[0];}).join('').slice(0,2).toUpperCase();
   const comId=profile.role==='conseiller'?'mes-commissions':'commissions';
 
@@ -701,6 +719,7 @@ function App(){
               setActive(n.id);
             }} style={{display:'flex',alignItems:'center',gap:'10px',padding:'9px 20px',cursor:'pointer',fontSize:'13.5px',fontWeight:active===n.id?500:400,color:active===n.id?'#1d4ed8':'#555',background:active===n.id?'#eff6ff':'transparent',borderRight:'2px solid '+(active===n.id?'#1d4ed8':'transparent')}}>
               <span style={{width:'16px',textAlign:'center',flexShrink:0}}>{n.icon}</span>{n.label}
+              {n.id==='resiliations'&&rappelResil&&<span style={{width:'8px',height:'8px',borderRadius:'50%',background:'#dc2626',flexShrink:0,marginLeft:'auto'}}/>}
             </div>
           );})}
         </nav>
@@ -737,13 +756,14 @@ function App(){
       <div style={{flex:1,overflow:'auto',background:'#f9fafb'}}>
         {active==='saisir-contrat'&&<FormContrat sb={sb} profile={profile} profiles={profiles} grilles={grilles} onSaved={function(){refresh();setActive(profile.role==='conseiller'?'mes-dossiers':'suivi-dossiers');}}/>}
         {(active==='suivi-dossiers'||active==='mes-dossiers')&&<SuiviDossiers contracts={contracts} profile={profile} profiles={profiles} reads={reads} lastMsgMap={lastMsgMap} sort={sort} setSort={setSortP} fCons={fCons} setFCons={setFConsP} fYear={fYear} setFYear={setFYearP} fMonth={fMonth} setFMonth={setFMonthP} fType={fType} setFType={setFTypeP} fStat={fStat} setFStat={setFStatP} fDoss={fDoss} setFDoss={setFDossP} fPay={fPay} setFPay={setFPayP} fDup={fDup} setFDup={setFDupP} search={search} setSearch={setSearch} selectedId={lastSelectedId} preFilterIds={preFilterIds} onClearPreFilter={function(){setPreFilterIds(null);}} onSelect={function(c){setSelected(c);setLastSelectedId(c.id);markRead(c.id);}} onNew={function(){setActive('saisir-contrat');}}/>}
-        {active==='tableau-bord'&&<TableauBord contracts={contracts} rankContracts={rankContracts} profiles={profiles} profile={profile} objectifs={objectifs} onOpenIncomplete={function(ids){setPreFilterIds(ids);setActive('suivi-dossiers');}} qualiteConfig={qualiteConfig}/>}
+        {active==='tableau-bord'&&<TableauBord contracts={contracts} rankContracts={rankContracts} profiles={profiles} profile={profile} objectifs={objectifs} onOpenIncomplete={function(ids){setPreFilterIds(ids);setActive('suivi-dossiers');}} qualiteConfig={qualiteConfig} lastResiliationImport={lastResiliationImport}/>}
         {active==='configuration'&&<Configuration sb={sb} profile={profile} profiles={profiles} grilles={grilles} setGrilles={setGrilles} objectifs={objectifs} setObjectifs={setObjectifs} primesConfig={primesConfig} setPrimesConfig={setPrimesConfig} qualiteConfig={qualiteConfig} setQualiteConfig={setQualiteConfig} onRefresh={refresh}/>}
         {active==='conges'&&<CongesPlaceholder profile={profile}/>}
         {(active==='salaires'||active==='mes-salaires')&&<PageSalaire contracts={contracts} profiles={profiles} profile={profile} primesConfig={primesConfig} grilles={grilles} sb={sb} year={salYear} setYear={setSalYear} month={salMonth} setMonth={setSalMonth} selCons={salCons} setSelCons={setSalCons} checked={salChecked} setChecked={setSalChecked} qualiteConfig={qualiteConfig} onSelect={function(c){setSelected(c);setLastSelectedId(c.id);markRead(c.id);}}/>}
         {active==='utilisateurs'&&<Utilisateurs profile={profile} profiles={profiles} sb={sb} onRefresh={refresh}/>}
+        {active==='resiliations'&&<PageResiliations contracts={contracts} profiles={profiles} profile={profile} sb={sb} onRefresh={refresh} lastResiliationImport={lastResiliationImport} setLastResiliationImport={setLastResiliationImport}/>}
         {(active==='commissions'||active==='mes-commissions')&&<Commissions contracts={contracts} profiles={profiles} profile={profile} sb={sb} onSelect={function(c){setSelected(c);markRead(c.id);}} onRefresh={refresh} year={comYear} setYear={setComYearP} month={comMonth} setMonth={setComMonthP} selCons={comSelCons} setSelCons={setComSelConsP} comSearch={comSearch} setComSearch={setComSearch} grilles={grilles}/>}
-        {!['saisir-contrat','suivi-dossiers','mes-dossiers','tableau-bord','commissions','mes-commissions','conges','utilisateurs','configuration','salaires','mes-salaires'].includes(active)&&<Placeholder nav={nav} active={active}/>}
+        {!['saisir-contrat','suivi-dossiers','mes-dossiers','tableau-bord','commissions','mes-commissions','conges','utilisateurs','configuration','salaires','mes-salaires','resiliations'].includes(active)&&<Placeholder nav={nav} active={active}/>}
       </div>
       {selected&&<DetailPanel key={selected.id} contract={selected} profile={profile} profiles={profiles} sb={sb} grilles={grilles} onClose={function(){setSelected(null);}} onRefresh={refresh}/>}
     </div>
@@ -960,7 +980,7 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh,year,setY
                               {checked[c.id]?'✓':''}
                             </span>
                           </td>
-                          <td style={{fontWeight:500}} onClick={function(){onSelect(c);}}>{c.client_name}</td>
+                          <td style={{fontWeight:500}} onClick={function(){onSelect(c);}}>{c.client_name}{c.status==='RESILIE'&&<span className="badge" style={{background:'#ede9fe',color:'#5b21b6',fontSize:'10px',marginLeft:'4px',verticalAlign:'middle'}}>RÉSILIÉ</span>}</td>
                           <td onClick={function(){onSelect(c);}}><span className="badge" style={{background:'#f3f4f6',color:'#374151',fontSize:'10.5px'}}>{c.contract_type}</span></td>
                           <td onClick={function(){onSelect(c);}}>{feur0(c.annual_premium)}</td>
                           <td onClick={function(){onSelect(c);}} style={{color:'#555',fontSize:'12px'}}>{g?(g.fixed?g.rate+'€ fixe':parseFloat((g.rate*100).toFixed(2))+'%'):'—'}</td>
@@ -1024,7 +1044,7 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh,year,setY
   );
 }
 
-function FamilleAccordions({sections,cur,prev,getObjPeriod,mode,year}){
+function FamilleAccordions({sections,cur,prev,getObjPeriod,mode,year,contracts}){
   const [open,setOpen]=useState({});
   function toggle(name){setOpen(function(p){return Object.assign({},p,{[name]:!p[name]});});}
   return(
@@ -1070,12 +1090,17 @@ function FamilleAccordions({sections,cur,prev,getObjPeriod,mode,year}){
                       {pctFamReal!==null&&<span style={{fontSize:'10.5px',fontWeight:600,color:'#fff',background:'rgba(0,0,0,0.2)',padding:'1px 6px',borderRadius:'4px'}}>{pctFamReal}% obj.</span>}
                     </>
                   ):(
-                    <>
-                      <span style={{fontSize:'13px',fontWeight:700}}>{feur0(totCA)}</span>
-                      {evo!==null&&<span style={{fontSize:'11px',fontWeight:700,color:evo>=0?'#bbf7d0':'#fecaca'}}>{evo>=0?'▲':'▼'} {Math.abs(evo).toFixed(1)}%</span>}
-                      <span style={{fontSize:'10.5px',color:'rgba(255,255,255,0.65)'}}>N-1 : {feur0(totCAPrev)}</span>
-                      {pctFamReal!==null&&<span style={{fontSize:'10.5px',fontWeight:600,color:'#fff',background:'rgba(0,0,0,0.2)',padding:'1px 6px',borderRadius:'4px'}}>{pctFamReal}% obj.</span>}
-                    </>
+                    (function(){
+                      const totCAResil=sumCA(cur.filter(function(c){return allTypes.includes(c.contract_type)&&c.status==='RESILIE'&&c.resiliation_after_payment;}));
+                      const totCANet=totCA-totCAResil;
+                      return <>
+                        <span style={{fontSize:'13px',fontWeight:700}}>{feur0(totCA)}</span>
+                        {evo!==null&&<span style={{fontSize:'11px',fontWeight:700,color:evo>=0?'#bbf7d0':'#fecaca'}}>{evo>=0?'▲':'▼'} {Math.abs(evo).toFixed(1)}%</span>}
+                        {totCAResil>0&&<span className="tip-wrap"><span style={{fontSize:'12px',fontWeight:700,color:'#c4b5fd'}}>net {feur0(totCANet)}</span><span className="tip" style={{maxWidth:'260px',width:'260px',bottom:'140%'}}>Prod. nette après résiliations post-paiement · Annulations : {feur0(totCAResil)} ({(totCAResil/totCA*100).toFixed(1)}%)</span></span>}
+                        <span style={{fontSize:'10.5px',color:'rgba(255,255,255,0.65)'}}>N-1 : {feur0(totCAPrev)}</span>
+                        {pctFamReal!==null&&<span style={{fontSize:'10.5px',fontWeight:600,color:'#fff',background:'rgba(0,0,0,0.2)',padding:'1px 6px',borderRadius:'4px'}}>{pctFamReal}% obj.</span>}
+                      </>;
+                    })()
                   )}
                 </span>
               </div>
@@ -1187,6 +1212,17 @@ function FamilleAccordions({sections,cur,prev,getObjPeriod,mode,year}){
                         {evoCA!==null&&<span style={{fontSize:'10.5px',fontWeight:700,color:evoCA>=0?'#059669':'#dc2626'}}>{evoCA>=0?'▲':'▼'}{Math.abs(evoCA).toFixed(1)}%</span>}
                         <span style={{fontSize:'10.5px',color:'#bbb'}}>N-1 : {feur0(iCAPrev)}</span>
                       </div>
+                      {(function(){
+                        const iResil=sumCA(iCur.filter(function(c){return c.status==='RESILIE'&&c.resiliation_after_payment;}));
+                        if(iResil<=0) return null;
+                        const iNet=iCA-iResil;
+                        const tauxAnn=(iResil/iCA*100).toFixed(1);
+                        return <div className="tip-wrap" style={{flexShrink:0}}>
+                          <span style={{fontSize:'12px',fontWeight:700,color:'#7c3aed'}}>net {feur0(iNet)}</span>
+                          <span style={{fontSize:'10px',color:'#a78bfa',marginLeft:'3px'}}>({tauxAnn}%)</span>
+                          <span className="tip" style={{maxWidth:'240px',width:'240px'}}>Prod. nette après résiliations post-paiement · Annulations : {feur0(iResil)}</span>
+                        </div>;
+                      })()}
                       <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
                         <span style={{fontSize:'12px',color:'#555'}}>{fnum(iNb)} contrat{iNb!==1?'s':''}</span>
                         {evoNb!==null&&<span style={{fontSize:'10px',fontWeight:600,color:evoNb>=0?'#059669':'#dc2626'}}>{evoNb>=0?'▲':'▼'}{Math.abs(evoNb).toFixed(1)}%</span>}
@@ -1655,7 +1691,7 @@ function IncompletBadge({count,color,bg,label,ids,onOpen}){
   </div>;
 }
 
-function TableauBord({contracts,rankContracts,profiles,profile,objectifs,onOpenIncomplete,qualiteConfig}){
+function TableauBord({contracts,rankContracts,profiles,profile,objectifs,onOpenIncomplete,qualiteConfig,lastResiliationImport}){
   const now=new Date();
   const [year,setYear]=useState(now.getFullYear());
   const [months,setMonths]=useState([now.getMonth()+1]); // tableau de mois sélectionnés
@@ -1676,7 +1712,7 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs,onOpenI
   const nbMois=mode==='mois'?(months.length>0?months.length:12):12;
 
   // Filtrer selon le rôle
-  const allActive=contracts.filter(function(c){return c.status!=='ANNULE';});
+  const allActive=contracts.filter(function(c){return c.status!=='ANNULE'&&!(c.status==='RESILIE'&&!c.resiliation_after_payment);});
   const visibleActive=(isDir
     ? (filterCons?allActive.filter(function(c){return c.conseiller_id===filterCons;}):allActive)
     : allActive.filter(function(c){return c.conseiller_id===profile.id;}));
@@ -1778,8 +1814,17 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs,onOpenI
     ?(months.length===0?'Toute l\'année '+year:months.length===1?MONTHS[months[0]-1]+' '+year:months.map(function(m){return MONTHS[m-1];}).join(', ')+' '+year)
     :'Année '+year;
 
+  const jrsImp=lastResiliationImport?Math.floor((Date.now()-new Date(lastResiliationImport).getTime())/86400000):999;
   return(
     <div style={{padding:'28px 32px',maxWidth:'1100px'}}>
+      {/* Rappel import résiliations */}
+      {jrsImp>35&&<div style={{background:'#fef3c7',border:'1px solid #fbbf24',borderRadius:'10px',padding:'12px 18px',marginBottom:'20px',display:'flex',alignItems:'center',gap:'12px'}}>
+        <span style={{fontSize:'18px'}}>⚠️</span>
+        <div>
+          <div style={{fontSize:'13.5px',fontWeight:600,color:'#92400e'}}>Rappel : import des résiliations</div>
+          <div style={{fontSize:'12.5px',color:'#92400e',marginTop:'2px'}}>{lastResiliationImport?'Dernier import il y a '+jrsImp+' jours.':'Aucun import effectué.'} Pensez à exporter depuis votre CRM AXA et importer dans l'onglet Résiliations.</div>
+        </div>
+      </div>}
       {/* Header */}
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'22px',flexWrap:'wrap',gap:'12px'}}>
         <div><div style={{fontSize:'22px',fontWeight:600,marginBottom:'2px'}}>Tableau de bord</div><div style={{fontSize:'13px',color:'#666'}}>{labelPeriode}</div></div>
@@ -1966,7 +2011,7 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs,onOpenI
           ]},
         ];
 
-        return React.createElement(FamilleAccordions,{sections:CARTES_DETAIL,cur:cur,prev:prev,getObjPeriod:getObjPeriod,mode:mode,year:year});
+        return React.createElement(FamilleAccordions,{sections:CARTES_DETAIL,cur:cur,prev:prev,getObjPeriod:getObjPeriod,mode:mode,year:year,contracts:contracts});
       })()}
 
 
@@ -2323,7 +2368,7 @@ function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,sort,setSort
                 {hasProb&&<span className="badge" style={{background:'#fee2e2',color:'#991b1b'}}>⚠ Problème</span>}
               </div></td>
               <td><span className="badge" style={{background:ps.bg,color:ps.tx}}>{ps.label}</span></td>
-              <td><span className="badge" style={{background:annOk?'#94a3b8':c.status==='ENCOURS'?'#dbeafe':c.status==='PAYE'?'#d1fae5':'#f3f4f6',color:annOk?'#fff':c.status==='ENCOURS'?'#1e40af':c.status==='PAYE'?'#065f46':'#374151'}}>{c.status}</span></td>
+              <td><span className="badge" style={{background:annOk?'#94a3b8':c.status==='ENCOURS'?'#dbeafe':c.status==='PAYE'?'#d1fae5':c.status==='RESILIE'?'#ede9fe':'#f3f4f6',color:annOk?'#fff':c.status==='ENCOURS'?'#1e40af':c.status==='PAYE'?'#065f46':c.status==='RESILIE'?'#5b21b6':'#374151'}}>{c.status}</span></td>
             </tr>;
           })}
         </tbody></table></div>}
@@ -2340,6 +2385,9 @@ function DetailPanel({contract,profile,profiles,sb,grilles,onClose,onRefresh}){
   const [isAnnule,setIsAnnule]=useState(contract.status==='ANNULE');
   const [codePortefeuille,setCodePortefeuille]=useState(contract.code_portefeuille||'');
   const isPaye=contract.status==='PAYE';
+  const isResilie=contract.status==='RESILIE';
+  const [modalResil,setModalResil]=useState(false);
+  const [resilForm,setResilForm]=useState({date:new Date().toISOString().split('T')[0],motif:''});
   const [payInfo,setPayInfo]=useState(null);
 
   useEffect(function(){
@@ -2357,7 +2405,7 @@ function DetailPanel({contract,profile,profiles,sb,grilles,onClose,onRefresh}){
   const [newMsg,setNewMsg]=useState('');
   const [saving,setSaving]=useState(false);
   const canDir=profile.role==='direction';
-  const isLocked=isPaye; // Tout gelé quand PAYE
+  const isLocked=isPaye||(isResilie&&contract.resiliation_after_payment); // Gelé quand PAYE ou RÉSILIÉ après paiement
   const canPieces=!isLocked&&['manager','direction'].includes(profile.role);
   const canDirEdit=canDir; // Direction peut toujours ouvrir le mode édition
   const isCollab=profile.role==='conseiller';
@@ -2440,8 +2488,20 @@ function DetailPanel({contract,profile,profiles,sb,grilles,onClose,onRefresh}){
   function IR(props){return <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'9px 0',borderBottom:'1px solid #f3f4f6',fontSize:'13.5px'}}><span style={{color:'#666'}}>{props.label}</span><span style={{fontWeight:500}}>{props.value}</span></div>;}
   function eu(k,v){setEditF(function(p){return Object.assign({},p,{[k]:v});});}
   const fam=getFamily(contract.contract_type);
-  const headerBg=isAnnule?'#e2e8f0':annReq?'#cbd5e1':dt.has_problem?'rgba(185,28,28,0.82)':isPaye?'#f0fdf4':'#fff';
-  const headerTx=dt.has_problem?'#f3f4f6':isAnnule?'#334155':annReq?'#334155':isPaye?'#065f46':'#111';
+
+  async function sauvegarderResil(){
+    if(!resilForm.date){alert('La date est obligatoire.');return;}
+    const estPaye=contract.status==='PAYE';
+    await sb.from('contracts').update({status:'RESILIE',date_resiliation:resilForm.date,motif_resiliation:resilForm.motif||null,resiliation_after_payment:estPaye}).eq('id',contract.id);
+    if(!estPaye){
+      await sb.from('document_tracking').update({eligible_since:null}).eq('contract_id',contract.id);
+      await sb.from('contracts').update({commission:0,manual_commission:null}).eq('id',contract.id);
+    }
+    setModalResil(false);onRefresh();
+  }
+
+  const headerBg=isResilie?'#faf5ff':isAnnule?'#e2e8f0':annReq?'#cbd5e1':dt.has_problem?'rgba(185,28,28,0.82)':isPaye?'#f0fdf4':'#fff';
+  const headerTx=dt.has_problem?'#f3f4f6':isResilie?'#5b21b6':isAnnule?'#334155':annReq?'#334155':isPaye?'#065f46':'#111';
   return(
     <div className="overlay" onClick={function(e){if(e.target===e.currentTarget)onClose();}}>
       <div className="panel">
@@ -2453,6 +2513,8 @@ function DetailPanel({contract,profile,profiles,sb,grilles,onClose,onRefresh}){
             <div style={{display:'flex',alignItems:'center',gap:'8px',flexWrap:'wrap'}}>
               {fam&&<span className="badge" style={{background:isAnnule||annReq?'#94a3b8':fam.color,color:'#fff',fontSize:'12.5px',padding:'4px 12px',fontWeight:600}}>{contract.contract_type}</span>}
               {isAnnule&&<span className="badge" style={{background:'#94a3b8',color:'#fff',fontSize:'12px'}}>ANNULÉ</span>}
+              {isResilie&&<span className="badge" style={{background:'#7c3aed',color:'#fff',fontSize:'12px'}}>RÉSILIÉ</span>}
+              {isResilie&&contract.date_resiliation&&<span style={{fontSize:'11.5px',color:'#5b21b6',fontWeight:500}}>le {fdate(contract.date_resiliation)}{contract.motif_resiliation&&contract.motif_resiliation!=='-'?' · '+contract.motif_resiliation:''}</span>}
               {isPaye&&<span style={{fontSize:'12px',fontWeight:600,color:'#065f46',background:'#bbf7d0',padding:'3px 10px',borderRadius:'100px'}}>
                 ✓ Payé{payInfo&&payInfo.bs_month?' · '+payInfo.bs_month:''}
               </span>}
@@ -2543,6 +2605,8 @@ function DetailPanel({contract,profile,profiles,sb,grilles,onClose,onRefresh}){
             </div>
             {canPieces&&<button onClick={function(){updDt({has_problem:!dt.has_problem});}} disabled={isLocked} style={{marginTop:'8px',width:'100%',padding:'9px',fontSize:'12.5px',display:'flex',alignItems:'center',justifyContent:'center',gap:'6px',borderRadius:'8px',transition:'all 0.15s',background:isLocked?'#f3f4f6':dt.has_problem?'rgba(185,28,28,0.82)':'rgba(185,28,28,0.12)',color:isLocked?'#aaa':dt.has_problem?'#fef2f2':'#7f1d1d',border:'1px solid '+(isLocked?'#e5e7eb':dt.has_problem?'#991b1b':'rgba(185,28,28,0.25)'),cursor:isLocked?'not-allowed':'pointer'}}>{dt.has_problem?'⚠️ Problème signalé — Cliquer pour lever':'⚠️ Signaler un problème sur ce dossier'}</button>}
             {!isAnnule&&<button onClick={isLocked?undefined:toggleAnnReq} disabled={isLocked} style={{marginTop:'8px',width:'100%',padding:'9px',fontSize:'12.5px',display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',borderRadius:'8px',transition:'all 0.15s',background:isLocked?'#f3f4f6':annReq?'#cbd5e1':'rgba(0,0,0,0.06)',color:isLocked?'#aaa':annReq?'#334155':'#555',border:'1px solid '+(isLocked?'#e5e7eb':annReq?'#94a3b8':'rgba(0,0,0,0.1)'),cursor:isLocked?'not-allowed':'pointer'}}>{annReq?'⬛ Annulation demandée — Annuler la demande':'⬛ Signaler annulation de ce dossier'}</button>}
+            {canDir&&!isAnnule&&!isResilie&&<button onClick={function(){setModalResil(true);}} style={{marginTop:'8px',width:'100%',padding:'9px',fontSize:'12.5px',display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',borderRadius:'8px',background:'#faf5ff',color:'#5b21b6',border:'1px solid #c4b5fd',cursor:'pointer'}}>🔴 Résilier ce contrat (manuel)</button>}
+            {canDir&&isResilie&&<button onClick={async function(){if(!window.confirm('Annuler la résiliation et remettre en ENCOURS ?')) return;await sb.from('contracts').update({status:'ENCOURS',date_resiliation:null,motif_resiliation:null,resiliation_after_payment:false}).eq('id',contract.id);onRefresh();}} style={{marginTop:'8px',width:'100%',padding:'9px',fontSize:'12.5px',display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',borderRadius:'8px',background:'#f3f4f6',color:'#555',border:'1px solid #e5e7eb',cursor:'pointer'}}>↩ Annuler la résiliation</button>}
           </div>
           <div style={{marginBottom:'20px'}}>
             <div className="sec">Vérifications direction {!canDir&&'· lecture seule'}</div>
@@ -2594,6 +2658,23 @@ function DetailPanel({contract,profile,profiles,sb,grilles,onClose,onRefresh}){
           </div>
         </div>
       </div>
+      {modalResil&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.45)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center'}} onClick={function(e){if(e.target===e.currentTarget)setModalResil(false);}}>
+          <div style={{background:'#fff',borderRadius:'12px',padding:'28px',width:'100%',maxWidth:'380px',boxShadow:'0 8px 32px rgba(0,0,0,0.22)'}}>
+            <div style={{fontSize:'15px',fontWeight:700,marginBottom:'4px',color:'#5b21b6'}}>🔴 Résilier ce contrat</div>
+            <div style={{fontSize:'12.5px',color:'#888',marginBottom:'20px'}}>{contract.client_name} · {contract.contract_type}</div>
+            <div className="fg"><label>Date de résiliation *</label><input type="date" value={resilForm.date} onChange={function(e){setResilForm(function(p){return Object.assign({},p,{date:e.target.value});})}}/></div>
+            <div className="fg"><label>Motif <span style={{color:'#aaa',fontWeight:400}}>(facultatif)</span></label><input value={resilForm.motif} onChange={function(e){setResilForm(function(p){return Object.assign({},p,{motif:e.target.value});})}} placeholder="Ex : Vente, Loi Hamon…"/></div>
+            <div style={{background:'#faf5ff',border:'1px solid #e9d5ff',borderRadius:'8px',padding:'10px 14px',fontSize:'12.5px',color:'#5b21b6',marginBottom:'16px'}}>
+              {contract.status==='PAYE'?'Ce contrat est PAYÉ → résiliation après paiement. La commission reste acquise.':'Ce contrat n'est pas encore payé → la production et la commission seront annulées.'}
+            </div>
+            <div style={{display:'flex',gap:'8px',justifyContent:'flex-end'}}>
+              <button onClick={function(){setModalResil(false);}}>Annuler</button>
+              <button onClick={sauvegarderResil} style={{background:'#7c3aed',color:'#fff',border:'none',borderRadius:'8px',padding:'9px 20px',cursor:'pointer',fontWeight:500}}>Confirmer la résiliation</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -4100,6 +4181,291 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,se
     </div>
   );
 }
+
+/* ══ RÉSILIATIONS ══ */
+function PageResiliations({contracts,profiles,profile,sb,onRefresh,lastResiliationImport,setLastResiliationImport}){
+  const [onglet,setOnglet]=useState('import');
+  // Import
+  const [parsing,setParsing]=useState(false);
+  const [apercu,setApercu]=useState([]);
+  const [importing,setImporting]=useState(false);
+  const [importResult,setImportResult]=useState(null);
+  // Liste
+  const [listCons,setListCons]=useState('');
+  const [listMotif,setListMotif]=useState('');
+
+  const canDir=profile.role==='direction';
+  const joursSansImport=lastResiliationImport?Math.floor((Date.now()-new Date(lastResiliationImport).getTime())/86400000):999;
+  const showRappel=joursSansImport>35;
+
+  function handleFichier(e){
+    const file=e.target.files[0];
+    if(!file) return;
+    setApercu([]);setImportResult(null);setParsing(true);
+    const reader=new FileReader();
+    reader.onload=function(ev){
+      const text=ev.target.result;
+      // PapaParse avec séparateur ;
+      const result=window.Papa?window.Papa.parse(text,{delimiter:';',header:true,skipEmptyLines:true}):{data:[]};
+      // Index N° normalisé → contrats CRM
+      const idx={};
+      contracts.forEach(function(ct){
+        if(!ct.contract_number) return;
+        const n=normNumeroCRM(ct.contract_number);
+        if(!idx[n]) idx[n]=[];
+        idx[n].push(ct);
+      });
+      // Filtrer lignes valides (N° présent, situation résilié, pas footer)
+      const lignes=(result.data||[]).filter(function(row){
+        const num=(row['N° Contrat AXA']||'').trim();
+        if(!num||num.length<4) return false;
+        const sit=(row['Situation']||'').toLowerCase();
+        return sit.includes('résili')||sit.includes('resili');
+      });
+      const ap=lignes.map(function(row){
+        const numAxa=(row['N° Contrat AXA']||'').trim();
+        const numNorm=normNumeroCRM(numAxa);
+        // Gestion clé avec caractère spécial potentiel
+        const dateResil=row['Date de changement d’état']||row["Date de changement d'état"]||row["Date de changement d?état"]||'';
+        const motif=(row['Motif_Resiliation']||'').trim()||'-';
+        const client=(row['Nom du compte']||'').trim();
+        const cotisation=(row['Cotisation TTC']||'').trim();
+        const matched=idx[numNorm]||[];
+        const contrat=matched.length>0?matched[0]:null;
+        const dejaResil=contrat&&contrat.status==='RESILIE';
+        let dateISO=null;
+        if(dateResil){const p=dateResil.trim().split('/');if(p.length===3)dateISO=p[2]+'-'+p[1].padStart(2,'0')+'-'+p[0].padStart(2,'0');}
+        const action=matched.length===0?'introuvable':(dejaResil?'deja':'resilie');
+        return {numAxa,numNorm,client,dateResil,dateISO,motif,cotisation,matched:matched.length>0,nbMatches:matched.length,contrat,dejaResil,action};
+      });
+      setApercu(ap);setParsing(false);
+    };
+    reader.readAsText(file,'ISO-8859-1');
+  }
+
+  async function confirmerImport(){
+    const aTraiter=apercu.filter(function(r){return r.action==='resilie'&&r.contrat;});
+    if(aTraiter.length===0) return;
+    setImporting(true);
+    let nbOk=0;
+    for(let i=0;i<aTraiter.length;i++){
+      const r=aTraiter[i];
+      const estPaye=r.contrat.status==='PAYE';
+      const upd={status:'RESILIE',date_resiliation:r.dateISO||null,motif_resiliation:r.motif!=='-'?r.motif:null,resiliation_after_payment:estPaye};
+      const res=await sb.from('contracts').update(upd).eq('id',r.contrat.id);
+      if(!res.error){
+        if(!estPaye){
+          await sb.from('document_tracking').update({eligible_since:null}).eq('contract_id',r.contrat.id);
+          await sb.from('contracts').update({commission:0,manual_commission:null}).eq('id',r.contrat.id);
+        }
+        nbOk++;
+      }
+    }
+    const ts=new Date().toISOString();
+    await sb.from('resiliations_imports').insert({nb_total:apercu.length,nb_matches:aTraiter.length,nb_ignores:apercu.filter(function(r){return r.action==='introuvable';}).length,imported_by:profile.id,imported_at:ts});
+    setLastResiliationImport(ts);
+    setImportResult({nbOk,nbTotal:aTraiter.length});
+    setApercu([]);
+    setImporting(false);
+    onRefresh();
+  }
+
+  const resilis=contracts.filter(function(c){
+    if(c.status!=='RESILIE') return false;
+    if(listCons&&c.conseiller_id!==listCons) return false;
+    if(listMotif&&listMotif!=='tous'&&c.resiliation_after_payment!==(listMotif==='apres')) return false;
+    return true;
+  }).sort(function(a,b){return (b.date_resiliation||'').localeCompare(a.date_resiliation||'');});
+
+  const caResilAPres=resilis.filter(function(c){return c.resiliation_after_payment;}).reduce(function(s,c){return s+(c.annual_premium||0);},0);
+  const caResilAvant=resilis.filter(function(c){return !c.resiliation_after_payment;}).reduce(function(s,c){return s+(c.annual_premium||0);},0);
+
+  return(
+    <div style={{padding:'28px 32px',maxWidth:'1100px'}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'22px',flexWrap:'wrap',gap:'12px'}}>
+        <div>
+          <div style={{fontSize:'22px',fontWeight:600,marginBottom:'2px'}}>Résiliations</div>
+          <div style={{fontSize:'13px',color:'#666'}}>{lastResiliationImport?'Dernier import : '+fdate(lastResiliationImport):'Aucun import enregistré'}</div>
+        </div>
+      </div>
+
+      {showRappel&&(
+        <div style={{background:'#fef3c7',border:'1px solid #fbbf24',borderRadius:'10px',padding:'12px 18px',marginBottom:'20px',display:'flex',alignItems:'center',gap:'12px'}}>
+          <span style={{fontSize:'18px'}}>⚠️</span>
+          <div>
+            <div style={{fontSize:'13.5px',fontWeight:600,color:'#92400e'}}>Rappel : téléchargement des résiliations</div>
+            <div style={{fontSize:'12.5px',color:'#92400e',marginTop:'2px'}}>{lastResiliationImport?'Dernier import il y a '+joursSansImport+' jours.':'Aucun import effectué.'} Pensez à exporter depuis votre CRM AXA et importer ici chaque mois.</div>
+          </div>
+        </div>
+      )}
+
+      {/* Onglets */}
+      <div style={{display:'flex',border:'1px solid #e5e7eb',borderRadius:'8px',overflow:'hidden',marginBottom:'22px',width:'fit-content'}}>
+        <button onClick={function(){setOnglet('import');}} style={{padding:'8px 20px',fontSize:'13px',border:'none',borderRadius:0,background:onglet==='import'?'#7c3aed':'#fff',color:onglet==='import'?'#fff':'#555'}}>⬆ Import CSV</button>
+        <button onClick={function(){setOnglet('liste');}} style={{padding:'8px 20px',fontSize:'13px',border:'none',borderLeft:'1px solid #e5e7eb',borderRadius:0,background:onglet==='liste'?'#7c3aed':'#fff',color:onglet==='liste'?'#fff':'#555'}}>
+          Liste · {resilis.length} résili{resilis.length!==1?'és':'é'}{apercu.length===0&&resilis.length>0&&<span style={{background:'#ede9fe',color:'#5b21b6',padding:'0 5px',borderRadius:'100px',fontSize:'11px',marginLeft:'4px'}}>{resilis.length}</span>}
+        </button>
+      </div>
+
+      {onglet==='import'&&(
+        <div>
+          <div className="card" style={{padding:'24px',marginBottom:'20px'}}>
+            <div style={{fontSize:'14px',fontWeight:600,marginBottom:'10px'}}>Fichier CSV AXA</div>
+            <div style={{fontSize:'12.5px',color:'#666',marginBottom:'14px',lineHeight:1.6}}>
+              Exportez le rapport des résiliations depuis votre CRM AXA (format CSV, séparateur <code>;</code>, encodage ISO-8859).
+              Colonnes attendues : <code>N° Contrat AXA</code>, <code>Date de changement d'état</code>, <code>Motif_Resiliation</code>, <code>Situation</code>.
+            </div>
+            <input type="file" accept=".csv,.CSV" onChange={handleFichier} style={{fontSize:'13px'}}/>
+            {!window.Papa&&<div style={{color:'#dc2626',fontSize:'12px',marginTop:'8px'}}>⚠ PapaParse non chargé — vérifiez la connexion Internet.</div>}
+            {parsing&&<div style={{marginTop:'12px',fontSize:'13px',color:'#7c3aed'}}>Analyse en cours…</div>}
+          </div>
+
+          {apercu.length>0&&!importResult&&(
+            <div>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'12px',flexWrap:'wrap',gap:'8px'}}>
+                <div>
+                  <div style={{fontSize:'14px',fontWeight:600}}>{apercu.length} ligne{apercu.length!==1?'s':''} détectée{apercu.length!==1?'s':''}</div>
+                  <div style={{fontSize:'12.5px',color:'#666',marginTop:'2px',display:'flex',gap:'10px',flexWrap:'wrap'}}>
+                    <span style={{color:'#059669',fontWeight:500}}>✓ {apercu.filter(function(r){return r.action==='resilie';}).length} à traiter</span>
+                    <span style={{color:'#d97706',fontWeight:500}}>⚠ {apercu.filter(function(r){return r.action==='deja';}).length} déjà résiliés</span>
+                    <span style={{color:'#dc2626',fontWeight:500}}>✗ {apercu.filter(function(r){return r.action==='introuvable';}).length} non trouvés</span>
+                  </div>
+                </div>
+                <button onClick={confirmerImport} disabled={importing||apercu.filter(function(r){return r.action==='resilie';}).length===0} style={{padding:'8px 20px',fontSize:'13px',background:'#7c3aed',color:'#fff',border:'none',borderRadius:'8px',cursor:'pointer',fontWeight:500,opacity:apercu.filter(function(r){return r.action==='resilie';}).length===0?0.5:1}}>
+                  {importing?'Import en cours…':'✓ Confirmer ('+apercu.filter(function(r){return r.action==='resilie';}).length+')'}
+                </button>
+              </div>
+              <div className="card" style={{overflow:'auto',maxHeight:'420px'}}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>N° AXA</th>
+                      <th>Client (AXA)</th>
+                      <th>Date résil.</th>
+                      <th>Motif</th>
+                      <th style={{textAlign:'right'}}>Cotisation</th>
+                      <th>Dans le CRM</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {apercu.map(function(r,i){
+                      const acBg=r.action==='resilie'?'#f0fdf4':r.action==='deja'?'#fefce8':'#fef2f2';
+                      const acCol=r.action==='resilie'?'#059669':r.action==='deja'?'#d97706':'#dc2626';
+                      const acLbl=r.action==='resilie'?'✓ À résilier':r.action==='deja'?'⚠ Déjà résilié':'✗ Non trouvé';
+                      return(
+                        <tr key={i} style={{background:acBg}}>
+                          <td style={{fontFamily:'monospace',fontSize:'11px',whiteSpace:'nowrap'}}>{r.numAxa}</td>
+                          <td style={{fontSize:'12px',maxWidth:'150px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.client}</td>
+                          <td style={{fontSize:'12px',whiteSpace:'nowrap'}}>{r.dateResil||'—'}</td>
+                          <td style={{fontSize:'11.5px',color:'#555',maxWidth:'180px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={r.motif}>{r.motif}</td>
+                          <td style={{fontSize:'12px',textAlign:'right',whiteSpace:'nowrap'}}>{r.cotisation}</td>
+                          <td style={{fontSize:'11.5px'}}>
+                            {r.contrat?<span><span className="badge" style={{background:r.contrat.status==='PAYE'?'#d1fae5':r.contrat.status==='ANNULE'?'#f1f5f9':'#fef9c3',color:r.contrat.status==='PAYE'?'#065f46':'#334155'}}>{r.contrat.status}</span><span style={{fontSize:'11px',color:'#888',marginLeft:'4px'}}>{r.contrat.client_name}</span></span>:<span style={{color:'#aaa'}}>—</span>}
+                          </td>
+                          <td><span className="badge" style={{background:acBg,color:acCol,border:'1px solid '+acCol,fontSize:'11px'}}>{acLbl}</span></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {importResult&&(
+            <div style={{background:'#faf5ff',border:'1px solid #c4b5fd',borderRadius:'10px',padding:'28px',textAlign:'center'}}>
+              <div style={{fontSize:'28px',marginBottom:'8px'}}>✅</div>
+              <div style={{fontSize:'15px',fontWeight:700,color:'#5b21b6',marginBottom:'4px'}}>Import terminé</div>
+              <div style={{fontSize:'13px',color:'#7c3aed'}}>{importResult.nbOk} contrat{importResult.nbOk!==1?'s':''} résilié{importResult.nbOk!==1?'s':''} / {importResult.nbTotal} à traiter</div>
+              <button onClick={function(){setImportResult(null);}} style={{marginTop:'16px',padding:'7px 20px',fontSize:'13px',borderRadius:'8px',border:'1px solid #c4b5fd',background:'#fff',cursor:'pointer'}}>Nouvel import</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {onglet==='liste'&&(
+        <div>
+          {/* KPIs */}
+          <div style={{display:'flex',gap:'12px',marginBottom:'20px',flexWrap:'wrap'}}>
+            <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'14px 18px',flex:1,minWidth:'160px'}}>
+              <div style={{fontSize:'10.5px',color:'#888',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:'4px'}}>Total résiliés</div>
+              <div style={{fontSize:'22px',fontWeight:700}}>{contracts.filter(function(c){return c.status==='RESILIE';}).length}</div>
+            </div>
+            <div style={{background:'#fef3c7',border:'1px solid #fbbf24',borderRadius:'10px',padding:'14px 18px',flex:1,minWidth:'160px'}}>
+              <div style={{fontSize:'10.5px',color:'#92400e',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:'4px'}}>Prod. annulée (après paiement)</div>
+              <div style={{fontSize:'22px',fontWeight:700,color:'#92400e'}}>{feur0(caResilAPres)}</div>
+              <div style={{fontSize:'11px',color:'#aaa',marginTop:'2px'}}>{contracts.filter(function(c){return c.status==='RESILIE'&&c.resiliation_after_payment;}).length} contrat{contracts.filter(function(c){return c.status==='RESILIE'&&c.resiliation_after_payment;}).length!==1?'s':''}</div>
+            </div>
+            <div style={{background:'#fee2e2',border:'1px solid #fca5a5',borderRadius:'10px',padding:'14px 18px',flex:1,minWidth:'160px'}}>
+              <div style={{fontSize:'10.5px',color:'#991b1b',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:'4px'}}>Prod. perdue (avant paiement)</div>
+              <div style={{fontSize:'22px',fontWeight:700,color:'#991b1b'}}>{feur0(caResilAvant)}</div>
+              <div style={{fontSize:'11px',color:'#aaa',marginTop:'2px'}}>{contracts.filter(function(c){return c.status==='RESILIE'&&!c.resiliation_after_payment;}).length} contrat{contracts.filter(function(c){return c.status==='RESILIE'&&!c.resiliation_after_payment;}).length!==1?'s':''}</div>
+            </div>
+          </div>
+
+          {/* Filtres */}
+          <div style={{display:'flex',gap:'10px',marginBottom:'14px',flexWrap:'wrap',alignItems:'center'}}>
+            {canDir&&<select value={listCons} onChange={function(e){setListCons(e.target.value);}} style={{width:'auto',padding:'6px 10px'}}>
+              <option value="">Tous les conseillers</option>
+              {profiles.filter(function(p){return p.role!=='direction';}).map(function(p){return <option key={p.id} value={p.id}>{p.full_name}{p.actif===false?' (ancien)':''}</option>;})}
+            </select>}
+            <select value={listMotif} onChange={function(e){setListMotif(e.target.value);}} style={{width:'auto',padding:'6px 10px'}}>
+              <option value="">Tous types</option>
+              <option value="apres">Après paiement</option>
+              <option value="avant">Avant paiement</option>
+            </select>
+          </div>
+
+          {resilis.length===0?(
+            <div className="card" style={{padding:'40px',textAlign:'center'}}>
+              <div style={{fontSize:'24px',color:'#e5e7eb',marginBottom:'8px'}}>—</div>
+              <div style={{fontSize:'13px',color:'#aaa'}}>Aucun contrat résilié{listCons?' pour ce conseiller':''}</div>
+            </div>
+          ):(
+            <div className="card" style={{overflow:'auto'}}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Client</th>
+                    <th>N° Contrat</th>
+                    <th>Type</th>
+                    <th>Conseiller</th>
+                    <th>Émission</th>
+                    <th>Résiliation</th>
+                    <th>Motif</th>
+                    <th style={{textAlign:'right'}}>Prime ann.</th>
+                    <th>Type résil.</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {resilis.map(function(ct){
+                    const cons=profiles.find(function(p){return p.id===ct.conseiller_id;});
+                    const fam=getFamily(ct.contract_type);
+                    return(
+                      <tr key={ct.id}>
+                        <td style={{fontWeight:500}}>{ct.client_name}</td>
+                        <td style={{fontFamily:'monospace',fontSize:'11.5px',color:'#555'}}>{ct.contract_number||'—'}</td>
+                        <td><span className="badge" style={{background:fam?fam.bg:'#f1f5f9',color:fam?fam.color:'#555'}}>{ct.contract_type}</span></td>
+                        <td style={{fontSize:'12px'}}>{cons?cons.full_name:'—'}</td>
+                        <td style={{fontSize:'12px'}}>{fdate(ct.emission_date)}</td>
+                        <td style={{fontSize:'12px',color:ct.date_resiliation?'#dc2626':'#aaa',fontWeight:ct.date_resiliation?500:400}}>{ct.date_resiliation?fdate(ct.date_resiliation):'—'}</td>
+                        <td style={{fontSize:'11.5px',color:'#555',maxWidth:'180px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={ct.motif_resiliation||''}>{ct.motif_resiliation||'—'}</td>
+                        <td style={{textAlign:'right',fontWeight:500}}>{feur0(ct.annual_premium)}</td>
+                        <td><span className="badge" style={{background:ct.resiliation_after_payment?'#fef9c3':'#fee2e2',color:ct.resiliation_after_payment?'#92400e':'#991b1b',fontSize:'11px'}}>{ct.resiliation_after_payment?'Après paiement':'Avant paiement'}</span></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 function CongesPlaceholder({profile}){
   const isDir=['direction','manager'].includes(profile.role);
