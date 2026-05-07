@@ -915,11 +915,11 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh,year,setY
 
         return(
           <div key={p.id} className="card" style={{marginBottom:'16px',overflow:'hidden'}}>
-            <div onClick={function(){setOpenRows(function(prev){return Object.assign({},prev,{[p.id]:!prev[p.id]});});}} style={{padding:'14px 18px',borderBottom:'1px solid #f3f4f6',display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'8px',background:isFrozen?'#f0fdf4':'',cursor:'pointer',userSelect:'none'}}>
+            <div onClick={function(){setOpenRows(function(prev){var cur=prev[p.id]===undefined?isCollab:prev[p.id];return Object.assign({},prev,{[p.id]:!cur});});}} style={{padding:'14px 18px',borderBottom:'1px solid #f3f4f6',display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'8px',background:isFrozen?'#f0fdf4':'',cursor:'pointer',userSelect:'none'}}>
               <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
                 <span style={{fontWeight:600,fontSize:'15px'}}>{p.full_name}</span>
                 {isFrozen&&<span className="badge" style={{background:'#d1fae5',color:'#065f46'}}>🔒 Gelé · {pay.bs_month}</span>}
-                <span style={{fontSize:'11px',color:'#aaa'}}>{openRows[p.id]?'▲':'▼'}</span>
+                <span style={{fontSize:'11px',color:'#aaa'}}>{(openRows[p.id]===undefined?isCollab:openRows[p.id])?'▲':'▼'}</span>
               </div>
               <div style={{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}}>
                 {hasDecote&&<span className="badge" style={{background:'#fee2e2',color:'#991b1b'}}>⚠ Décote NC {displayDecote.toFixed?displayDecote.toFixed(1):displayDecote}%</span>}
@@ -928,7 +928,7 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh,year,setY
               </div>
             </div>
 
-            {openRows[p.id]&&<div>
+            {(openRows[p.id]===undefined?isCollab:openRows[p.id])&&<div>
             <div style={{overflowX:'auto'}}>              <table>
                 <thead><tr>
                   <th style={{width:'32px'}}></th><th>Client</th><th>Type</th><th>Prime annuelle</th><th>Taux / Fixe</th><th>Commission</th><th>Mono</th><th>Éligible depuis</th>
