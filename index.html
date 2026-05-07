@@ -3964,9 +3964,9 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,se
                           <span style={{fontSize:'15px',fontWeight:700,color:'#1a1a1a'}}>Total net après décote : {feur2(totalNet)}</span>
                         </div>
                       )}
-                      {/* Bouton gel primes — direction uniquement */}
+                      {/* Boutons gel + PDF */}
                       {isDir&&(
-                        <div style={{display:'flex',justifyContent:'flex-end',gap:'8px',marginTop:'8px'}}>
+                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:'10px'}}>
                           {primesGelees?(
                             <button onClick={function(){degelPrimes(d.profile.id);}} disabled={saving} style={{fontSize:'12px',padding:'6px 14px',color:'#92400e',border:'1px solid #fde68a',background:'#fef9c3',borderRadius:'6px',cursor:'pointer'}}>
                               🔓 Dégeler les primes
@@ -3978,12 +3978,7 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,se
                               🔒 Geler les primes
                             </button>
                           )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-                <div style={{display:'flex',justifyContent:'flex-end',gap:'8px',marginTop:'10px'}}>
+                          <div style={{display:'flex',gap:'8px'}}>
                 <button onClick={function(){
                   const w=window.open('','_blank');
                   const refM=MONTHS[month===1?11:month-2]+' '+(month===1?year-1:year);
@@ -4065,7 +4060,12 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,se
                   w.document.write('<script>setTimeout(function(){window.print();},400);<\/script></body></html>');
                   w.document.close();
                 }} style={{padding:'5px 14px',fontSize:'12px',background:'#f3f4f6',border:'1px solid #e5e7eb',borderRadius:'6px',cursor:'pointer'}}>🖨 PDF</button>
-                </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           </div>
