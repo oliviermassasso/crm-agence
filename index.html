@@ -2666,7 +2666,7 @@ function DetailPanel({contract,profile,profiles,sb,grilles,onClose,onRefresh}){
             <div className="fg"><label>Date de résiliation *</label><input type="date" value={resilForm.date} onChange={function(e){setResilForm(function(p){return Object.assign({},p,{date:e.target.value});})}}/></div>
             <div className="fg"><label>Motif <span style={{color:'#aaa',fontWeight:400}}>(facultatif)</span></label><input value={resilForm.motif} onChange={function(e){setResilForm(function(p){return Object.assign({},p,{motif:e.target.value});})}} placeholder="Ex : Vente, Loi Hamon…"/></div>
             <div style={{background:'#faf5ff',border:'1px solid #e9d5ff',borderRadius:'8px',padding:'10px 14px',fontSize:'12.5px',color:'#5b21b6',marginBottom:'16px'}}>
-              {contract.status==='PAYE'?'Ce contrat est PAYÉ → résiliation après paiement. La commission reste acquise.':'Ce contrat n'est pas encore payé → la production et la commission seront annulées.'}
+              {contract.status==='PAYE'?'Ce contrat est PAYÉ → résiliation après paiement. La commission reste acquise.':'Ce contrat n\u2019est pas encore payé → la production et la commission seront annulées.'}
             </div>
             <div style={{display:'flex',gap:'8px',justifyContent:'flex-end'}}>
               <button onClick={function(){setModalResil(false);}}>Annuler</button>
