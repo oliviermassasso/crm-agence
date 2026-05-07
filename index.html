@@ -127,7 +127,7 @@ const TYPE_PJ_PA=['PJ','Ma PA'];
 const TYPE_SANTE_TNS=['Ma Santé TNS & Retraités'];
 
 function calcBaseCommission(contract, grillesMap) {
-  if(contract.status==='ANNULE') return 0;
+  if(contract.status==='ANNULE'||contract.status==='CLOTURE') return 0;
   if(contract.status==='RESILIE'&&!contract.resiliation_after_payment) return 0;
   if(contract.manual_commission!==null&&contract.manual_commission!==undefined){
     const v=parseFloat(contract.manual_commission);
@@ -156,7 +156,7 @@ function calcBaseCommission(contract, grillesMap) {
 }
 
 function isEligibleForCommission(c) {
-  if(c.status==='ANNULE') return false;
+  if(c.status==='ANNULE'||c.status==='CLOTURE') return false;
   if(c.status==='RESILIE'&&!c.resiliation_after_payment) return false;
   const dt=c.document_tracking||{};
   if(dt.has_problem) return false;
@@ -170,7 +170,7 @@ function isEligibleForCommission(c) {
 }
 
 function isConforme(c) {
-  if(c.status==='ANNULE') return true;
+  if(c.status==='ANNULE'||c.status==='CLOTURE') return true;
   if(c.status==='RESILIE'&&!c.resiliation_after_payment) return true;
   const dt=c.document_tracking||{};
   if(dt.has_problem) return false;
@@ -207,7 +207,7 @@ function calcMonthCommissions(contracts,profiles,year,month,paidAtMap,grillesMap
   const monthContracts=contracts.filter(function(c){
     const dt=c.document_tracking||{};
     if(!dt.eligible_since) return false;
-    if(c.status==='ANNULE') return false;
+    if(c.status==='ANNULE'||c.status==='CLOTURE') return false;
     if(c.status==='RESILIE'&&!c.resiliation_after_payment) return false;
     if(c.status==='PAYE') return false; // déjà traité dans un mois gelé
     const d=new Date(dt.eligible_since);
@@ -915,7 +915,7 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh,year,setY
           ? contracts.filter(function(c){return pay.frozen_contract_ids.includes(c.id);})
           : contracts.filter(function(c){
           if(c.conseiller_id!==p.id) return false;
-          if(c.status==='ANNULE') return false;
+          if(c.status==='ANNULE'||c.status==='CLOTURE') return false;
           if(c.status==='PAYE') return false; // déjà traité dans un mois gelé
           const dt=c.document_tracking||{};
           if(!dt.eligible_since) return false;
@@ -933,7 +933,7 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh,year,setY
         const searchContracts=comSearch
           ? contracts.filter(function(c){
               if(c.conseiller_id!==p.id) return false;
-              if(c.status==='ANNULE') return false;
+              if(c.status==='ANNULE'||c.status==='CLOTURE') return false;
               const dt2=c.document_tracking||{};
               if(!dt2.eligible_since) return false;
               const q=comSearch.toLowerCase();
@@ -1547,7 +1547,7 @@ function SuiviObjectifsCard({objectifs,visibleActive,year,profile,filterCons,isD
   // CA cumulé Jan→upToMonth de l'année sélectionnée
   const caCumul=function(types){
     return sumCA(visibleActive.filter(function(c){
-      if(c.status==='ANNULE') return false;
+      if(c.status==='ANNULE'||c.status==='CLOTURE') return false;
       const d=new Date(c.emission_date);
       const m=d.getMonth()+1;
       return d.getFullYear()===year&&m>=1&&m<=upToMonth&&types.some(function(t){return c.contract_type===t;});
@@ -1712,7 +1712,7 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs,onOpenI
   const nbMois=mode==='mois'?(months.length>0?months.length:12):12;
 
   // Filtrer selon le rôle
-  const allActive=contracts.filter(function(c){return c.status!=='ANNULE'&&!(c.status==='RESILIE'&&!c.resiliation_after_payment);});
+  const allActive=contracts.filter(function(c){return c.status!=='ANNULE'&&c.status!=='CLOTURE'&&!(c.status==='RESILIE'&&!c.resiliation_after_payment);});
   const visibleActive=(isDir
     ? (filterCons?allActive.filter(function(c){return c.conseiller_id===filterCons;}):allActive)
     : allActive.filter(function(c){return c.conseiller_id===profile.id;}));
@@ -1900,7 +1900,7 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs,onOpenI
         {(function(){
           const today=new Date();
           const incomplets=contracts.filter(function(c){
-            if(c.status==='ANNULE'||c.status==='PAYE') return false;
+            if(c.status==='ANNULE'||c.status==='CLOTURE'||c.status==='PAYE') return false;
             if(c.document_tracking&&c.document_tracking.eligible_since) return false;
             if(isDir&&filterCons&&c.conseiller_id!==filterCons) return false;
             if(!isDir&&c.conseiller_id!==profile.id) return false;
@@ -2022,7 +2022,7 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs,onOpenI
           if(p.actif!==false) return true;
           return (rankContracts||contracts).some(function(c){return c.conseiller_id===p.id&&inPeriod(c,year,months);});
         });
-        const allActive2=(rankContracts||contracts).filter(function(c){return c.status!=='ANNULE';});
+        const allActive2=(rankContracts||contracts).filter(function(c){return c.status!=='ANNULE'&&c.status!=='CLOTURE';});
         const rankAll=allConseillers2.map(function(p){
           const mine=allActive2.filter(function(c){return c.conseiller_id===p.id&&inPeriod(c,year,months)&&!isExclu(c);});
           const prevMine=allActive2.filter(function(c){return c.conseiller_id===p.id&&inPeriod(c,prevY,months)&&!isExclu(c);});
@@ -2368,7 +2368,7 @@ function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,sort,setSort
                 {hasProb&&<span className="badge" style={{background:'#fee2e2',color:'#991b1b'}}>⚠ Problème</span>}
               </div></td>
               <td><span className="badge" style={{background:ps.bg,color:ps.tx}}>{ps.label}</span></td>
-              <td><span className="badge" style={{background:annOk?'#94a3b8':c.status==='ENCOURS'?'#dbeafe':c.status==='PAYE'?'#d1fae5':c.status==='RESILIE'?'#ede9fe':'#f3f4f6',color:annOk?'#fff':c.status==='ENCOURS'?'#1e40af':c.status==='PAYE'?'#065f46':c.status==='RESILIE'?'#5b21b6':'#374151'}}>{c.status}</span></td>
+              <td><span className="badge" style={{background:annOk?'#94a3b8':c.status==='ENCOURS'?'#dbeafe':c.status==='PAYE'?'#d1fae5':c.status==='RESILIE'?'#ede9fe':c.status==='CLOTURE'?'#f3f4f6':'#f3f4f6',color:annOk?'#fff':c.status==='ENCOURS'?'#1e40af':c.status==='PAYE'?'#065f46':c.status==='RESILIE'?'#5b21b6':c.status==='CLOTURE'?'#6b7280':'#374151'}}>{c.status}</span></td>
             </tr>;
           })}
         </tbody></table></div>}
@@ -3814,7 +3814,7 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,se
     const crit=rule.criteres||{};
     const result=contracts.filter(function(c){
       if(c.conseiller_id!==consId) return false;
-      if(c.status==='ANNULE'){return false;}
+      if(c.status==='ANNULE'||c.status==='CLOTURE'){return false;}
       if(crit.inclure_payes===false&&c.status==='PAYE'){return false;}
       // document_tracking peut être un objet ou un tableau selon le join Supabase
       const dt=Array.isArray(c.document_tracking)?(c.document_tracking[0]||{}):(c.document_tracking||{});
