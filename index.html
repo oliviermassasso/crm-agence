@@ -4230,13 +4230,14 @@ function PageResiliations({contracts,profiles,profile,sb,onRefresh,lastResiliati
         const motif=(row['Motif_Resiliation']||'').trim()||'-';
         const client=(row['Nom du compte']||'').trim();
         const cotisation=(row['Cotisation TTC']||'').trim();
+        const nomContrat=(row['Nom de Contrat']||'').trim();
         const matched=idx[numNorm]||[];
         const contrat=matched.length>0?matched[0]:null;
         const dejaResil=contrat&&contrat.status==='RESILIE';
         let dateISO=null;
         if(dateResil){const p=dateResil.trim().split('/');if(p.length===3)dateISO=p[2]+'-'+p[1].padStart(2,'0')+'-'+p[0].padStart(2,'0');}
         const action=matched.length===0?'introuvable':(dejaResil?'deja':'resilie');
-        return {numAxa,numNorm,client,dateResil,dateISO,motif,cotisation,matched:matched.length>0,nbMatches:matched.length,contrat,dejaResil,action};
+        return {numAxa,numNorm,client,dateResil,dateISO,motif,cotisation,nomContrat,matched:matched.length>0,nbMatches:matched.length,contrat,dejaResil,action};
       });
       // Dédoublonnage : garder la première occurrence de chaque N° normalisé
       const vus=new Set();
@@ -4250,12 +4251,18 @@ function PageResiliations({contracts,profiles,profile,sb,onRefresh,lastResiliati
     const aTraiter=apercu.filter(function(r){return r.action==='resilie'&&r.contrat;});
     if(aTraiter.length===0) return;
     setImporting(true);
-    let nbOk=0;
+    let nbOk=0;let premiereErreur=null;
     for(let i=0;i<aTraiter.length;i++){
       const r=aTraiter[i];
       const estPaye=r.contrat.status==='PAYE';
+      // Tentative 1 : update complet (nouvelles colonnes)
       const upd={status:'RESILIE',date_resiliation:r.dateISO||null,motif_resiliation:r.motif!=='-'?r.motif:null,resiliation_after_payment:estPaye};
-      const res=await sb.from('contracts').update(upd).eq('id',r.contrat.id);
+      let res=await sb.from('contracts').update(upd).eq('id',r.contrat.id);
+      if(res.error){
+        // Fallback : update minimal si colonnes SQL pas encore créées
+        if(!premiereErreur) premiereErreur=res.error.message;
+        res=await sb.from('contracts').update({status:'RESILIE'}).eq('id',r.contrat.id);
+      }
       if(!res.error){
         if(!estPaye){
           await sb.from('document_tracking').update({eligible_since:null}).eq('contract_id',r.contrat.id);
@@ -4267,7 +4274,7 @@ function PageResiliations({contracts,profiles,profile,sb,onRefresh,lastResiliati
     const ts=new Date().toISOString();
     await sb.from('resiliations_imports').insert({nb_total:apercu.length,nb_matches:aTraiter.length,nb_ignores:apercu.filter(function(r){return r.action==='introuvable';}).length,imported_by:profile.id,imported_at:ts});
     setLastResiliationImport(ts);
-    setImportResult({nbOk,nbTotal:aTraiter.length});
+    setImportResult({nbOk,nbTotal:aTraiter.length,erreur:premiereErreur});
     setApercu([]);
     setImporting(false);
     onRefresh();
@@ -4344,6 +4351,7 @@ function PageResiliations({contracts,profiles,profile,sb,onRefresh,lastResiliati
                     <tr>
                       <th>N° AXA</th>
                       <th>Client (AXA)</th>
+                      <th>Nom contrat AXA</th>
                       <th>Date résil.</th>
                       <th>Motif</th>
                       <th style={{textAlign:'right'}}>Cotisation</th>
@@ -4360,6 +4368,7 @@ function PageResiliations({contracts,profiles,profile,sb,onRefresh,lastResiliati
                         <tr key={i} style={{background:acBg}}>
                           <td style={{fontFamily:'monospace',fontSize:'11px',whiteSpace:'nowrap'}}>{r.numAxa}</td>
                           <td style={{fontSize:'12px',maxWidth:'150px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.client}</td>
+                          <td style={{fontSize:'11.5px',color:'#666',maxWidth:'130px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.nomContrat||'—'}</td>
                           <td style={{fontSize:'12px',whiteSpace:'nowrap'}}>{r.dateResil||'—'}</td>
                           <td style={{fontSize:'11.5px',color:'#555',maxWidth:'180px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={r.motif}>{r.motif}</td>
                           <td style={{fontSize:'12px',textAlign:'right',whiteSpace:'nowrap'}}>{r.cotisation}</td>
@@ -4381,6 +4390,7 @@ function PageResiliations({contracts,profiles,profile,sb,onRefresh,lastResiliati
               <div style={{fontSize:'28px',marginBottom:'8px'}}>✅</div>
               <div style={{fontSize:'15px',fontWeight:700,color:'#5b21b6',marginBottom:'4px'}}>Import terminé</div>
               <div style={{fontSize:'13px',color:'#7c3aed'}}>{importResult.nbOk} contrat{importResult.nbOk!==1?'s':''} résilié{importResult.nbOk!==1?'s':''} / {importResult.nbTotal} à traiter</div>
+              {importResult.erreur&&<div style={{marginTop:'10px',background:'#fef2f2',border:'1px solid #fecaca',borderRadius:'8px',padding:'10px 14px',fontSize:'12px',color:'#b91c1c',textAlign:'left'}}><b>⚠ Colonnes SQL manquantes en base.</b> Exécutez les requêtes SQL de migration dans Supabase (voir documentation du sprint 7). Erreur : {importResult.erreur}</div>}
               <button onClick={function(){setImportResult(null);}} style={{marginTop:'16px',padding:'7px 20px',fontSize:'13px',borderRadius:'8px',border:'1px solid #c4b5fd',background:'#fff',cursor:'pointer'}}>Nouvel import</button>
             </div>
           )}
