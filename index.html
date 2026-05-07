@@ -532,7 +532,7 @@ function App(){
     if(!qc.error) setQualiteConfig(qc.data||[]);
 
     setObjectifs(allObjectifs);
-    if(selectedId){
+    if(selectedId&&(active==='suivi-dossiers'||active==='mes-dossiers')){
       const updated=allContracts.find(function(c){return c.id===selectedId;});
       if(updated) setSelected(updated);
     }
