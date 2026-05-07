@@ -16,6 +16,8 @@ input,select,textarea{display:block;width:100%;padding:9px 12px;border:1px solid
 input:focus,select:focus,textarea:focus{border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,0.1);}
 button{padding:9px 16px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;color:#111;cursor:pointer;transition:all 0.15s;white-space:nowrap;}
 button.btn-refresh{border:none!important;background:transparent;padding:0;}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+.spinning{animation:spin 0.7s linear infinite;}
 button:hover:not(:disabled){background:#f3f4f6;}
 button:disabled{opacity:0.5;cursor:not-allowed;}
 .bp{background:#1d4ed8;color:#fff;border-color:#1d4ed8;font-weight:500;}
@@ -329,6 +331,8 @@ function App(){
   const [contracts,setContracts]=useState([]);
   const [preFilterIds,setPreFilterIds]=useState(null);
   const [hasUpdate,setHasUpdate]=useState(false);
+  const [refreshDone,setRefreshDone]=useState(false);
+  const [isRefreshing,setIsRefreshing]=useState(false);
   const today2=new Date();
   const [salYear,setSalYear]=useState(today2.getFullYear());
   const [salMonth,setSalMonth]=useState(today2.getMonth()+1);
@@ -673,12 +677,19 @@ function App(){
               <div style={{fontSize:'15px',fontWeight:600}}>CRM Agence</div>
               <div style={{fontSize:'11px',color:'#999',marginTop:'2px'}}>Assurance AXA</div>
             </div>
-            <button className="btn-refresh" onClick={function(){refresh();setHasUpdate(false);}} title="Rafraîchir les données" style={{width:'38px',height:'38px',padding:0,border:'none',outline:'none',borderRadius:'50%',background:'#3b6fc4',color:'#fff',position:'relative',flexShrink:0,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:hasUpdate?'0 0 0 3px #bfdbfe':'0 1px 3px rgba(0,0,0,0.2)'}}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M4.5 12C4.5 7.86 7.86 4.5 12 4.5C14.1 4.5 16 5.37 17.4 6.8L15 9H21V3L18.9 5.1C17.1 3.2 14.7 2 12 2C6.48 2 2.02 6.46 2 12H4.5Z" fill="white"/>
-                <path d="M19.5 12C19.5 16.14 16.14 19.5 12 19.5C9.9 19.5 8 18.63 6.6 17.2L9 15H3V21L5.1 18.9C6.9 20.8 9.3 22 12 22C17.52 22 21.98 17.54 22 12H19.5Z" fill="white"/>
-              </svg>
-              {hasUpdate&&<span style={{position:'absolute',top:'-2px',right:'-2px',width:'10px',height:'10px',borderRadius:'50%',background:'#dc2626',border:'2px solid #fff'}}/>}
+            <button className="btn-refresh" onClick={function(){
+              setIsRefreshing(true);setRefreshDone(false);setHasUpdate(false);
+              refresh();
+              setTimeout(function(){setIsRefreshing(false);setRefreshDone(true);setTimeout(function(){setRefreshDone(false);},2000);},1200);
+            }} title="Rafraîchir les données" style={{width:'38px',height:'38px',padding:0,border:'none',outline:'none',borderRadius:'50%',background:refreshDone?'#059669':'#3b6fc4',color:'#fff',position:'relative',flexShrink:0,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:hasUpdate?'0 0 0 3px #bfdbfe':'0 1px 3px rgba(0,0,0,0.2)',transition:'background 0.3s'}}>
+              {refreshDone
+                ? <span style={{fontSize:'16px',fontWeight:700}}>✓</span>
+                : <svg className={isRefreshing?'spinning':''} width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M4.5 12C4.5 7.86 7.86 4.5 12 4.5C14.1 4.5 16 5.37 17.4 6.8L15 9H21V3L18.9 5.1C17.1 3.2 14.7 2 12 2C6.48 2 2.02 6.46 2 12H4.5Z" fill="white"/>
+                    <path d="M19.5 12C19.5 16.14 16.14 19.5 12 19.5C9.9 19.5 8 18.63 6.6 17.2L9 15H3V21L5.1 18.9C6.9 20.8 9.3 22 12 22C17.52 22 21.98 17.54 22 12H19.5Z" fill="white"/>
+                  </svg>
+              }
+              {hasUpdate&&!isRefreshing&&!refreshDone&&<span style={{position:'absolute',top:'-2px',right:'-2px',width:'10px',height:'10px',borderRadius:'50%',background:'#dc2626',border:'2px solid #fff'}}/>}
             </button>
           </div>
         </div>
