@@ -2336,15 +2336,16 @@ function SuiviDossiers({contracts,profile,profiles,reads,lastMsgMap,sort,setSort
             const ps=payOpt(c.document_tracking);
             const hasProb=c.document_tracking&&c.document_tracking.has_problem;
             const annReq=c.annulation_requested;
-            const annOk=c.status==='ANNULE';
+            const annOk=c.status==='ANNULE'||c.status==='CLOTURE';
+            const isResilieLigne=c.status==='RESILIE';
             const fam=getFamily(c.contract_type);
             const lastMsg=lastMsgMap[c.id];
             const lastRead=reads[c.id];
             const hasUnread=lastMsg&&(!lastRead||new Date(lastMsg)>new Date(lastRead));
-            const rowBg=annOk?'#e2e8f0':annReq?'#cbd5e1':c.status==='PAYE'?'#f0fdf4':hasProb?'#fff5f5':'';
+            const rowBg=annOk?'#e2e8f0':annReq?'#cbd5e1':c.status==='PAYE'?'#f0fdf4':isResilieLigne?'#faf5ff':hasProb?'#fff5f5':'';
             const isDup=c.contract_number&&dupNums.has(normNum(c.contract_number));
-            const textColor=annOk?'#334155':annReq?'#334155':'#333';
-            const mutedColor=annOk?'#64748b':annReq?'#64748b':c.status==='PAYE'?'#166534':'#666';
+            const textColor=annOk?'#334155':annReq?'#334155':isResilieLigne?'#5b21b6':'#333';
+            const mutedColor=annOk?'#64748b':annReq?'#64748b':c.status==='PAYE'?'#166534':isResilieLigne?'#7c3aed':'#666';
             const isSelected=selectedId===c.id;
             return <tr key={c.id} onClick={function(){onSelect(c);}} style={{cursor:'pointer',background:isSelected?'#eff6ff':rowBg,color:textColor,boxShadow:isSelected?'inset 3px 0 0 #1d4ed8':''}}>
               <td style={{color:mutedColor,fontSize:'12.5px'}}>{c.conseiller&&c.conseiller.full_name?c.conseiller.full_name:'—'}</td>
@@ -2391,13 +2392,13 @@ function DetailPanel({contract,profile,profiles,sb,grilles,onClose,onRefresh}){
   const [payInfo,setPayInfo]=useState(null);
 
   useEffect(function(){
-    if(!isPaye) return;
+    if(!isPaye&&!(isResilie&&contract.resiliation_after_payment)) return;
     sb.from('commission_payments').select('paid_at,bs_month').eq('frozen',true)
       .contains('frozen_contract_ids',[contract.id]).limit(1)
       .then(function(res){
         if(res.data&&res.data.length>0) setPayInfo(res.data[0]);
       });
-  },[isPaye,contract.id,sb]);
+  },[isPaye,isResilie,contract.resiliation_after_payment,contract.id,sb]);
   const [editing,setEditing]=useState(false);
   const [editF,setEditF]=useState({client_name:contract.client_name,emission_date:contract.emission_date,effect_date:contract.effect_date,provenance:contract.provenance||'',annual_premium:contract.annual_premium||0,commission:calcBaseCommission(contract,grilles),conseiller_id:contract.conseiller_id,contract_type:contract.contract_type,contract_number:contract.contract_number,code_portefeuille:contract.code_portefeuille||''});
   const [saveErr,setSaveErr]=useState('');
@@ -2513,11 +2514,13 @@ function DetailPanel({contract,profile,profiles,sb,grilles,onClose,onRefresh}){
             <div style={{display:'flex',alignItems:'center',gap:'8px',flexWrap:'wrap'}}>
               {fam&&<span className="badge" style={{background:isAnnule||annReq?'#94a3b8':fam.color,color:'#fff',fontSize:'12.5px',padding:'4px 12px',fontWeight:600}}>{contract.contract_type}</span>}
               {isAnnule&&<span className="badge" style={{background:'#94a3b8',color:'#fff',fontSize:'12px'}}>ANNULÉ</span>}
-              {isResilie&&<span className="badge" style={{background:'#7c3aed',color:'#fff',fontSize:'12px'}}>RÉSILIÉ</span>}
+              {isResilie&&(function(){
+                const joursVie=(contract.date_resiliation&&contract.effect_date)
+                  ?Math.round((new Date(contract.date_resiliation)-new Date(contract.effect_date))/86400000):null;
+                return <span className="badge" style={{background:'#7c3aed',color:'#fff',fontSize:'12px'}}>RÉSILIÉ{joursVie!==null?' · '+joursVie+' j':''}</span>;
+              })()}
               {isResilie&&contract.date_resiliation&&<span style={{fontSize:'11.5px',color:'#5b21b6',fontWeight:500}}>le {fdate(contract.date_resiliation)}{contract.motif_resiliation&&contract.motif_resiliation!=='-'?' · '+contract.motif_resiliation:''}</span>}
-              {isPaye&&<span style={{fontSize:'12px',fontWeight:600,color:'#065f46',background:'#bbf7d0',padding:'3px 10px',borderRadius:'100px'}}>
-                ✓ Payé{payInfo&&payInfo.bs_month?' · '+payInfo.bs_month:''}
-              </span>}
+              {(isPaye||(isResilie&&contract.resiliation_after_payment))&&payInfo&&<span style={{fontSize:'12px',fontWeight:600,color:'#065f46',background:'#bbf7d0',padding:'3px 10px',borderRadius:'100px'}}>✓ Payé{payInfo.bs_month?' · '+payInfo.bs_month:''}</span>}
             </div>
           </div>
           <div style={{display:'flex',gap:'6px',alignItems:'center'}}>
@@ -3937,7 +3940,7 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,se
                         return(
                           <tr key={i} style={{borderBottom:'1px solid #f9fafb',background:checked[x.contract.id]?'#f0fdf4':'#fff',cursor:'pointer'}} onClick={function(){onSelect&&onSelect(x.contract);}}>
                             <td style={{padding:'6px 8px',textAlign:'center'}} onClick={function(e){e.stopPropagation();}}><SalaireCheckbox id={x.contract.id} checked={!!checked[x.contract.id]} onToggle={toggleCheck}/></td>
-                            <td style={{padding:'6px 8px',color:'#333',fontSize:'12px'}}>{x.contract.client_name}</td>
+                            <td style={{padding:'6px 8px',color:'#333',fontSize:'12px'}}>{x.contract.client_name}{x.contract.status==='RESILIE'&&<span className="badge" style={{background:'#ede9fe',color:'#5b21b6',fontSize:'10px',marginLeft:'4px',verticalAlign:'middle'}}>RÉSILIÉ</span>}</td>
                             <td style={{padding:'6px 8px',color:'#555',fontSize:'12px'}}>{x.contract.contract_type}</td>
                             <td style={{padding:'6px 8px',textAlign:'right',color:'#555',fontSize:'12px'}}>{feur0(x.contract.annual_premium||0)}</td>
                             <td style={{padding:'6px 8px',textAlign:'right',fontWeight:600,color:'#1d4ed8',fontSize:'12px'}}>{feurAuto(x.commission)}</td>
