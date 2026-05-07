@@ -928,7 +928,8 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh,year,setY
               </div>
             </div>
 
-            {openRows[p.id]&&<div style={{overflowX:'auto'}}>              <table>
+            {openRows[p.id]&&<div>
+            <div style={{overflowX:'auto'}}>              <table>
                 <thead><tr>
                   <th style={{width:'32px'}}></th><th>Client</th><th>Type</th><th>Prime annuelle</th><th>Taux / Fixe</th><th>Commission</th><th>Mono</th><th>Éligible depuis</th>
                 </tr></thead>
@@ -1001,7 +1002,7 @@ function Commissions({contracts,profiles,profile,sb,onSelect,onRefresh,year,setY
                 }
               </div>
             )}
-            }
+            </div>}
           </div>
         );
       })}
