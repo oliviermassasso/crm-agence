@@ -727,12 +727,12 @@ function App(){
         {active==='tableau-bord'&&<TableauBord contracts={contracts} rankContracts={rankContracts} profiles={profiles} profile={profile} objectifs={objectifs} onOpenIncomplete={function(ids){setPreFilterIds(ids);setActive('suivi-dossiers');}} qualiteConfig={qualiteConfig}/>}
         {active==='configuration'&&<Configuration sb={sb} profile={profile} profiles={profiles} grilles={grilles} setGrilles={setGrilles} objectifs={objectifs} setObjectifs={setObjectifs} primesConfig={primesConfig} setPrimesConfig={setPrimesConfig} qualiteConfig={qualiteConfig} setQualiteConfig={setQualiteConfig} onRefresh={refresh}/>}
         {active==='conges'&&<CongesPlaceholder profile={profile}/>}
-        {(active==='salaires'||active==='mes-salaires')&&<PageSalaire contracts={contracts} profiles={profiles} profile={profile} primesConfig={primesConfig} grilles={grilles} sb={sb} year={salYear} setYear={setSalYear} month={salMonth} setMonth={setSalMonth} selCons={salCons} setSelCons={setSalCons} checked={salChecked} setChecked={setSalChecked} qualiteConfig={qualiteConfig} onSelect={function(c){setSelected(c);setLastSelectedId(c.id);markRead(c.id);setActive(profile.role==='conseiller'?'mes-dossiers':'suivi-dossiers');}}/>}
+        {(active==='salaires'||active==='mes-salaires')&&<PageSalaire contracts={contracts} profiles={profiles} profile={profile} primesConfig={primesConfig} grilles={grilles} sb={sb} year={salYear} setYear={setSalYear} month={salMonth} setMonth={setSalMonth} selCons={salCons} setSelCons={setSalCons} checked={salChecked} setChecked={setSalChecked} qualiteConfig={qualiteConfig} onSelect={function(c){setSelected(c);setLastSelectedId(c.id);markRead(c.id);}}/>}
         {active==='utilisateurs'&&<Utilisateurs profile={profile} profiles={profiles} sb={sb} onRefresh={refresh}/>}
         {(active==='commissions'||active==='mes-commissions')&&<Commissions contracts={contracts} profiles={profiles} profile={profile} sb={sb} onSelect={function(c){setSelected(c);markRead(c.id);}} onRefresh={refresh} year={comYear} setYear={setComYearP} month={comMonth} setMonth={setComMonthP} selCons={comSelCons} setSelCons={setComSelConsP} comSearch={comSearch} setComSearch={setComSearch} grilles={grilles}/>}
         {!['saisir-contrat','suivi-dossiers','mes-dossiers','tableau-bord','commissions','mes-commissions','conges','utilisateurs','configuration','salaires','mes-salaires'].includes(active)&&<Placeholder nav={nav} active={active}/>}
       </div>
-      {selected&&['suivi-dossiers','mes-dossiers'].includes(active)&&<DetailPanel key={selected.id} contract={selected} profile={profile} profiles={profiles} sb={sb} grilles={grilles} onClose={function(){setSelected(null);}} onRefresh={refresh}/>}
+      {selected&&<DetailPanel key={selected.id} contract={selected} profile={profile} profiles={profiles} sb={sb} grilles={grilles} onClose={function(){setSelected(null);}} onRefresh={refresh}/>}
     </div>
   );
 }
@@ -2421,21 +2421,12 @@ function DetailPanel({contract,profile,profiles,sb,grilles,onClose,onRefresh}){
   async function setMsgStatus(id,status){await sb.from('contract_messages').update({resolved_status:status,is_resolved:status==='resolved'}).eq('id',id);await loadMsgs();}
   function TG(props){return <div className="cr"><span style={{fontSize:'13.5px',color:props.disabled?'#aaa':'#222'}}>{props.label}</span><label className="toggle"><input type="checkbox" checked={!!dt[props.field]} disabled={props.disabled||saving} onChange={function(e){updDt({[props.field]:e.target.checked});}}/><span className="slider" style={props.blackChecked&&dt[props.field]?{background:'#111'}:{}}></span></label></div>;}
   function IR(props){return <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'9px 0',borderBottom:'1px solid #f3f4f6',fontSize:'13.5px'}}><span style={{color:'#666'}}>{props.label}</span><span style={{fontWeight:500}}>{props.value}</span></div>;}
-  function eu(k,v){
-    setEditF(function(p){
-      const next=Object.assign({},p,{[k]:v});
-      if(k==='annual_premium'||k==='contract_type'){
-        const fakeC=Object.assign({},contract,{annual_premium:parseFloat(next.annual_premium)||0,contract_type:next.contract_type,manual_commission:null});
-        next.commission=calcBaseCommission(fakeC,grilles);
-      }
-      return next;
-    });
-  }
+  function eu(k,v){setEditF(function(p){return Object.assign({},p,{[k]:v});});}
   const fam=getFamily(contract.contract_type);
   const headerBg=isAnnule?'#e2e8f0':annReq?'#cbd5e1':dt.has_problem?'rgba(185,28,28,0.82)':isPaye?'#f0fdf4':'#fff';
   const headerTx=dt.has_problem?'#f3f4f6':isAnnule?'#334155':annReq?'#334155':isPaye?'#065f46':'#111';
   return(
-    <div className="overlay" onMouseDown={function(e){if(e.target===e.currentTarget)onClose();}}>
+    <div className="overlay" onClick={function(e){if(e.target===e.currentTarget)onClose();}}>
       <div className="panel">
         <div style={{padding:'16px 20px',borderBottom:'1px solid #e5e7eb',display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0,background:headerBg,transition:'background 0.2s'}}>
           <div>
@@ -2497,7 +2488,7 @@ function DetailPanel({contract,profile,profiles,sb,grilles,onClose,onRefresh}){
                 <div className="fg"><label>Provenance</label><select value={editF.provenance} onChange={function(e){eu('provenance',e.target.value);}}>{PROVS.map(function(p){return <option key={p} value={p}>{p}</option>;})}</select></div>
                 <div className="fg"><label>Code portefeuille</label><select value={editF.code_portefeuille} onChange={function(e){eu('code_portefeuille',e.target.value);}}><option value="">— Sélectionner —</option><option value="6025344">6025344 · Le Cannet</option><option value="6251044">6251044 · St Maximin</option><option value="6252044">6252044 · Lyon</option></select></div>
                 <div className="fg2">
-                  <div className="fg"><label>Prime annuelle (€){isLocked&&<span style={{color:'#aaa',fontSize:'11px',marginLeft:'6px'}}>— verrouillé</span>}</label><input type="number" value={editF.annual_premium} disabled={isLocked} onChange={function(e){eu('annual_premium',e.target.value);}} onMouseDown={function(e){e.stopPropagation();}} style={{background:isLocked?'#f9fafb':'',color:isLocked?'#aaa':''}}/></div>
+                  <div className="fg"><label>Prime annuelle (€){isLocked&&<span style={{color:'#aaa',fontSize:'11px',marginLeft:'6px'}}>— verrouillé</span>}</label><input type="number" value={editF.annual_premium} disabled={isLocked} onChange={function(e){eu('annual_premium',e.target.value);}} style={{background:isLocked?'#f9fafb':'',color:isLocked?'#aaa':''}}/></div>
                   <div className="fg"><label>Commission (€){isLocked&&<span style={{color:'#aaa',fontSize:'11px',marginLeft:'6px'}}>— verrouillé</span>}</label><input type="number" value={editF.commission} disabled={isLocked} onChange={function(e){eu('commission',e.target.value);}} style={{background:isLocked?'#f9fafb':'',color:isLocked?'#aaa':''}}/></div>
                 </div>
                 <div style={{display:'flex',gap:'8px',justifyContent:'flex-end'}}>
@@ -2514,7 +2505,7 @@ function DetailPanel({contract,profile,profiles,sb,grilles,onClose,onRefresh}){
                 <IR label="Date d'effet" value={fdate(contract.effect_date)}/>
                 <IR label="Provenance" value={contract.provenance||'—'}/>
                 <IR label="Prime annuelle" value={feur0(contract.annual_premium)}/>
-                {!isCollab&&<IR label="Commission calculée" value={feur(editing?editF.commission:calcBaseCommission(contract,grilles))}/>}
+                {!isCollab&&<IR label="Commission calculée" value={feur(calcBaseCommission(contract,grilles))}/>}
                 {contract.comments&&<IR label="Commentaire" value={contract.comments}/>}
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'9px 0',fontSize:'13.5px'}}>
                   <span style={{color:'#666'}}>Code portefeuille</span>
@@ -3053,6 +3044,7 @@ function PrimesConfig({sb,profile,profiles,primesConfig,setPrimesConfig,canEdit,
   const [saving,setSaving]=useState(false);
   const [ok,setOk]=useState('');
   const actifs=profiles.filter(function(p){return p.role!=='direction';});
+  const consIds=selCons?[selCons]:(isCollab?[profile.id]:(isDir?actifs.map(function(p){return p.id;}):([profile.id])));
   const rules=(primesConfig||[]).filter(function(r){return r.annee===annee;});
   const annees=[...new Set((primesConfig||[]).map(function(r){return r.annee;}))].sort(function(a,b){return b-a;});
   if(!annees.includes(annee)&&annees.length>0) annees.unshift(annee);
@@ -3631,8 +3623,60 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,se
   function togglePrimeRow(key){setOpenPrimes(function(p){return Object.assign({},p,{[key]:!p[key]});});}
   function toggleCheck(id){setChecked(function(p){return Object.assign({},p,{[id]:!p[id]});});}
 
-  const actifs=profiles.filter(function(p){return p.role!=='direction';});
-  const consIds=selCons?[selCons]:(isCollab?[profile.id]:(isDir?actifs.map(function(p){return p.id;}):([profile.id])));
+  async function gelPrimes(consId, primesData, totalPrimes, ncData, decoteNC){
+    setSaving(true);
+    const frozenPrimeData=primesData.map(function(x){
+      return {
+        nom:x.rule.nom,
+        realise:x.realise,
+        prime:x.prime,
+        atteint:x.atteint,
+        isPaliers:x.isPaliers,
+        seuil:x.rule.seuil,
+        seuil_type:x.rule.seuil_type,
+        paliers:x.rule.paliers||[],
+        contrats:(x.contrats||[]).map(function(c){return {id:c.id,client_name:c.client_name,contract_type:c.contract_type,annual_premium:c.annual_premium};})
+      };
+    });
+    const data={
+      total_primes:totalPrimes,
+      taux_nc:ncData?ncData.taux:0,
+      decote_nc:decoteNC||0,
+      frozen_prime_data:frozenPrimeData
+    };
+    const pay=payments&&payments[consId]&&payments[consId][month];
+    var r;
+    if(pay&&pay.id){
+      r=await sb.from('commission_payments').update(data).eq('id',pay.id);
+    } else {
+      r=await sb.from('commission_payments').insert(Object.assign({},data,{conseiller_id:consId,year:year,month:month}));
+    }
+    if(r&&r.error){alert('Erreur gel : '+r.error.message);setSaving(false);return;}
+    // Recharger payments
+    const res=await sb.from('commission_payments').select('*').eq('year',year);
+    const pm={};
+    (res.data||[]).forEach(function(p){
+      if(!pm[p.conseiller_id]) pm[p.conseiller_id]={};
+      pm[p.conseiller_id][p.month]=p;
+    });
+    setPayments(pm);
+    setSaving(false);
+  }
+
+  async function degelPrimes(consId){
+    const pay=payments&&payments[consId]&&payments[consId][month];
+    if(!pay||!pay.id) return;
+    setSaving(true);
+    await sb.from('commission_payments').update({total_primes:0,taux_nc:0,decote_nc:0,frozen_prime_data:[]}).eq('id',pay.id);
+    const res=await sb.from('commission_payments').select('*').eq('year',year);
+    const pm={};
+    (res.data||[]).forEach(function(p){
+      if(!pm[p.conseiller_id]) pm[p.conseiller_id]={};
+      pm[p.conseiller_id][p.month]=p;
+    });
+    setPayments(pm);
+    setSaving(false);
+  }
 
   function calcComForCons(consId){
     const pay=payments&&payments[consId]&&payments[consId][month];
@@ -3858,35 +3902,40 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,se
                 </div>
               )}
 
-              {/* Total + Décote NC */}
+              {/* Total + Décote NC + Gel */}
               <div style={{marginTop:'16px',paddingTop:'14px',borderTop:'2px solid #e5e7eb'}}>
                 {(function(){
+                  const pay=payments&&payments[d.profile.id]&&payments[d.profile.id][month];
+                  const primesGelees=pay&&pay.frozen_prime_data&&pay.frozen_prime_data.length>0;
                   const qRegle=(qualiteConfig||[]).find(function(r){return r.annee===year;});
                   const nc=qRegle?calcNC(contracts,d.profile.id,qRegle):null;
-                  const decote=nc&&nc.actif?Math.round(d.total*nc.taux/100*100)/100:0;
-                  const totalApresDecote=Math.round((d.total-decote)*100)/100;
+                  const totalPrimesAffiche=primesGelees?pay.total_primes:d.totalPrimes;
+                  const tauxNC=primesGelees?(pay.taux_nc||0):(nc?nc.taux:0);
+                  const decote=primesGelees?(pay.decote_nc||0):(nc&&nc.actif?Math.round(d.total*nc.taux/100*100)/100:0);
+                  const totalBrut=d.totalCom+totalPrimesAffiche;
+                  const totalNet=Math.round((totalBrut-decote)*100)/100;
+                  const ncAffiche=primesGelees?{taux:tauxNC,actif:decote>0,seuil:qRegle?qRegle.seuil:15,nbNonConf:nc?nc.nbNonConf:0,nbEncours:nc?nc.nbEncours:0,nonConformes:nc?nc.nonConformes:[]}:(nc||null);
                   return(
                     <div>
-                      <div style={{display:'flex',justifyContent:'flex-end',gap:'24px',fontSize:'13px',marginBottom:'10px',flexWrap:'wrap'}}>
+                      <div style={{display:'flex',justifyContent:'flex-end',gap:'24px',fontSize:'13px',marginBottom:'10px',flexWrap:'wrap',alignItems:'center'}}>
                         {d.totalCom>0&&<span style={{color:'#666'}}>Commissions : <b style={{color:'#1d4ed8'}}>{feur2(d.totalCom)}</b></span>}
-                        {d.totalPrimes>0&&<span style={{color:'#666'}}>Primes : <b style={{color:'#059669'}}>{feur2(d.totalPrimes)}</b></span>}
-                        <span style={{color:'#111',fontWeight:700,fontSize:'14px'}}>Total brut : {feur2(d.total)}</span>
+                        {totalPrimesAffiche>0&&<span style={{color:'#666'}}>Primes : <b style={{color:'#059669'}}>{feur2(totalPrimesAffiche)}</b></span>}
+                        <span style={{color:'#111',fontWeight:700,fontSize:'14px'}}>Total brut : {feur2(totalBrut)}</span>
+                        {primesGelees&&<span style={{fontSize:'11px',background:'#d1fae5',color:'#065f46',padding:'2px 8px',borderRadius:'4px',fontWeight:600}}>🔒 Primes gelées</span>}
                       </div>
-                      {nc&&(
-                        <div style={{border:'1px solid '+(nc.actif?'#fca5a5':'#d1fae5'),borderRadius:'8px',marginBottom:'10px',overflow:'hidden'}}>
-                          {/* Header accordéon NC */}
-                          <div onClick={function(){setOpenPrimes(function(prev){var k='nc-'+d.profile.id;return Object.assign({},prev,{[k]:!prev[k]});});}} style={{display:'flex',alignItems:'center',gap:'12px',padding:'10px 14px',background:nc.actif?'#fff5f5':'#f0fdf4',cursor:'pointer',userSelect:'none'}}>
-                            <span style={{fontSize:'12.5px',fontWeight:600,color:nc.actif?'#991b1b':'#065f46',flex:1}}>
-                              {nc.actif?'⚠':'✓'} Taux NC : {nc.taux.toFixed(1)}% — {nc.nbNonConf} non conforme{nc.nbNonConf>1?'s':''} / {nc.nbEncours} encours
+                      {ncAffiche&&(
+                        <div style={{border:'1px solid '+(ncAffiche.actif?'#fca5a5':'#d1fae5'),borderRadius:'8px',marginBottom:'10px',overflow:'hidden'}}>
+                          <div onClick={function(){setOpenPrimes(function(prev){var k='nc-'+d.profile.id;return Object.assign({},prev,{[k]:!prev[k]});});}} style={{display:'flex',alignItems:'center',gap:'12px',padding:'10px 14px',background:ncAffiche.actif?'#fff5f5':'#f0fdf4',cursor:'pointer',userSelect:'none'}}>
+                            <span style={{fontSize:'12.5px',fontWeight:600,color:ncAffiche.actif?'#991b1b':'#065f46',flex:1}}>
+                              {ncAffiche.actif?'⚠':'✓'} Taux NC : {tauxNC.toFixed(1)}% — {ncAffiche.nbNonConf} non conforme{ncAffiche.nbNonConf>1?'s':''} / {ncAffiche.nbEncours} encours
                             </span>
-                            <span style={{fontSize:'11px',color:'#888'}}>Seuil : {nc.seuil}%</span>
-                            {nc.actif&&<span style={{fontSize:'12px',color:'#dc2626',fontWeight:600}}>Décote : −{feur2(decote)} ({nc.taux.toFixed(1)}%)</span>}
-                            {nc.nonConformes.length>0&&<span style={{fontSize:'11px',color:'#aaa'}}>{openPrimes['nc-'+d.profile.id]?'▲':'▼'}</span>}
+                            <span style={{fontSize:'11px',color:'#888'}}>Seuil : {ncAffiche.seuil}%</span>
+                            {ncAffiche.actif&&<span style={{fontSize:'12px',color:'#dc2626',fontWeight:600}}>Décote : −{feur2(decote)} ({tauxNC.toFixed(1)}%)</span>}
+                            {ncAffiche.nonConformes&&ncAffiche.nonConformes.length>0&&<span style={{fontSize:'11px',color:'#aaa'}}>{openPrimes['nc-'+d.profile.id]?'▲':'▼'}</span>}
                           </div>
-                          {/* Détail dossiers non conformes */}
-                          {openPrimes['nc-'+d.profile.id]&&nc.nonConformes.length>0&&(
+                          {openPrimes['nc-'+d.profile.id]&&ncAffiche.nonConformes&&ncAffiche.nonConformes.length>0&&(
                             <div style={{borderTop:'1px solid #e5e7eb'}}>
-                              {nc.nonConformes.map(function(c){
+                              {ncAffiche.nonConformes.map(function(c){
                                 const dt=c.document_tracking||{};
                                 const manquants=[];
                                 if(!dt.rented_signed) manquants.push('non signé');
@@ -3904,12 +3953,28 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,se
                               })}
                             </div>
                           )}
-                          {nc.nonConformes.length===0&&<div style={{fontSize:'11.5px',color:'#059669',padding:'6px 14px'}}>✓ Tous les dossiers encours sont conformes</div>}
+                          {(!ncAffiche.nonConformes||ncAffiche.nonConformes.length===0)&&<div style={{fontSize:'11.5px',color:'#059669',padding:'6px 14px'}}>✓ Tous les dossiers encours sont conformes</div>}
                         </div>
                       )}
-                      {nc&&nc.actif&&(
+                      {decote>0&&(
                         <div style={{display:'flex',justifyContent:'flex-end',marginBottom:'8px'}}>
-                          <span style={{fontSize:'15px',fontWeight:700,color:'#1a1a1a'}}>Total net après décote : {feur2(totalApresDecote)}</span>
+                          <span style={{fontSize:'15px',fontWeight:700,color:'#1a1a1a'}}>Total net après décote : {feur2(totalNet)}</span>
+                        </div>
+                      )}
+                      {/* Bouton gel primes — direction uniquement */}
+                      {isDir&&(
+                        <div style={{display:'flex',justifyContent:'flex-end',gap:'8px',marginTop:'8px'}}>
+                          {primesGelees?(
+                            <button onClick={function(){degelPrimes(d.profile.id);}} disabled={saving} style={{fontSize:'12px',padding:'6px 14px',color:'#92400e',border:'1px solid #fde68a',background:'#fef9c3',borderRadius:'6px',cursor:'pointer'}}>
+                              🔓 Dégeler les primes
+                            </button>
+                          ):(
+                            <button onClick={function(){
+                              gelPrimes(d.profile.id,d.primes,d.totalPrimes,nc,nc&&nc.actif?Math.round(d.total*nc.taux/100*100)/100:0);
+                            }} disabled={saving} style={{fontSize:'12px',padding:'6px 16px',background:'#1d4ed8',color:'#fff',border:'none',borderRadius:'6px',cursor:'pointer',fontWeight:600}}>
+                              🔒 Geler les primes
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
