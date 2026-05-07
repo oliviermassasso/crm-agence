@@ -3044,7 +3044,6 @@ function PrimesConfig({sb,profile,profiles,primesConfig,setPrimesConfig,canEdit,
   const [saving,setSaving]=useState(false);
   const [ok,setOk]=useState('');
   const actifs=profiles.filter(function(p){return p.role!=='direction';});
-  const consIds=selCons?[selCons]:(isCollab?[profile.id]:(isDir?actifs.map(function(p){return p.id;}):([profile.id])));
   const rules=(primesConfig||[]).filter(function(r){return r.annee===annee;});
   const annees=[...new Set((primesConfig||[]).map(function(r){return r.annee;}))].sort(function(a,b){return b-a;});
   if(!annees.includes(annee)&&annees.length>0) annees.unshift(annee);
@@ -3678,6 +3677,9 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,se
     setPayments(pm);
     setSaving(false);
   }
+
+  const actifs=profiles.filter(function(p){return p.role!=='direction';});
+  const consIds=selCons?[selCons]:(isCollab?[profile.id]:(isDir?actifs.map(function(p){return p.id;}):([profile.id])));
 
   function calcComForCons(consId){
     const pay=payments&&payments[consId]&&payments[consId][month];
