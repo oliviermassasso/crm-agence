@@ -4238,7 +4238,10 @@ function PageResiliations({contracts,profiles,profile,sb,onRefresh,lastResiliati
         const action=matched.length===0?'introuvable':(dejaResil?'deja':'resilie');
         return {numAxa,numNorm,client,dateResil,dateISO,motif,cotisation,matched:matched.length>0,nbMatches:matched.length,contrat,dejaResil,action};
       });
-      setApercu(ap);setParsing(false);
+      // Dédoublonnage : garder la première occurrence de chaque N° normalisé
+      const vus=new Set();
+      const apDedup=ap.filter(function(r){if(vus.has(r.numNorm))return false;vus.add(r.numNorm);return true;});
+      setApercu(apDedup);setParsing(false);
     };
     reader.readAsText(file,'ISO-8859-1');
   }
