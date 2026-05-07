@@ -3856,23 +3856,32 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,se
               )}
 
               {/* Primes */}
-              {d.primes.length>0&&(
+              {(function(){
+                const pay=payments&&payments[d.profile.id]&&payments[d.profile.id][month];
+                const primesGelees=pay&&pay.frozen_prime_data&&pay.frozen_prime_data.length>0;
+                // Si gelé : utiliser snapshot, sinon calcul temps réel
+                const primesAAfficher=primesGelees
+                  ? pay.frozen_prime_data.map(function(f){return {rule:{nom:f.nom,seuil:f.seuil,seuil_type:f.seuil_type,paliers:f.paliers||[]},realise:f.realise,prime:f.prime,atteint:f.atteint,isPaliers:f.isPaliers,contrats:f.contrats||[]};})
+                  : d.primes;
+                const totalPrimesAAfficher=primesGelees?pay.total_primes:d.totalPrimes;
+                if(primesAAfficher.length===0) return null;
+                return(
                 <div>
                   <div style={{fontSize:'13px',fontWeight:700,color:'#fff',marginBottom:'8px',display:'flex',justifyContent:'space-between',alignItems:'center',background:'linear-gradient(to right,#059669,#047857)',padding:'8px 12px',borderRadius:'8px'}}>
                     <span>🏆 Primes <span style={{fontSize:'11px',color:'rgba(255,255,255,0.75)',fontWeight:400}}>(contrats de {MONTHS[month===1?11:month-2]} {month===1?year-1:year})</span></span>
-                    <span style={{fontWeight:700}}>{feur2(d.totalPrimes)}</span>
+                    <span style={{fontWeight:700}}>{feur2(totalPrimesAAfficher)}</span>
                   </div>
                   <div style={{border:'1px solid #e5e7eb',borderRadius:'8px',overflow:'hidden'}}>
-                    {d.primes.map(function(x,i){
+                    {primesAAfficher.map(function(x,i){
                       const primeKey=d.profile.id+'-'+i;
                       const isOpen=openPrimes[primeKey];
                       const seuilLabel=x.isPaliers?(x.atteint?(x.rule.paliers.slice().sort(function(a,b){return b.seuil-a.seuil;}).find(function(p){return x.realise>=p.seuil;})||{seuil:0}).seuil+'€ atteint':'1er palier '+x.rule.paliers.slice().sort(function(a,b){return a.seuil-b.seuil;})[0].seuil+'€'):(x.rule.seuil_type==='nb'?x.rule.seuil+' contrats':feur2(x.rule.seuil));
                       return(
-                        <div key={i} style={{borderBottom:i<d.primes.length-1?'1px solid #f3f4f6':''}}>
+                        <div key={i} style={{borderBottom:i<primesAAfficher.length-1?'1px solid #f3f4f6':''}}>
                           {/* Ligne règle cliquable */}
                           <div onClick={function(){setOpenPrimes(function(prev){return Object.assign({},prev,{[primeKey]:!prev[primeKey]});});}} style={{display:'flex',alignItems:'center',gap:'8px',padding:'8px 12px',background:x.atteint?'#f0fdf4':'#fff5f5',cursor:x.contrats.length>0?'pointer':'default',userSelect:'none'}}>
                             <span style={{fontSize:'12px',fontWeight:600,color:x.atteint?'#065f46':'#991b1b'}}>{x.atteint?'✅':'❌'} {x.rule.nom}</span>
-                            <span onClick={function(e){e.stopPropagation();setOpenPrimes(function(prev){var k='info-'+primeKey;return Object.assign({},prev,{[k]:!prev[k]});});}} title="Détail de la règle" style={{fontSize:'12px',color:'#94a3b8',cursor:'pointer',flexShrink:0,marginRight:'4px'}}>ℹ</span>
+                            {!primesGelees&&<span onClick={function(e){e.stopPropagation();setOpenPrimes(function(prev){var k='info-'+primeKey;return Object.assign({},prev,{[k]:!prev[k]});});}} title="Détail de la règle" style={{fontSize:'12px',color:'#94a3b8',cursor:'pointer',flexShrink:0,marginRight:'4px'}}>ℹ</span>}
                             <span style={{flex:1}}/>
                             <span style={{fontSize:'11px',color:'#888'}}>{x.rule.seuil_type==='nb'?x.realise+' contrats':feur2(x.realise)} / {seuilLabel}</span>
                             <span style={{fontSize:'12px',fontWeight:700,color:x.atteint?'#059669':'#aaa',minWidth:'60px',textAlign:'right'}}>{x.atteint?feur2(x.prime):'—'}</span>
@@ -3906,7 +3915,8 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,se
                     })}
                   </div>
                 </div>
-              )}
+                );
+              })()}
 
               {/* Total + Décote NC + Gel */}
               <div style={{marginTop:'16px',paddingTop:'14px',borderTop:'2px solid #e5e7eb'}}>
