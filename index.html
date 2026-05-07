@@ -3605,6 +3605,7 @@ function PageSalaire({contracts,profiles,profile,primesConfig,grilles,sb,year,se
   const [openComs,setOpenComs]=useState({});
   const [openPrimes,setOpenPrimes]=useState({});
   const [payments,setPayments]=useState({});
+  const [saving,setSaving]=useState(false);
 
   // Charger les paiements filtrés par année — simple et sans boucle
   React.useEffect(function(){
