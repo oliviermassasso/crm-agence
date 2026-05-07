@@ -2429,17 +2429,16 @@ function DetailPanel({contract,profile,profiles,sb,grilles,onClose,onRefresh}){
     <div className="overlay" onClick={function(e){if(e.target===e.currentTarget)onClose();}}>
       <div className="panel">
         <div style={{padding:'16px 20px',borderBottom:'1px solid #e5e7eb',display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0,background:headerBg,transition:'background 0.2s'}}>
-          <div>
-            <div style={{fontSize:'17px',fontWeight:700,color:headerTx,display:'flex',alignItems:'center',gap:'8px'}}>
-                {contract.client_name}
-                {isPaye&&<span style={{fontSize:'11.5px',fontWeight:600,color:'#065f46',background:'#bbf7d0',padding:'2px 8px',borderRadius:'100px'}}>
-                  ✓ Payé{payInfo&&payInfo.bs_month?' · '+payInfo.bs_month:''}
-                </span>}
-              </div>
-            <div style={{display:'flex',alignItems:'center',gap:'6px',marginTop:'4px',flexWrap:'wrap'}}>
-              <span style={{fontSize:'13px',color:isAnnule||annReq?'#64748b':'#aaa'}}>{contract.contract_number}</span>
-              {fam&&<span className="badge" style={{background:isAnnule||annReq?'#94a3b8':fam.color,color:'#fff',fontSize:'12px',padding:'3px 10px'}}>{contract.contract_type}</span>}
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:'18px',fontWeight:700,color:headerTx,lineHeight:1.2,marginBottom:'6px'}}>
+              {contract.client_name}
+            </div>
+            <div style={{display:'flex',alignItems:'center',gap:'8px',flexWrap:'wrap'}}>
+              {fam&&<span className="badge" style={{background:isAnnule||annReq?'#94a3b8':fam.color,color:'#fff',fontSize:'12.5px',padding:'4px 12px',fontWeight:600}}>{contract.contract_type}</span>}
               {isAnnule&&<span className="badge" style={{background:'#94a3b8',color:'#fff',fontSize:'12px'}}>ANNULÉ</span>}
+              {isPaye&&<span style={{fontSize:'12px',fontWeight:600,color:'#065f46',background:'#bbf7d0',padding:'3px 10px',borderRadius:'100px'}}>
+                ✓ Payé{payInfo&&payInfo.bs_month?' · '+payInfo.bs_month:''}
+              </span>}
             </div>
           </div>
           <div style={{display:'flex',gap:'6px',alignItems:'center'}}>
