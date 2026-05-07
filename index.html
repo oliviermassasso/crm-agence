@@ -756,7 +756,7 @@ function App(){
       <div style={{flex:1,overflow:'auto',background:'#f9fafb'}}>
         {active==='saisir-contrat'&&<FormContrat sb={sb} profile={profile} profiles={profiles} grilles={grilles} onSaved={function(){refresh();setActive(profile.role==='conseiller'?'mes-dossiers':'suivi-dossiers');}}/>}
         {(active==='suivi-dossiers'||active==='mes-dossiers')&&<SuiviDossiers contracts={contracts} profile={profile} profiles={profiles} reads={reads} lastMsgMap={lastMsgMap} sort={sort} setSort={setSortP} fCons={fCons} setFCons={setFConsP} fYear={fYear} setFYear={setFYearP} fMonth={fMonth} setFMonth={setFMonthP} fType={fType} setFType={setFTypeP} fStat={fStat} setFStat={setFStatP} fDoss={fDoss} setFDoss={setFDossP} fPay={fPay} setFPay={setFPayP} fDup={fDup} setFDup={setFDupP} search={search} setSearch={setSearch} selectedId={lastSelectedId} preFilterIds={preFilterIds} onClearPreFilter={function(){setPreFilterIds(null);}} onSelect={function(c){setSelected(c);setLastSelectedId(c.id);markRead(c.id);}} onNew={function(){setActive('saisir-contrat');}}/>}
-        {active==='tableau-bord'&&<TableauBord contracts={contracts} rankContracts={rankContracts} profiles={profiles} profile={profile} objectifs={objectifs} onOpenIncomplete={function(ids){setPreFilterIds(ids);setActive('suivi-dossiers');}} qualiteConfig={qualiteConfig} lastResiliationImport={lastResiliationImport}/>}
+        {active==='tableau-bord'&&<TableauBord contracts={contracts} rankContracts={rankContracts} profiles={profiles} profile={profile} objectifs={objectifs} onOpenIncomplete={function(ids){setPreFilterIds(ids);setActive('suivi-dossiers');}} qualiteConfig={qualiteConfig} lastResiliationImport={lastResiliationImport} sb={sb} grilles={grilles} primesConfig={primesConfig}/>}
         {active==='configuration'&&<Configuration sb={sb} profile={profile} profiles={profiles} grilles={grilles} setGrilles={setGrilles} objectifs={objectifs} setObjectifs={setObjectifs} primesConfig={primesConfig} setPrimesConfig={setPrimesConfig} qualiteConfig={qualiteConfig} setQualiteConfig={setQualiteConfig} onRefresh={refresh}/>}
         {active==='conges'&&<CongesPlaceholder profile={profile}/>}
         {(active==='salaires'||active==='mes-salaires')&&<PageSalaire contracts={contracts} profiles={profiles} profile={profile} primesConfig={primesConfig} grilles={grilles} sb={sb} year={salYear} setYear={setSalYear} month={salMonth} setMonth={setSalMonth} selCons={salCons} setSelCons={setSalCons} checked={salChecked} setChecked={setSalChecked} qualiteConfig={qualiteConfig} onSelect={function(c){setSelected(c);setLastSelectedId(c.id);markRead(c.id);}}/>}
@@ -1691,7 +1691,7 @@ function IncompletBadge({count,color,bg,label,ids,onOpen}){
   </div>;
 }
 
-function TableauBord({contracts,rankContracts,profiles,profile,objectifs,onOpenIncomplete,qualiteConfig,lastResiliationImport}){
+function TableauBord({contracts,rankContracts,profiles,profile,objectifs,onOpenIncomplete,qualiteConfig,lastResiliationImport,sb,grilles,primesConfig}){
   const now=new Date();
   const [year,setYear]=useState(now.getFullYear());
   const [months,setMonths]=useState([now.getMonth()+1]); // tableau de mois sélectionnés
@@ -2097,9 +2097,199 @@ function TableauBord({contracts,rankContracts,profiles,profile,objectifs,onOpenI
         <div style={{fontSize:'13px',fontWeight:600,marginBottom:'20px',textAlign:'center'}}>CA cumulé mensuel par année</div>
         <CumulChart data={cumulData} years={allYears}/>
       </div>
+      {/* Rémunération variable */}
+      {sb&&<CarteRemuneration contracts={contracts} profiles={profiles} profile={profile} sb={sb} grilles={grilles} primesConfig={primesConfig} qualiteConfig={qualiteConfig} isDir={isDir}/>}
     </div>
   );
 }
+
+/* ══ CARTE RÉMUNÉRATION ══ */
+function CarteRemuneration({contracts,profiles,profile,sb,grilles,primesConfig,qualiteConfig,isDir}){
+  const now=new Date();
+  const [year,setYear]=useState(now.getFullYear());
+  const [filterCons,setFilterCons]=useState('');
+  const [payments,setPayments]=useState([]);
+  const [paymentsN1,setPaymentsN1]=useState([]);
+  const [hovM,setHovM]=useState(null);
+
+  useEffect(function(){
+    sb.from('commission_payments').select('*').eq('year',year).then(function(r){setPayments(r.data||[]);});
+    sb.from('commission_payments').select('*').eq('year',year-1).then(function(r){setPaymentsN1(r.data||[]);});
+  },[sb,year]);
+
+  const curMonth=now.getMonth()+1;
+  const curYear=now.getFullYear();
+
+  // Conseillers ciblés
+  const actifProfiles=profiles.filter(function(p){return p.role!=='direction'&&p.actif!==false;});
+  const consIds=isDir
+    ?(filterCons?[filterCons]:actifProfiles.map(function(p){return p.id;}))
+    :[profile.id];
+
+  // paidAtMap pour calcMonthCommissions (mois déjà gelés)
+  const paidAtMap={};
+  payments.forEach(function(p){
+    if(p.frozen&&p.paid_at){
+      if(!paidAtMap[p.conseiller_id]) paidAtMap[p.conseiller_id]={};
+      paidAtMap[p.conseiller_id][p.month]=p.paid_at;
+    }
+  });
+
+  // Données par mois
+  const moisData=MONTHS.map(function(ml,i){
+    const m=i+1;
+    const mp=payments.filter(function(p){return p.month===m&&consIds.includes(p.conseiller_id)&&p.frozen;});
+    const coms=mp.reduce(function(s,p){return s+(p.total_com||0);},0);
+    const primes=mp.reduce(function(s,p){return s+(p.total_primes||0);},0);
+    const decote=mp.reduce(function(s,p){return s+(p.decote_nc||0);},0);
+    const net=Math.round((coms+primes-decote)*100)/100;
+    const isPaid=mp.length>0;
+
+    // Mois en cours non gelé → estimation temps réel
+    let comsEst=0;
+    const isCurrent=year===curYear&&m===curMonth;
+    if(isCurrent&&!isPaid){
+      const profsCible=profiles.filter(function(p){return consIds.includes(p.id);});
+      const computed=calcMonthCommissions(contracts,profsCible.length>0?profsCible:profiles,year,m,paidAtMap,grilles);
+      Object.values(computed).forEach(function(r){comsEst+=r.baseCom||0;});
+    }
+
+    // N-1
+    const mpN1=paymentsN1.filter(function(p){return p.month===m&&consIds.includes(p.conseiller_id)&&p.frozen;});
+    const n1=mpN1.reduce(function(s,p){return s+(p.total_com||0)+(p.total_primes||0)-(p.decote_nc||0);},0);
+
+    return {m,ml,coms,primes,decote,net,isPaid,isCurrent,comsEst,n1};
+  });
+
+  // KPIs
+  const payesMois=moisData.filter(function(d){return d.isPaid;});
+  const ytd=payesMois.reduce(function(s,d){return s+d.net;},0);
+  const avg=payesMois.length>0?Math.round(ytd/payesMois.length):0;
+  const bestVal=payesMois.length>0?Math.max.apply(null,payesMois.map(function(d){return d.net;})):0;
+  const bestMois=payesMois.find(function(d){return d.net===bestVal;});
+  const ytdN1=moisData.filter(function(d){return d.n1>0;}).reduce(function(s,d){return s+d.n1;},0);
+  const evoYtd=ytdN1>0?Math.round((ytd-ytdN1)/ytdN1*100):null;
+
+  // SVG chart
+  const H=150,BAR_W=26,GAP=10,PAD_L=40,PAD_R=10,PAD_T=16,PAD_B=32;
+  const maxVal=Math.max.apply(null,moisData.map(function(d){return Math.max(d.coms+d.primes+Math.max(0,(d.comsEst||0)),d.n1||0);})) || 1;
+  const svgW=12*(BAR_W+GAP)+PAD_L+PAD_R;
+  const svgH=H+PAD_T+PAD_B;
+  const scaleY=function(v){return H+PAD_T-Math.round(v/maxVal*H);};
+
+  // Points ligne N-1
+  const n1Points=moisData.map(function(d,i){
+    const x=PAD_L+i*(BAR_W+GAP)+BAR_W/2;
+    const y=d.n1>0?scaleY(d.n1):null;
+    return {x,y,v:d.n1};
+  });
+  const n1Path=n1Points.reduce(function(path,pt,i){
+    if(pt.y===null) return path;
+    const prev=n1Points.slice(0,i).reverse().find(function(p){return p.y!==null;});
+    if(!prev) return 'M'+pt.x+' '+pt.y;
+    return path+' L'+pt.x+' '+pt.y;
+  },'');
+
+  return(
+    <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:'10px',padding:'20px 22px',marginTop:'16px'}}>
+      {/* Header */}
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'16px',flexWrap:'wrap',gap:'8px'}}>
+        <div style={{fontSize:'13px',fontWeight:600,color:'#111'}}>Rémunération variable</div>
+        <div style={{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}}>
+          {isDir&&<select value={filterCons} onChange={function(e){setFilterCons(e.target.value);}} style={{width:'auto',padding:'5px 9px',fontSize:'12px'}}>
+            <option value="">Tous les conseillers</option>
+            {actifProfiles.map(function(p){return <option key={p.id} value={p.id}>{p.full_name}</option>;})}
+          </select>}
+          <select value={year} onChange={function(e){setYear(parseInt(e.target.value));}} style={{width:'auto',padding:'5px 9px',fontSize:'12px'}}>
+            {[2021,2022,2023,2024,2025,2026].map(function(y){return <option key={y} value={y}>{y}</option>;})}
+          </select>
+        </div>
+      </div>
+
+      {/* KPIs */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'10px',marginBottom:'18px'}}>
+        {[
+          {label:'Total payé YTD',val:feur0(ytd),sub:evoYtd!==null?'N-1 : '+feur0(ytdN1)+' '+(evoYtd>=0?'▲ ':'▼ ')+Math.abs(evoYtd)+'%':'—',subColor:evoYtd===null?'#aaa':evoYtd>=0?'#059669':'#dc2626'},
+          {label:'Moyenne mensuelle',val:feur0(avg),sub:payesMois.length+' mois payé'+(payesMois.length!==1?'s':''),subColor:'#888'},
+          {label:'Meilleur mois',val:bestVal>0?feur0(bestVal):'—',sub:bestMois?bestMois.ml+' '+year:'—',subColor:'#888'},
+        ].map(function(kpi,i){return(
+          <div key={i} style={{background:'#f9fafb',borderRadius:'8px',padding:'12px 14px'}}>
+            <div style={{fontSize:'10.5px',color:'#888',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.4px',marginBottom:'4px'}}>{kpi.label}</div>
+            <div style={{fontSize:'20px',fontWeight:700,marginBottom:'2px'}}>{kpi.val}</div>
+            <div style={{fontSize:'11px',color:kpi.subColor,fontWeight:kpi.subColor!=='#888'&&kpi.subColor!=='#aaa'?600:400}}>{kpi.sub}</div>
+          </div>
+        );})}
+      </div>
+
+      {/* Légende */}
+      <div style={{display:'flex',gap:'14px',marginBottom:'8px',fontSize:'11.5px',color:'#666',flexWrap:'wrap'}}>
+        <span style={{display:'flex',alignItems:'center',gap:'4px'}}><span style={{width:'10px',height:'10px',borderRadius:'2px',background:'#1d4ed8',display:'inline-block'}}/> Commissions</span>
+        <span style={{display:'flex',alignItems:'center',gap:'4px'}}><span style={{width:'10px',height:'10px',borderRadius:'2px',background:'#059669',display:'inline-block'}}/> Primes</span>
+        <span style={{display:'flex',alignItems:'center',gap:'4px'}}><span style={{width:'18px',height:'0',borderTop:'2px dashed #d97706',display:'inline-block',verticalAlign:'middle'}}/> N-1</span>
+        <span style={{display:'flex',alignItems:'center',gap:'4px',opacity:0.6}}><span style={{width:'10px',height:'10px',borderRadius:'2px',background:'#1d4ed8',display:'inline-block',opacity:0.3,border:'1px dashed #1d4ed8'}}/> Mois en cours (estim.)</span>
+      </div>
+
+      {/* SVG Chart */}
+      <div style={{overflowX:'auto'}}>
+        <svg width={svgW} height={svgH} viewBox={'0 0 '+svgW+' '+svgH} style={{display:'block',overflow:'visible',minWidth:'320px',width:'100%'}}>
+          {/* Lignes grille */}
+          {[0.25,0.5,0.75,1].map(function(p,i){
+            const y=scaleY(maxVal*p);
+            return <g key={i}>
+              <line x1={PAD_L} y1={y} x2={svgW-PAD_R} y2={y} stroke="#f3f4f6" strokeWidth="1"/>
+              <text x={PAD_L-4} y={y+4} textAnchor="end" fontSize="9" fill="#bbb">{Math.round(maxVal*p/1000)}k</text>
+            </g>;
+          })}
+
+          {/* Barres */}
+          {moisData.map(function(d,i){
+            const x=PAD_L+i*(BAR_W+GAP);
+            const isHov=hovM===i;
+            const h_coms=Math.max(0,Math.round(d.coms/maxVal*H));
+            const h_primes=Math.max(0,Math.round(d.primes/maxVal*H));
+            const h_est=Math.max(0,Math.round((d.comsEst||0)/maxVal*H));
+            const y_coms=H+PAD_T-h_coms;
+            const y_primes=y_coms-h_primes;
+
+            return(
+              <g key={i}
+                onMouseEnter={function(){setHovM(i);}}
+                onMouseLeave={function(){setHovM(null);}}>
+                {/* Barre commissions */}
+                {d.isPaid&&h_coms>0&&<rect x={x} y={y_coms} width={BAR_W} height={h_coms} fill={isHov?'#1e40af':'#1d4ed8'} rx="2" style={{transition:'fill 0.1s'}}/>}
+                {/* Barre primes */}
+                {d.isPaid&&h_primes>0&&<rect x={x} y={y_primes} width={BAR_W} height={h_primes} fill={isHov?'#047857':'#059669'} rx="2" style={{transition:'fill 0.1s'}}/>}
+                {/* Estimation mois en cours */}
+                {d.isCurrent&&!d.isPaid&&h_est>0&&<rect x={x} y={H+PAD_T-h_est} width={BAR_W} height={h_est} fill="rgba(29,78,216,0.18)" stroke="#1d4ed8" strokeWidth="1" strokeDasharray="3,2" rx="2"/>}
+
+                {/* Valeur au survol */}
+                {isHov&&(d.isPaid||d.isCurrent)&&(
+                  <g>
+                    <rect x={x-8} y={PAD_T-2} width={BAR_W+16} height={36} fill="#1f2937" rx="4"/>
+                    <text x={x+BAR_W/2} y={PAD_T+10} textAnchor="middle" fontSize="9" fontWeight="700" fill="#fff">{feur0(d.isPaid?d.net:d.comsEst)}</text>
+                    {d.isPaid&&d.primes>0&&<text x={x+BAR_W/2} y={PAD_T+20} textAnchor="middle" fontSize="8" fill="#6ee7b7">primes: {feur0(d.primes)}</text>}
+                    {!d.isPaid&&<text x={x+BAR_W/2} y={PAD_T+20} textAnchor="middle" fontSize="8" fill="#93c5fd">estimé</text>}
+                    {d.isPaid&&d.decote>0&&<text x={x+BAR_W/2} y={PAD_T+30} textAnchor="middle" fontSize="8" fill="#fca5a5">-{feur0(d.decote)}</text>}
+                  </g>
+                )}
+
+                {/* Label mois */}
+                <text x={x+BAR_W/2} y={H+PAD_T+12} textAnchor="middle" fontSize="9" fill={isHov?'#1d4ed8':'#999'} fontWeight={isHov?600:400}>{d.ml}</text>
+              </g>
+            );
+          })}
+
+          {/* Ligne N-1 */}
+          {n1Path&&<path d={n1Path} stroke="#d97706" strokeWidth="1.5" strokeDasharray="5,3" fill="none"/>}
+          {n1Points.map(function(pt,i){
+            return pt.y!==null?<circle key={i} cx={pt.x} cy={pt.y} r="2.5" fill="#d97706" opacity="0.8"/>:null;
+          })}
+        </svg>
+      </div>
+    </div>
+  );
+}
+
 function FormContrat({sb,profile,profiles,grilles,onSaved}){
   function mk(){return {client_name:'',contract_number:'',emission_date:today(),effect_date:'',contract_type:'',provenance:'',annual_premium:'',comments:'',code_portefeuille:'',conseiller_id:profile.id};}
   const [f,setF]=useState(mk());
